@@ -21,6 +21,17 @@ service cloud.firestore {
         allow read, write: if request.auth != null
           && exists(/databases/$(database)/documents/rooms/$(room));
       }
+
+      match /shopping/{id} {
+        allow read, write: if request.auth != null
+          && exists(/databases/$(database)/documents/rooms/$(room));
+      }
+
+      // Rundenzähler für "Neue Runde starten"
+      match /meta/{id} {
+        allow read, write: if request.auth != null
+          && exists(/databases/$(database)/documents/rooms/$(room));
+      }
     }
   }
 }

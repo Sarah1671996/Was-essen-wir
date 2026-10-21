@@ -201,6 +201,18 @@ dialog::backdrop { background: rgba(10, 20, 14, .5); }
 .row.done .t { text-decoration: line-through; color: var(--muted); }
 .row.done { opacity: .75; }
 .round { margin-top: 12px; }
+.filterbar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
+.filterbar::-webkit-scrollbar { display: none; }
+.fchip {
+  flex: none; border: 1px solid var(--line); background: var(--surface); color: var(--muted);
+  border-radius: 999px; padding: 6px 12px; font-weight: 600; font-size: .82rem; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.fchip[aria-pressed="true"] { background: var(--basil); border-color: var(--basil); color: var(--basil-ink); }
+.ext-link {
+  display: block; text-align: center; text-decoration: none; padding: 12px; border-radius: 12px;
+  background: var(--chip); color: var(--ink); font-weight: 600;
+}
 .recipe-link { color: var(--basil); font-weight: 600; overflow-wrap: anywhere; }
 
 .toast {

@@ -64,6 +64,11 @@ async function firebaseStore() {
           list.forEach(d => batch.set(fs.doc(col(c)), d));
           await batch.commit();
         },
+        async updateMany(c, changes) {
+          const batch = fs.writeBatch(db);
+          changes.forEach(({ id, data }) => batch.update(fs.doc(base, c, id), data));
+          await batch.commit();
+        },
         async replace(c, removeIds, list) {
           const batch = fs.writeBatch(db);
           removeIds.forEach(id => batch.delete(fs.doc(base, c, id)));
@@ -118,6 +123,9 @@ function localStore() {
         async update(c, id, data) { change(r => { Object.assign(r[c][id], data); }); },
         async remove(c, id) { change(r => { delete r[c][id]; }); },
         async addMany(c, items) { change(r => items.forEach(d => { r[c][randomCode(12)] = d; })); },
+        async updateMany(c, changes) {
+          change(r => changes.forEach(({ id, data }) => Object.assign(r[c][id], data)));
+        },
         async replace(c, removeIds, items) {
           change(r => {
             removeIds.forEach(id => { delete r[c][id]; });

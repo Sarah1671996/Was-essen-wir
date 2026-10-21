@@ -47,6 +47,7 @@ function paint(node, d, emojiClass = "emo") {
 }
 function metaChips(d) {
   const box = el("div", "meta");
+  if (d.course) box.appendChild(el("span", "chip", d.course));
   if (d.cuisine) box.appendChild(el("span", "chip", d.cuisine));
   if (d.mins) box.appendChild(el("span", "chip", `ca. ${d.mins} Min.`));
   if (d.ingredients || d.steps || d.link) box.appendChild(el("span", "chip", "Rezept"));
@@ -147,10 +148,11 @@ function enterRoom() {
   unsubs.forEach(u => u());
   S.votesLoaded = false;
   S.roundLoaded = false;
+  starterSynced = false;
   room = store.room(S.code);
   const onErr = e => { console.error(e); toast("Verbindung unterbrochen. Lade die App neu."); };
   unsubs = [
-    room.watch("dishes", list => { S.dishes = list; renderAll(); }, { field: "createdAt" }, onErr),
+    room.watch("dishes", list => { S.dishes = list; syncStarterData(); renderAll(); }, { field: "createdAt" }, onErr),
     room.watch("members", list => {
       S.members = list;
       const mine = list.find(m => m.id === S.uid);
@@ -173,6 +175,24 @@ function enterRoom() {
     }, null, onErr)
   ];
   renderAll();
+}
+
+// Startgerichte, die vor dem Zutaten-Import angelegt wurden, bekommen Kategorie und Zutaten nachgetragen.
+// Läuft einmal pro Start; selbst eingetragene Zutaten werden nie überschrieben.
+let starterSynced = false;
+function syncStarterData() {
+  if (starterSynced || !S.dishes.length) return;
+  starterSynced = true;
+  const byName = new Map(STARTER_DISHES.map(d => [d.name, d]));
+  const changes = S.dishes
+    .filter(d => d.starter && d.course === undefined && byName.has(d.name))
+    .map(d => {
+      const s = byName.get(d.name);
+      const data = { course: s.course || "" };
+      if (!d.ingredients && s.ingredients) data.ingredients = s.ingredients;
+      return { id: d.id, data };
+    });
+  if (changes.length) room.updateMany("dishes", changes).catch(e => console.error(e));
 }
 
 // Hat jemand eine neue Runde gestartet, leert dieses Handy seine eigenen Swipes
@@ -203,9 +223,31 @@ async function saveMe() {
 }
 
 /* ---------- Swipen ---------- */
+/* Kategorie-Filter für den Stapel (pro Gerät gespeichert) */
+const NO_COURSE = "Ohne Kategorie";
+const courseOf = d => (d.course || "").trim() || NO_COURSE;
+let filter = ls.get("em.filter") || "Alle";
+function renderFilter() {
+  const bar = $("#filterBar");
+  const counts = {};
+  S.dishes.forEach(d => { const c = courseOf(d); counts[c] = (counts[c] || 0) + 1; });
+  const courses = Object.keys(counts).sort((a, b) =>
+    (a === NO_COURSE) - (b === NO_COURSE) || (b === "Hauptgericht") - (a === "Hauptgericht") || a.localeCompare(b, "de"));
+  if (filter !== "Alle" && !counts[filter]) filter = "Alle";
+  bar.hidden = courses.length < 2;
+  bar.textContent = "";
+  ["Alle", ...courses].forEach(c => {
+    const open = S.dishes.filter(d => !(d.id in S.myVotes) && (c === "Alle" || courseOf(d) === c)).length;
+    const b = el("button", "fchip", `${c} · ${open}`);
+    b.setAttribute("aria-pressed", c === filter);
+    b.onclick = () => { filter = c; ls.set("em.filter", c); renderFilter(); renderDeck(true); };
+    bar.appendChild(b);
+  });
+}
 function deckQueue() {
   return S.dishes
     .filter(d => !(d.id in S.myVotes))
+    .filter(d => filter === "Alle" || courseOf(d) === filter)
     .sort((a, b) => (b.id === S.front) - (a.id === S.front) || hash(S.salt + a.id) - hash(S.salt + b.id));
 }
 let deckKey = "";
@@ -221,6 +263,12 @@ function renderDeck(force = false) {
     const box = el("div", "empty");
     if (!S.dishes.length) {
       box.append(el("strong", null, "Noch keine Gerichte"), el("span", null, "Leg unter „Gerichte“ das erste an."));
+    } else if (filter !== "Alle" && S.dishes.some(d => !(d.id in S.myVotes))) {
+      box.append(el("strong", null, `${filter}: alles durchgeswipt`),
+        el("span", null, "In anderen Kategorien warten noch Gerichte."));
+      const b = el("button", "btn", "Alle Kategorien zeigen");
+      b.onclick = () => { filter = "Alle"; ls.set("em.filter", filter); renderFilter(); renderDeck(true); };
+      box.appendChild(b);
     } else {
       box.append(el("strong", null, "Alles durchgeswipt"),
         el("span", null, "Schau bei den Matches, was ihr beide wollt, oder leg neue Gerichte an."));
@@ -466,6 +514,41 @@ function renderDishes() {
 $("#dishSearch").addEventListener("input", renderDishes);
 $("#newDishBtn").onclick = () => openForm();
 
+/* ---------- Was kann ich mit meinen Zutaten kochen? ---------- */
+const norm = s => (s || "").toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
+// Grober Wortstamm, damit "Zwiebel" auch "Zwiebeln" findet und "Tomaten" auch "Tomate"
+const stem = s => norm(s).trim().replace(/(en|n|e|s)$/, "");
+$("#cookBtn").onclick = () => { $("#cookResults").textContent = ""; $("#cookDlg").showModal(); $("#cookText").focus(); };
+$("#cookClose").onclick = () => $("#cookDlg").close();
+$("#cookForm").addEventListener("submit", e => {
+  e.preventDefault();
+  const terms = $("#cookText").value.split(/[,;\n]+/).map(t => t.trim()).filter(t => t.length > 1);
+  const out = $("#cookResults");
+  out.textContent = "";
+  if (!terms.length) { out.appendChild(el("p", "small", "Gib mindestens eine Zutat ein.")); return; }
+
+  const hits = S.dishes.map(d => {
+    const hay = norm(d.name + "\n" + (d.ingredients || ""));
+    const found = terms.filter(t => hay.includes(stem(t)));
+    const total = (d.ingredients || "").split("\n").filter(x => x.trim()).length;
+    return { d, found, total };
+  }).filter(h => h.found.length)
+    .sort((a, b) => b.found.length - a.found.length || (a.total || 99) - (b.total || 99));
+
+  out.appendChild(el("div", "sectlabel", `Aus euren Gerichten (${hits.length})`));
+  if (!hits.length) out.appendChild(el("p", "small", "Keins eurer Gerichte enthält diese Zutaten. Schau auf Chefkoch."));
+  hits.slice(0, 15).forEach(h => {
+    const sub = `${h.found.length} von ${terms.length} Zutaten: ${h.found.join(", ")}`;
+    out.appendChild(dishRow(h.d, sub, () => { $("#cookDlg").close(); openDetail(h.d.id); }));
+  });
+
+  const q = terms.map(t => encodeURIComponent(t)).join("+");
+  const a = el("a", "ext-link", "Rezepte mit diesen Zutaten auf Chefkoch.de ↗");
+  a.href = `https://www.chefkoch.de/rs/s0/${q}/Rezepte.html`;
+  a.target = "_blank"; a.rel = "noopener";
+  out.appendChild(a);
+});
+
 /* ---------- Detailansicht ---------- */
 let detailId = null;
 function openDetail(id) {
@@ -523,6 +606,7 @@ function openForm(id = null, preset = {}) {
   $("#dishName").value = d.name || "";
   $("#dishEmoji").value = d.emoji || "";
   $("#dishCuisine").value = d.cuisine || "";
+  $("#dishCourse").value = d.course || "";
   $("#dishMins").value = d.mins || "";
   $("#dishIngredients").value = d.ingredients || "";
   $("#dishSteps").value = d.steps || "";
@@ -566,6 +650,7 @@ $("#dishForm").addEventListener("submit", async e => {
     name,
     emoji: $("#dishEmoji").value.trim() || "🍽️",
     cuisine: $("#dishCuisine").value.trim(),
+    course: $("#dishCourse").value.trim(),
     mins: Number($("#dishMins").value) || null,
     ingredients: $("#dishIngredients").value.trim(),
     steps: $("#dishSteps").value.trim(),
@@ -818,6 +903,7 @@ function renderPeople() {
   ms.slice(0, 4).forEach(m => box.appendChild(avatar(m)));
 }
 function renderAll() {
+  renderFilter();
   renderDeck();
   renderMatches();
   renderDishes();

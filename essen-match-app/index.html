@@ -57,6 +57,7 @@
 
   <main>
     <section id="view-swipe" class="view">
+      <div class="filterbar" id="filterBar" role="group" aria-label="Kategorie" hidden></div>
       <div class="deck" id="deck"></div>
       <div class="votebar" id="votebar">
         <button class="vote no" id="btnNo" aria-label="Lieber nicht">✕</button>
@@ -76,6 +77,7 @@
           <input id="dishSearch" type="search" placeholder="Gericht suchen" aria-label="Gericht suchen">
           <button class="btn" id="newDishBtn">+ Neu</button>
         </div>
+        <button class="btn ghost" id="cookBtn">🥕 Was kann ich mit meinen Zutaten kochen?</button>
         <div id="dishList" class="list"></div>
       </div>
     </section>
@@ -148,6 +150,12 @@
       <div><label for="dishCuisine">Küche</label><input id="dishCuisine" maxlength="30" placeholder="Hausmannskost"></div>
       <div><label for="dishMins">Minuten</label><input id="dishMins" type="number" inputmode="numeric" min="5" max="600" step="5" placeholder="45"></div>
     </div>
+    <label for="dishCourse">Kategorie</label>
+    <input id="dishCourse" maxlength="30" list="courseList" placeholder="Hauptgericht">
+    <datalist id="courseList">
+      <option value="Hauptgericht"></option><option value="Dessert"></option><option value="Vorspeise"></option>
+      <option value="Beilage"></option><option value="Snack"></option><option value="Frühstück"></option>
+    </datalist>
     <label for="dishIngredients">Zutaten (eine pro Zeile)</label>
     <textarea id="dishIngredients" rows="4" placeholder="500 g Rindergulasch&#10;2 Zwiebeln&#10;1 EL Paprikapulver"></textarea>
     <label for="dishSteps">Zubereitung (ein Schritt pro Zeile)</label>
@@ -160,6 +168,21 @@
       <span class="spacer"></span>
       <button type="button" class="btn ghost" id="formCancel">Abbrechen</button>
       <button type="submit" class="btn" id="formSave">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Was kann ich kochen? -->
+<dialog id="cookDlg" class="sheet">
+  <form id="cookForm" class="sheet-body" method="dialog">
+    <h2>Was kann ich kochen?</h2>
+    <label for="cookText">Welche Zutaten hast du da? Mit Komma trennen.</label>
+    <textarea id="cookText" rows="2" placeholder="Hackfleisch, Zwiebeln, Paprika, Reis"></textarea>
+    <button class="btn" type="submit">Passende Gerichte suchen</button>
+    <div id="cookResults" class="list"></div>
+    <div class="sheet-actions">
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="cookClose">Schließen</button>
     </div>
   </form>
 </dialog>
