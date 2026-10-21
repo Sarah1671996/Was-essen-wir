@@ -547,7 +547,111 @@ $("#cookForm").addEventListener("submit", e => {
   a.href = `https://www.chefkoch.de/rs/s0/${q}/Rezepte.html`;
   a.target = "_blank"; a.rel = "noopener";
   out.appendChild(a);
+
+  if (store.suggestRecipes) {
+    const box = el("div", "stack");
+    out.appendChild(el("div", "sectlabel", "Neue Ideen von der KI"));
+    out.appendChild(box);
+    const b = el("button", "btn", "✨ Rezepte erfinden lassen");
+    b.type = "button";
+    b.onclick = () => askAi(box, terms);
+    box.appendChild(b);
+  }
 });
+
+let aiBusy = false;
+async function askAi(box, terms) {
+  if (aiBusy) return;
+  aiBusy = true;
+  box.textContent = "";
+  box.appendChild(el("p", "small", "Die KI überlegt sich Rezepte … das dauert ein paar Sekunden."));
+  const known = S.dishes.map(d => d.name).slice(0, 80).join(", ");
+  const prompt = [
+    "Du bist ein Koch für eine deutsche Haushalts-App. Antworte auf Deutsch.",
+    `Vorhandene Zutaten: ${terms.join(", ")}.`,
+    "Schlage 3 unterschiedliche, alltagstaugliche Gerichte vor, die vor allem diese Zutaten verwenden.",
+    "Grundzutaten wie Salz, Pfeffer, Öl, Butter, Mehl, Zucker, Gewürze und Wasser darf man voraussetzen.",
+    "Alles, was darüber hinaus gekauft werden müsste, gehört in 'missing' (möglichst wenig, gern leer).",
+    "'ingredients' enthält alle Zutaten mit Mengen für 2 Personen, 'steps' kurze Arbeitsschritte, 'mins' die Gesamtzeit in Minuten,",
+    "'description' einen Satz, warum das Gericht gut passt.",
+    `Diese Gerichte kennen wir schon, schlage bitte etwas anderes vor: ${known}.`
+  ].join("\n");
+  try {
+    const { recipes = [] } = await store.suggestRecipes(prompt);
+    box.textContent = "";
+    if (!recipes.length) throw new Error("leer");
+    recipes.forEach(r => box.appendChild(aiCard(r)));
+    const again = el("button", "btn ghost", "Andere Vorschläge");
+    again.type = "button";
+    again.onclick = () => askAi(box, terms);
+    box.appendChild(again);
+  } catch (e) {
+    console.error(e);
+    box.textContent = "";
+    const msg = String(e?.code || "") + " " + String(e?.message || e);
+    box.appendChild(el("p", "notice", /api-not-enabled|requires the Firebase AI API|PERMISSION_DENIED|403/i.test(msg)
+      ? "Die KI ist im Firebase-Projekt noch nicht eingeschaltet."
+      : /quota|429|RESOURCE_EXHAUSTED/i.test(msg)
+        ? "Das kostenlose KI-Kontingent ist gerade aufgebraucht. Versuch es später nochmal."
+        : "Die KI hat gerade nicht geantwortet. Versuch es nochmal."));
+    const retry = el("button", "btn ghost", "Nochmal versuchen");
+    retry.type = "button";
+    retry.onclick = () => askAi(box, terms);
+    box.appendChild(retry);
+  }
+  aiBusy = false;
+}
+
+function aiCard(r) {
+  const card = el("div", "panel");
+  card.appendChild(el("h3", null, r.name || "Rezeptidee"));
+  const meta = el("div", "meta");
+  if (r.mins) meta.appendChild(el("span", "chip", `ca. ${r.mins} Min.`));
+  meta.appendChild(el("span", "chip", r.missing?.length ? `${r.missing.length} Zutat${r.missing.length > 1 ? "en" : ""} fehlen` : "Alles da"));
+  card.appendChild(meta);
+  if (r.description) card.appendChild(el("p", "small", r.description));
+  if (r.missing?.length) card.appendChild(el("p", "small", "Fehlt noch: " + r.missing.join(", ")));
+
+  const det = el("details");
+  det.appendChild(el("summary", null, "Rezept anzeigen"));
+  det.appendChild(el("h3", null, "Zutaten"));
+  const ul = el("ul"); (r.ingredients || []).forEach(x => ul.appendChild(el("li", null, x))); det.appendChild(ul);
+  det.appendChild(el("h3", null, "Zubereitung"));
+  const ol = el("ol"); (r.steps || []).forEach(x => ol.appendChild(el("li", null, x))); det.appendChild(ol);
+  card.appendChild(det);
+
+  const row = el("div", "sheet-actions");
+  const save = el("button", "btn", "Zu unseren Gerichten");
+  save.type = "button";
+  save.onclick = async () => {
+    save.disabled = true;
+    try {
+      await room.add("dishes", {
+        name: (r.name || "Rezeptidee").slice(0, 60), emoji: "✨", cuisine: "KI-Idee", course: "Hauptgericht",
+        mins: Number(r.mins) || null, ingredients: (r.ingredients || []).join("\n"), steps: (r.steps || []).join("\n"),
+        link: "", image: null, createdAt: Date.now(), updatedAt: Date.now(), createdBy: S.uid
+      });
+      save.textContent = "Gespeichert ✓";
+      toast("Gericht ist im Stapel");
+    } catch { save.disabled = false; toast("Konnte nicht speichern"); }
+  };
+  row.appendChild(save);
+  if (r.missing?.length) {
+    const shop = el("button", "btn ghost", "Fehlendes auf die Einkaufsliste");
+    shop.type = "button";
+    shop.onclick = async () => {
+      shop.disabled = true;
+      const now = Date.now();
+      try {
+        await room.addMany("shopping", r.missing.map((text, i) => ({ text, by: S.uid, at: now + i, done: false, from: r.name })));
+        shop.textContent = "Auf der Liste ✓";
+      } catch { shop.disabled = false; toast("Konnte nicht speichern"); }
+    };
+    row.appendChild(shop);
+  }
+  card.appendChild(row);
+  return card;
+}
 
 /* ---------- Detailansicht ---------- */
 let detailId = null;

@@ -2,7 +2,10 @@
 // Beide liefern dieselbe Schnittstelle, damit app.js nichts davon wissen muss.
 import { firebaseConfig } from "./firebase-config.js";
 
-const FB = "https://www.gstatic.com/firebasejs/10.12.2/";
+const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
+// KI-Modell für Rezeptideen (Firebase AI Logic, Gemini Developer API, ohne Bezahltarif nutzbar).
+// Ältere Modelle schaltet Google regelmäßig ab; dann hier den Namen aktualisieren.
+const AI_MODEL = "gemini-3.8-flash";
 export const hasFirebase = !!(firebaseConfig && firebaseConfig.apiKey);
 
 export async function createStore() {
@@ -37,9 +40,42 @@ async function firebaseStore() {
     db = fs.getFirestore(app);
   }
 
+  let model = null;
+  async function getModel() {
+    if (model) return model;
+    const ai = await import(FB + "firebase-ai.js");
+    const S = ai.Schema;
+    const schema = S.object({
+      properties: {
+        recipes: S.array({
+          items: S.object({
+            properties: {
+              name: S.string(),
+              mins: S.integer(),
+              description: S.string(),
+              ingredients: S.array({ items: S.string() }),
+              missing: S.array({ items: S.string() }),
+              steps: S.array({ items: S.string() })
+            }
+          })
+        })
+      }
+    });
+    model = ai.getGenerativeModel(ai.getAI(app, { backend: new ai.GoogleAIBackend() }), {
+      model: AI_MODEL,
+      generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0.9 }
+    });
+    return model;
+  }
+
   return {
     uid,
     mode: "firebase",
+    // Liefert { recipes: [{ name, mins, description, ingredients[], missing[], steps[] }] }
+    async suggestRecipes(prompt) {
+      const result = await (await getModel()).generateContent(prompt);
+      return JSON.parse(result.response.text());
+    },
     async roomExists(code) {
       return (await fs.getDoc(fs.doc(db, "rooms", code))).exists();
     },
@@ -93,6 +129,7 @@ function localStore() {
   return {
     uid,
     mode: "local",
+    suggestRecipes: null, // KI gibt es nur mit Firebase
     async roomExists(code) { return !!load(code); },
     async createRoom(code) { save(code, { dishes: {}, members: {}, wishes: {}, shopping: {}, meta: {} }); },
     room(code) {

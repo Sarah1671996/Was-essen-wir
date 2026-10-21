@@ -201,6 +201,9 @@ dialog::backdrop { background: rgba(10, 20, 14, .5); }
 .row.done .t { text-decoration: line-through; color: var(--muted); }
 .row.done { opacity: .75; }
 .round { margin-top: 12px; }
+.panel h3 { font: 700 1.05rem var(--body); margin: 0; }
+details summary { cursor: pointer; font-weight: 600; color: var(--basil); }
+details ul, details ol { margin: 6px 0 0; padding-left: 1.3em; display: grid; gap: 3px; }
 .filterbar { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 10px; scrollbar-width: none; }
 .filterbar::-webkit-scrollbar { display: none; }
 .fchip {
