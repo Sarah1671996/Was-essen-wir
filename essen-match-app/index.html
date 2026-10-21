@@ -52,7 +52,7 @@
 <div class="app" id="app" hidden>
   <header class="top">
     <h1>Was essen wir?</h1>
-    <button class="people" id="peopleBtn" aria-label="Küche und Einstellungen"></button>
+    <button class="people" id="peopleBtn" aria-label="Küche und Einstellungen"><span class="avatars" id="avatars"></span><span class="peoplelabel">Küche ⚙</span></button>
   </header>
 
   <main>
@@ -71,6 +71,7 @@
 
     <section id="view-dishes" class="view" hidden>
       <div class="scroll">
+        <div class="panel" id="listNotice" hidden></div>
         <div class="toolbar">
           <input id="dishSearch" type="search" placeholder="Gericht suchen" aria-label="Gericht suchen">
           <button class="btn" id="newDishBtn">+ Neu</button>

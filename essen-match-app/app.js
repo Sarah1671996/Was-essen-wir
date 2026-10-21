@@ -587,23 +587,26 @@ function openRoom() {
 // Alte Beispielgerichte gegen die aktuelle Startliste tauschen. Selbst angelegte oder
 // bearbeitete Gerichte (mit Foto oder Rezept) bleiben erhalten.
 function listUpdate() {
-  const remove = S.dishes.filter(d => d.starter ||
-    (OLD_STARTER_NAMES.has(d.name) && !d.image && !d.ingredients && !d.steps && !d.link));
+  const remove = S.dishes.filter(d => !d.starter &&
+    OLD_STARTER_NAMES.has(d.name) && !d.image && !d.ingredients && !d.steps && !d.link);
   const removeIds = new Set(remove.map(d => d.id));
   const keptNames = new Set(S.dishes.filter(d => !removeIds.has(d.id)).map(d => d.name.toLowerCase()));
   const add = STARTER_DISHES.filter(d => !keptNames.has(d.name.toLowerCase()));
   return { remove, add };
 }
-function renderListBox() {
-  const box = $("#listBox");
+function renderListBox(box = $("#listBox")) {
   box.textContent = "";
+  box.dataset.confirming = "";
   const { remove, add } = listUpdate();
-  const current = remove.filter(d => d.starter).length === STARTER_DISHES.length && !add.length;
+  // Nur anbieten, solange noch alte Beispielgerichte da sind
+  const current = !remove.length;
+  if (box.id === "listNotice") box.hidden = current || !S.dishes.length;
   if (current) return;
   box.appendChild(el("p", "small", `Es gibt eine neue Gerichteliste mit ${STARTER_DISHES.length} Gerichten.`));
-  const b = el("button", "btn ghost", "Neue Gerichteliste übernehmen");
+  const b = el("button", "btn", "Neue Gerichteliste übernehmen");
   b.onclick = () => {
     box.textContent = "";
+    box.dataset.confirming = "1";
     box.appendChild(el("p", "small",
       `${remove.length} alte Beispielgerichte werden entfernt, ${add.length} Gerichte kommen dazu. Eure eigenen Gerichte und Wünsche bleiben.`));
     const row = el("div", "joinrow");
@@ -617,6 +620,7 @@ function renderListBox() {
           add.map((d, i) => ({ ...d, starter: true, createdAt: now + i, createdBy: S.uid })));
         remove.forEach(d => { delete S.myVotes[d.id]; });
         saveMe();
+        renderListBox(box);
         $("#roomDlg").close();
         showTab("swipe");
         toast("Neue Gerichte sind da!");
@@ -626,7 +630,7 @@ function renderListBox() {
         toast("Das hat nicht geklappt. Versuch es nochmal.");
       }
     };
-    no.onclick = renderListBox;
+    no.onclick = () => renderListBox(box);
     row.append(yes, no);
     box.appendChild(row);
   };
@@ -688,7 +692,7 @@ function showTab(t) {
 document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
 
 function renderPeople() {
-  const box = $("#peopleBtn");
+  const box = $("#avatars");
   box.textContent = "";
   const ms = S.members.length ? S.members : [{ id: S.uid, name: S.name }];
   ms.slice(0, 4).forEach(m => box.appendChild(avatar(m)));
@@ -699,6 +703,7 @@ function renderAll() {
   renderDishes();
   renderWishes();
   renderPeople();
+  if (!$("#listNotice").dataset.confirming) renderListBox($("#listNotice"));
 }
 
 showTab(ls.get("em.tab") || "swipe");
