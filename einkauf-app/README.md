@@ -31,6 +31,12 @@ oder in der Firebase-Konsole unter **Firestore → Regeln** den Inhalt der Datei
 - Vorschläge beim Tippen und „Oft gekauft“ zum schnellen Wiederhinzufügen.
 - „neu von Mama“ zeigt, was seit deinem letzten Blick dazukam.
 - Große Schrift (⚙) und Bildschirm bleibt im Laden an.
+- **Ich gehe einkaufen / Fertig eingekauft**: die anderen sehen, wer gerade in welchem Laden ist, und bekommen eine kurze Nachricht („Bin in 30 Minuten da“).
+- **Mikrofon** zum Einsprechen, **mehrere Einträge auf einmal** (Komma oder eingefügte Liste), **Wischen** zum Abhaken, Fotos groß ansehen.
+- **Reihenfolge der Abteilungen** pro Laden (✎ beim Laden), einmal festlegen, gilt für alle.
+- **Verlauf** (🕘): was wann gekauft wurde, mit „+ Liste“ zum Wiederhinzufügen.
+- **Ausgaben** (💶 auf der Übersicht): Kassenbons mit Foto, Monatssumme, offen/erstattet.
+- **Einfacher Modus** (⚙, pro Handy): nur Eintragen, Abhaken und Fotos.
 - Funktioniert auch bei schlechtem Empfang, Änderungen werden nachgeholt.
 
 ## Listen über Claude bearbeiten

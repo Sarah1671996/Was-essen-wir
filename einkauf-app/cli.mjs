@@ -232,8 +232,15 @@ switch (cmd) {
   case "aufraeumen": {
     const s = findStore(stores, args[0]);
     const done = items.filter(x => x.storeId === s.id && x.done);
-    for (const i of done) await d.remove("items", i.id);
-    console.log(`${done.length} abgehakte Einträge bei ${s.name} entfernt`);
+    // Wie in der App: abgehakte Einträge wandern in den Verlauf
+    for (const i of done) {
+      await d.set("history", crypto.randomUUID().replace(/-/g, "").slice(0, 20), {
+        text: i.text, qty: i.qty || "", cat: i.cat, storeId: i.storeId, by: i.by, at: i.at,
+        doneBy: i.doneBy || session.uid, doneAt: i.doneAt || Date.now()
+      });
+      await d.remove("items", i.id);
+    }
+    console.log(`${done.length} abgehakte Einträge bei ${s.name} in den Verlauf gelegt`);
     break;
   }
   case "laden-neu": {

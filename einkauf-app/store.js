@@ -56,6 +56,8 @@ async function firebaseStore() {
           return fs.onSnapshot(col(c), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onError);
         },
         set: (c, id, data) => fs.setDoc(fs.doc(base, c, id), data),
+        patch: (c, id, data) => fs.setDoc(fs.doc(base, c, id), data, { merge: true }),
+        async getAll(c) { return (await fs.getDocs(col(c))).docs.map(d => ({ id: d.id, ...d.data() })); },
         add: async (c, data) => (await fs.addDoc(col(c), data)).id,
         update: (c, id, data) => fs.updateDoc(fs.doc(base, c, id), data),
         remove: (c, id) => fs.deleteDoc(fs.doc(base, c, id)),
@@ -110,6 +112,8 @@ function localStore() {
           return () => subs.delete(s);
         },
         async set(c, id, data) { change(r => apply(r, { c, id, data })); },
+        async patch(c, id, data) { change(r => { const m = (r[c] ||= {}); m[id] = { ...(m[id] || {}), ...data }; }); },
+        async getAll(c) { return list(c); },
         async add(c, data) { const id = randomCode(12); change(r => apply(r, { c, id, data })); return id; },
         async update(c, id, data) { change(r => apply(r, { type: "update", c, id, data })); },
         async remove(c, id) { change(r => apply(r, { type: "delete", c, id })); },

@@ -13,8 +13,10 @@ const STORE_NAMES = ["Kaufland", "Netto", "Edeka", "Aldi", "Lidl", "Rewe", "Penn
 
 const S = {
   uid: null, code: null, name: "",
-  stores: [], items: [], members: [], known: [],
+  stores: [], items: [], members: [], known: [], receipts: [],
+  view: "home",           // home | list | money
   current: null,          // geöffneter Laden (id)
+  month: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Ausgaben: angezeigter Monat
   visitSeen: 0,
   seen: JSON.parse(ls.get("ek.seen") || "{}") // wann ich welchen Laden zuletzt angeschaut habe
 };
@@ -53,7 +55,27 @@ function when(ts) {
   return d.toLocaleDateString("de-DE", { day: "numeric", month: "short" });
 }
 
+const euro = cents => (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
+const uid20 = () => randomCode(20);
+
 const storeById = id => S.stores.find(s => s.id === id);
+// Abteilungen in der Reihenfolge, die für diesen Laden festgelegt wurde
+function catsFor(s) {
+  const order = s?.catOrder || [];
+  return [...CATS].sort((a, b) => {
+    const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+    return (ia < 0 ? 99 + CATS.indexOf(a) : ia) - (ib < 0 ? 99 + CATS.indexOf(b) : ib);
+  });
+}
+// Wer ist gerade unterwegs bzw. hat vor kurzem eingekauft
+const TRIP_HOURS = 4, DONE_HOURS = 8;
+function tripOf(m) {
+  const t = m.trip;
+  if (!t || !storeById(t.storeId)) return null;
+  const age = (Date.now() - (t.state === "fertig" ? t.doneAt : t.at)) / 36e5;
+  return age < (t.state === "fertig" ? DONE_HOURS : TRIP_HOURS) ? t : null;
+}
+const myTrip = () => tripOf(S.members.find(m => m.id === S.uid) || {});
 const itemsOf = id => S.items.filter(i => i.storeId === id);
 const openOf = id => itemsOf(id).filter(i => !i.done);
 const sortedStores = () => [...S.stores].sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
@@ -61,6 +83,7 @@ const sortedStores = () => [...S.stores].sort((a, b) => (a.order ?? a.createdAt 
 /* ---------- Einrichtung ---------- */
 async function boot() {
   applyBigText(ls.get("ek.bigText") === "1");
+  applySimple(ls.get("ek.simple") === "1");
   try {
     store = await createStore();
   } catch (e) {
@@ -119,47 +142,58 @@ function enter(code) {
   S.code = code; ls.set("ek.code", code);
   house = store.open(code);
   if (!S.name) { showSetup(); return; }
-  house.set("members", S.uid, { name: S.name, seenAt: Date.now() }).catch(() => {});
+  house.patch("members", S.uid, { name: S.name, seenAt: Date.now() }).catch(() => {});
 
   const onErr = e => { console.error(e); toast("Verbindung unterbrochen. Änderungen werden nachgeholt."); };
   unsubs.forEach(u => u());
   unsubs = [
     house.watch("stores", l => { S.stores = l; renderAll(); }, onErr),
     house.watch("items", l => { S.items = l; renderAll(); }, onErr),
-    house.watch("members", l => { S.members = l; renderMembers(); }, onErr),
-    house.watch("known", l => { S.known = l; if (S.current) renderOften(); }, onErr)
+    house.watch("members", l => { S.members = l; renderMembers(); renderAll(); }, onErr),
+    house.watch("known", l => { S.known = l; if (S.current) renderOften(); }, onErr),
+    house.watch("receipts", l => { S.receipts = l; renderAll(); }, onErr)
   ];
 
   $("#setup").hidden = true;
   $("#app").hidden = false;
   $("#hello").textContent = `Hallo ${S.name}`;
   const fromHash = decodeURIComponent(location.hash.slice(1));
-  showView(fromHash || null, true);
+  if (fromHash === "ausgaben") setView("money", null, true);
+  else showView(fromHash || null, true);
 }
 
 /* ---------- Ansichten ---------- */
-function showView(storeId, replace = false) {
-  S.current = storeId || null;
-  $("#home").hidden = !!S.current;
-  $("#list").hidden = !S.current;
-  const url = location.pathname + location.search + (S.current ? "#" + encodeURIComponent(S.current) : "");
-  if (replace) history.replaceState({ s: S.current }, "", url);
-  else history.pushState({ s: S.current }, "", url);
-  if (S.current) { S.visitSeen = S.seen[S.current] || 0; markSeen(S.current); $("#addInput").value = ""; hideSuggest(); }
-  wakeLock(!!S.current);
-  renderAll();
-  $("#listScroll").scrollTop = 0;
+function setView(view, storeId = null, replace = false) {
+  if (S.current) markSeen(S.current);
+  applyView(view, storeId);
+  const hash = view === "list" ? "#" + encodeURIComponent(storeId) : view === "money" ? "#ausgaben" : "";
+  const url = location.pathname + location.search + hash;
+  if (replace) history.replaceState({ v: view, s: storeId }, "", url);
+  else history.pushState({ v: view, s: storeId }, "", url);
+  if (S.current) { $("#addInput").value = ""; hideSuggest(); }
+  document.querySelectorAll(".scroll").forEach(s => { s.scrollTop = 0; });
 }
+function applyView(view, storeId) {
+  S.view = view;
+  S.current = view === "list" ? storeId : null;
+  if (S.current) { S.visitSeen = S.seen[S.current] || 0; markSeen(S.current); }
+  $("#home").hidden = view !== "home";
+  $("#list").hidden = view !== "list";
+  $("#money").hidden = view !== "money";
+  wakeLock(view === "list");
+  renderAll();
+}
+const showView = (storeId, replace = false) => setView(storeId ? "list" : "home", storeId, replace);
 window.addEventListener("popstate", e => {
   if (S.current) markSeen(S.current);
-  S.current = e.state?.s || null;
-  if (S.current) S.visitSeen = S.seen[S.current] || 0;
-  $("#home").hidden = !!S.current;
-  $("#list").hidden = !S.current;
-  wakeLock(!!S.current);
-  renderAll();
+  const st = e.state || {};
+  applyView(st.v || (st.s ? "list" : "home"), st.s || null);
 });
-$("#backBtn").onclick = () => history.state?.s && history.length > 1 ? history.back() : showView(null, true);
+// Zurück: echte Browser-Historie nutzen, wenn wir selbst dorthin navigiert sind
+const goHome = () => history.state?.v && history.state.v !== "home" && history.length > 1 ? history.back() : showView(null, true);
+$("#backBtn").onclick = goHome;
+$("#moneyBack").onclick = goHome;
+$("#moneyBtn").onclick = () => setView("money");
 
 function markSeen(id) {
   S.seen[id] = Date.now();
@@ -170,11 +204,43 @@ const isNew = i => i.by !== S.uid && i.at > (i.storeId === S.current ? S.visitSe
 
 function renderAll() {
   if (S.current && !storeById(S.current) && S.stores.length) { showView(null, true); return; }
-  if (S.current) renderList(); else renderHome();
+  if (S.view === "list") renderList();
+  else if (S.view === "money") renderMoney();
+  else renderHome();
 }
 
 /* ---------- Übersicht ---------- */
+// "Sarah ist gerade bei Kaufland" / "Sarah hat bei Kaufland eingekauft"
+function tripBanner(m, t, here = false) {
+  const s = storeById(t.storeId);
+  const who = m.id === S.uid ? "Du" : m.name;
+  const b = el(here ? "div" : "button", "trip" + (t.state === "fertig" ? " finished" : ""));
+  b.style.setProperty("--c", s.color);
+  const icon = el("span", "tripicon", t.state === "fertig" ? "✅" : "🛒");
+  const txt = el("span", "triptext");
+  if (t.state === "fertig") {
+    txt.appendChild(el("strong", "", `${who} ${m.id === S.uid ? "hast" : "hat"} bei ${s.name} eingekauft`));
+    txt.appendChild(el("span", "small", `${when(t.doneAt)}${t.count ? ` · ${t.count} ${t.count === 1 ? "Sache" : "Sachen"}` : ""}`));
+    if (t.msg) txt.appendChild(el("span", "tripmsg", `„${t.msg}“`));
+  } else {
+    txt.appendChild(el("strong", "", here && m.id !== S.uid
+      ? `${who} ist gerade hier einkaufen`
+      : `${who} ${m.id === S.uid ? "bist" : "ist"} gerade bei ${s.name}`));
+    txt.appendChild(el("span", "small", m.id === S.uid ? `seit ${when(t.at)}` : `seit ${when(t.at)} · trag schnell ein, was noch fehlt`));
+  }
+  b.append(icon, txt);
+  if (!here) b.onclick = () => showView(s.id);
+  return b;
+}
+
 function renderHome() {
+  const trips = $("#trips");
+  trips.textContent = "";
+  S.members.forEach(m => { const t = tripOf(m); if (t) trips.appendChild(tripBanner(m, t)); });
+
+  const open = S.receipts.filter(r => !r.settled).reduce((sum, r) => sum + (r.amount || 0), 0);
+  $("#moneySummary").textContent = open ? `${euro(open)} noch nicht erstattet` : "Kassenbons und was noch offen ist";
+
   const box = $("#stores");
   box.textContent = "";
   for (const s of sortedStores()) {
@@ -217,11 +283,11 @@ function renderHome() {
   }
 }
 
-async function createStore_(name, color) {
+async function createStore_(name, color, catOrder = null) {
   const used = new Set(S.stores.map(s => s.color));
   const pick = color || COLORS.find(c => !used.has(c)) || COLORS[hash(name) % COLORS.length];
   const now = Date.now();
-  try { await house.add("stores", { name, color: pick, createdAt: now, order: now, by: S.uid }); }
+  try { await house.add("stores", { name, color: pick, createdAt: now, order: now, by: S.uid, catOrder }); }
   catch (e) { console.error(e); fail("Anlegen")(); }
 }
 
@@ -247,7 +313,29 @@ function openStoreDlg(s = null) {
     chips.appendChild(c);
   });
   renderSwatches();
+  editOrder = catsFor(s).map(c => c.id);
+  renderOrder();
   $("#storeDlg").showModal();
+}
+// Reihenfolge der Abteilungen: einmal mit ↑ ↓ festlegen, wird am Laden gespeichert
+let editOrder = [];
+function renderOrder() {
+  const box = $("#sOrder");
+  box.textContent = "";
+  editOrder.forEach((id, n) => {
+    const li = el("li", "catrow");
+    li.appendChild(el("span", "catname", `${CAT[id].emoji} ${CAT[id].name}`));
+    const move = (d, label, sym) => {
+      const b = el("button", "iconbtn small", sym);
+      b.type = "button";
+      b.setAttribute("aria-label", `${CAT[id].name} ${label}`);
+      b.disabled = n + d < 0 || n + d >= editOrder.length;
+      b.onclick = () => { [editOrder[n], editOrder[n + d]] = [editOrder[n + d], editOrder[n]]; renderOrder(); };
+      return b;
+    };
+    li.append(move(-1, "nach oben", "↑"), move(1, "nach unten", "↓"));
+    box.appendChild(li);
+  });
 }
 function renderSwatches() {
   const box = $("#sColors");
@@ -270,8 +358,8 @@ $("#storeForm").onsubmit = async e => {
   if (!name) return;
   if (S.stores.some(x => x !== editStore && norm(x.name) === norm(name))) { $("#sError").textContent = "Diesen Laden gibt es schon."; return; }
   try {
-    if (editStore) await house.update("stores", editStore.id, { name, color: pickedColor });
-    else await createStore_(name, pickedColor);
+    if (editStore) await house.update("stores", editStore.id, { name, color: pickedColor, catOrder: editOrder });
+    else await createStore_(name, pickedColor, editOrder);
     $("#storeDlg").close();
   } catch (err) { console.error(err); $("#sError").textContent = "Speichern hat nicht geklappt."; }
 };
@@ -302,8 +390,10 @@ function renderList() {
     box.appendChild(el("div", "notice", `Die Liste für ${s.name} ist leer. Schreib oben rein, was fehlt. Alle sehen es sofort.`));
   }
 
-  // Dringendes ganz oben, der Rest nach Abteilungen
-  const groups = [{ label: "❗ Dringend", list: open.filter(i => i.urgent) }, ...CATS.map(cat => ({
+  renderTripBar(s);
+
+  // Dringendes ganz oben, der Rest nach Abteilungen in der Reihenfolge des Ladens
+  const groups = [{ label: "❗ Dringend", list: open.filter(i => i.urgent) }, ...catsFor(s).map(cat => ({
     label: `${cat.emoji} ${cat.name}`,
     list: open.filter(i => !i.urgent && (CAT[i.cat] ? i.cat : "sonst") === cat.id)
   }))];
@@ -326,16 +416,86 @@ function renderList() {
     done.sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0)).forEach(i => ul.appendChild(itemRow(i)));
     box.appendChild(ul);
   }
+  $("#swipeHint").hidden = !open.length || ls.get("ek.swiped") === "1";
   renderOften();
 }
 
+// Leiste unter dem Kopf: "Ich gehe los" / "Fertig eingekauft" / wer gerade hier ist
+function renderTripBar(s) {
+  const bar = $("#tripBar");
+  bar.textContent = "";
+  S.members.filter(m => m.id !== S.uid).forEach(m => {
+    const t = tripOf(m);
+    if (t && t.storeId === s.id) bar.appendChild(tripBanner(m, t, true));
+  });
+  const mine = myTrip();
+  const row = el("div", "triprow adv");
+  if (mine?.state === "los" && mine.storeId === s.id) {
+    row.appendChild(el("span", "small", `Du bist unterwegs, seit ${when(mine.at)}`));
+    const fin = el("button", "btn small", "✅ Fertig eingekauft");
+    fin.onclick = openFinish;
+    const stop = el("button", "btn ghost small", "Doch nicht");
+    stop.onclick = () => house.patch("members", S.uid, { trip: null }).catch(fail("Speichern"));
+    row.append(stop, fin);
+  } else {
+    const go = el("button", "btn ghost small", `🛒 Ich gehe jetzt zu ${s.name}`);
+    go.onclick = () => house.patch("members", S.uid, { trip: { storeId: s.id, at: Date.now(), state: "los" } })
+      .then(() => toast("Die anderen sehen jetzt, dass du unterwegs bist"))
+      .catch(fail("Speichern"));
+    row.appendChild(go);
+  }
+  bar.appendChild(row);
+}
+
+// Nach rechts wischen = abhaken (bzw. bei Erledigtem: wieder auf die Liste)
+function swipeable(li, row, onSwipe) {
+  let x0 = 0, y0 = 0, dx = 0, active = false, decided = false, swiped = false;
+  const LIMIT = 90;
+  li.addEventListener("touchstart", e => {
+    const t = e.touches[0];
+    x0 = t.clientX; y0 = t.clientY; dx = 0; active = true; decided = false; swiped = false;
+  }, { passive: true });
+  li.addEventListener("touchmove", e => {
+    if (!active) return;
+    const t = e.touches[0], mx = t.clientX - x0, my = t.clientY - y0;
+    if (!decided) {
+      if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
+      decided = true;
+      if (Math.abs(my) > Math.abs(mx) || mx < 0) { active = false; return; } // Scrollen hat Vorrang
+    }
+    dx = Math.max(0, mx);
+    row.style.transform = `translateX(${dx}px)`;
+    li.classList.toggle("ready", dx > LIMIT);
+  }, { passive: true });
+  li.addEventListener("touchend", () => {
+    if (!active) return;
+    active = false;
+    row.style.transform = "";
+    li.classList.remove("ready");
+    if (dx > LIMIT) { swiped = true; ls.set("ek.swiped", "1"); onSwipe(); }
+  });
+  // Nach dem Wischen kein "Antippen" auslösen
+  li.addEventListener("click", e => { if (swiped) { e.stopPropagation(); e.preventDefault(); swiped = false; } }, true);
+}
+
+function showPhoto(src) {
+  $("#photoBig").src = src;
+  $("#photoDlg").showModal();
+}
+$("#photoClose").onclick = () => $("#photoDlg").close();
+$("#photoDlg").onclick = e => { if (e.target.id !== "photoClose") $("#photoDlg").close(); };
+
 function itemRow(i) {
-  const li = el("li", "item" + (i.done ? " isdone" : "") + (i.urgent ? " urgent" : "") + (i.missing ? " missing" : ""));
+  const li = el("li", "swipe");
+  li.appendChild(el("span", "swipebg", i.done ? "↩ wieder auf die Liste" : "✓ abhaken"));
+  const row = el("div", "item" + (i.done ? " isdone" : "") + (i.urgent ? " urgent" : "") + (i.missing ? " missing" : ""));
+  li.appendChild(row);
+  swipeable(li, row, () => toggleDone(i));
   const check = el("button", "tick");
   check.setAttribute("aria-label", i.done ? `${i.text} wieder auf die Liste` : `${i.text} abhaken`);
   check.setAttribute("aria-pressed", i.done ? "true" : "false");
   check.onclick = () => toggleDone(i);
-  li.appendChild(check);
+  row.appendChild(check);
 
   const body = el("button", "itembody");
   body.setAttribute("aria-label", `${i.text} bearbeiten`);
@@ -353,13 +513,14 @@ function itemRow(i) {
     : `von ${nameOf(i.by)} · ${when(i.at)}`));
   body.appendChild(meta);
   body.onclick = () => openItemDlg(i);
-  li.appendChild(body);
+  row.appendChild(body);
 
   if (i.photo) {
-    const img = el("img", "thumb");
-    img.src = i.photo; img.alt = "";
-    img.onclick = () => openItemDlg(i);
-    li.appendChild(img);
+    const img = el("button", "thumb");
+    img.style.backgroundImage = `url("${i.photo}")`;
+    img.setAttribute("aria-label", `Foto von ${i.text} groß anzeigen`);
+    img.onclick = () => showPhoto(i.photo);
+    row.appendChild(img);
   }
   return li;
 }
@@ -370,35 +531,68 @@ function toggleDone(i) {
   if (!i.done && navigator.vibrate) navigator.vibrate(15);
 }
 
+// Abgehakte Einträge wandern in den Verlauf (ohne Foto, das bleibt klein)
+function archiveOps(done) {
+  const hist = done.map(i => ({ id: uid20(), data: {
+    text: i.text, qty: i.qty || "", cat: i.cat, storeId: i.storeId, by: i.by, at: i.at,
+    doneBy: i.doneBy || S.uid, doneAt: i.doneAt || Date.now()
+  } }));
+  const ops = [
+    ...done.map(i => ({ type: "delete", c: "items", id: i.id })),
+    ...hist.map(h => ({ c: "history", id: h.id, data: h.data }))
+  ];
+  const undo = [
+    ...done.map(({ id, ...data }) => ({ c: "items", id, data })),
+    ...hist.map(h => ({ type: "delete", c: "history", id: h.id }))
+  ];
+  return { ops, undo };
+}
 function clearDone() {
   const done = itemsOf(S.current).filter(i => i.done);
-  const backup = done.map(({ id, ...data }) => ({ id, data }));
-  house.batch(done.map(i => ({ type: "delete", c: "items", id: i.id })))
-    .then(() => toast(`${done.length} erledigte Einträge entfernt`, {
+  const { ops, undo } = archiveOps(done);
+  house.batch(ops)
+    .then(() => toast(`${done.length} erledigte Einträge im Verlauf`, {
       label: "Rückgängig",
-      run: () => house.batch(backup.map(b => ({ c: "items", id: b.id, data: b.data }))).catch(fail("Wiederherstellen"))
+      run: () => house.batch(undo).catch(fail("Wiederherstellen"))
     }))
     .catch(fail("Aufräumen"));
 }
 
 /* ---------- Hinzufügen ---------- */
-async function addItem(raw, extra = {}) {
-  const { qty, text } = splitQty(raw);
-  if (!text) return;
-  const dup = openOf(S.current).find(i => norm(i.text) === norm(text));
-  if (dup) {
-    toast(`„${dup.text}“ steht schon drauf`);
-    return;
-  }
-  const cat = extra.cat || guessCat(text);
+const addItem = (raw, extra = {}) => addItems([raw], extra);
+
+// Mehrere Einträge auf einmal, z. B. "Milch, Eier, Brot" oder eine eingefügte WhatsApp-Liste
+async function addItems(raws, extra = {}) {
+  const open = new Set(openOf(S.current).map(i => norm(i.text)));
+  const ops = [], added = [], skipped = [];
   const now = Date.now();
-  const k = S.known.find(x => x.id === keyOf(text));
+  for (const raw of raws) {
+    const { qty, text } = splitQty(raw);
+    if (!text) continue;
+    if (open.has(norm(text))) { skipped.push(text); continue; }
+    open.add(norm(text));
+    const cat = extra.cat || guessCat(text);
+    const at = now + added.length;
+    const k = S.known.find(x => x.id === keyOf(text));
+    ops.push(
+      { c: "items", data: { text, qty, note: "", cat, storeId: S.current, done: false, urgent: false, by: S.uid, at } },
+      { c: "known", id: keyOf(text), data: { text, cat, count: (k?.count || 0) + 1, last: at, stores: { ...(k?.stores || {}), [S.current]: at } } }
+    );
+    added.push(text);
+  }
+  if (skipped.length) toast(skipped.length === 1 ? `„${skipped[0]}“ steht schon drauf` : `Stand schon drauf: ${skipped.join(", ")}`);
+  if (!ops.length) return;
   try {
-    await house.batch([
-      { c: "items", data: { text, qty, note: "", cat, storeId: S.current, done: false, urgent: false, by: S.uid, at: now } },
-      { c: "known", id: keyOf(text), data: { text, cat, count: (k?.count || 0) + 1, last: now, stores: { ...(k?.stores || {}), [S.current]: now } } }
-    ]);
+    await house.batch(ops);
+    if (added.length > 1 && !skipped.length) toast(`${added.length} Einträge hinzugefügt`);
   } catch (e) { console.error(e); fail("Speichern")(); }
+}
+
+// Liste auseinandernehmen: Zeilen, Kommas, Semikolons, Aufzählungszeichen; beim Sprechen auch "und"
+function splitList(text, spoken = false) {
+  return text.split(spoken ? /\s*(?:[,;\n]|\bund\b|\bsowie\b)\s*/i : /\s*[,;\n]\s*/)
+    .map(x => x.replace(/^\s*(?:[-•*–]|\[ ?\])\s*/, "").trim())
+    .filter(Boolean);
 }
 
 $("#addForm").onsubmit = e => {
@@ -407,9 +601,39 @@ $("#addForm").onsubmit = e => {
   if (!v) return;
   $("#addInput").value = "";
   hideSuggest();
-  addItem(v);
+  addItems(splitList(v));
   $("#addInput").focus();
 };
+$("#addInput").onpaste = e => {
+  const text = e.clipboardData?.getData("text") || "";
+  if (!/[\n,;]/.test(text.trim())) return; // ein einzelner Begriff wird ganz normal eingefügt
+  e.preventDefault();
+  addItems(splitList(text));
+};
+
+// Einsprechen: "Butter, Eier und Brot" → drei Einträge
+const Speech = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (Speech) {
+  $("#micBtn").hidden = false;
+  let rec = null;
+  $("#micBtn").onclick = () => {
+    if (rec) { rec.stop(); return; }
+    rec = new Speech();
+    rec.lang = "de-DE";
+    rec.interimResults = true;
+    const btn = $("#micBtn"), input = $("#addInput");
+    btn.classList.add("listening");
+    input.placeholder = "Ich höre zu …";
+    rec.onresult = e => {
+      const r = e.results[e.results.length - 1];
+      input.value = r[0].transcript;
+      if (r.isFinal) { input.value = ""; addItems(splitList(r[0].transcript, true)); }
+    };
+    rec.onerror = e => { if (e.error === "not-allowed") toast("Bitte erlaube den Zugriff aufs Mikrofon"); };
+    rec.onend = () => { rec = null; btn.classList.remove("listening"); input.placeholder = "Was fehlt?"; };
+    rec.start();
+  };
+}
 
 // Vorschläge beim Tippen aus allem, was schon mal auf einer Liste stand
 $("#addInput").oninput = () => {
@@ -503,6 +727,7 @@ $("#fPhotoInput").onchange = async e => {
   catch { $("#fError").textContent = "Das Foto ließ sich nicht verarbeiten."; }
 };
 $("#fPhotoDel").onclick = () => { editPhoto = null; renderPhoto(); };
+$("#fPhoto").onclick = () => showPhoto(editPhoto);
 $("#fCancel").onclick = () => $("#itemDlg").close();
 
 $("#itemForm").onsubmit = async e => {
@@ -543,13 +768,13 @@ $("#fDelete").onclick = async () => {
 };
 
 // Fotos verkleinern, damit sie in die Datenbank passen (max. ca. 250 KB)
-function compressImage(file) {
+function compressImage(file, maxSide = 900, maxLen = 250_000) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      let side = 900;
+      let side = maxSide;
       for (let tries = 0; tries < 6; tries++) {
         const scale = Math.min(1, side / Math.max(img.naturalWidth, img.naturalHeight));
         const c = document.createElement("canvas");
@@ -558,7 +783,7 @@ function compressImage(file) {
         c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
         for (const q of [0.8, 0.7, 0.6]) {
           const out = c.toDataURL("image/jpeg", q);
-          if (out.length < 250_000) return resolve(out);
+          if (out.length < maxLen) return resolve(out);
         }
         side = Math.round(side * 0.75);
       }
@@ -569,6 +794,216 @@ function compressImage(file) {
   });
 }
 
+/* ---------- Einkauf abschließen ---------- */
+const FINISH_MSGS = ["Bin gleich bei dir", "Bin in 30 Minuten da", "Komme heute Abend vorbei", "Bringe es morgen vorbei"];
+function openFinish() {
+  const s = storeById(S.current);
+  const done = itemsOf(s.id).filter(i => i.done).length, open = openOf(s.id).length;
+  $("#finishInfo").textContent = `${done} ${done === 1 ? "Sache" : "Sachen"} abgehakt` + (open ? `, ${open} noch offen (bleiben auf der Liste)` : "") + ".";
+  $("#finishMsg").value = "";
+  const chips = $("#finishChips");
+  chips.textContent = "";
+  FINISH_MSGS.forEach(m => {
+    const c = el("button", "chip", m);
+    c.type = "button";
+    c.onclick = () => { $("#finishMsg").value = m; };
+    chips.appendChild(c);
+  });
+  $("#finishReceipt").checked = false;
+  $("#finishDlg").showModal();
+}
+$("#finishCancel").onclick = () => $("#finishDlg").close();
+$("#finishForm").onsubmit = async e => {
+  e.preventDefault();
+  const s = storeById(S.current);
+  const done = itemsOf(s.id).filter(i => i.done);
+  const trip = { ...(myTrip() || { at: Date.now() }), storeId: s.id, state: "fertig", doneAt: Date.now(), count: done.length, msg: $("#finishMsg").value.trim() };
+  const ops = $("#finishClear").checked ? archiveOps(done).ops : [];
+  try {
+    await Promise.all([house.patch("members", S.uid, { trip }), ops.length ? house.batch(ops) : null]);
+    $("#finishDlg").close();
+    toast("Die anderen sehen jetzt, dass du fertig bist");
+    if ($("#finishReceipt").checked) openReceiptDlg(null, s.id);
+  } catch (err) { console.error(err); fail("Abschließen")(); }
+};
+
+/* ---------- Verlauf ---------- */
+let historyFilter = null, historyData = [];
+async function openHistory() {
+  historyFilter = S.current;
+  $("#historyList").textContent = "Lädt …";
+  $("#historyDlg").showModal();
+  try { historyData = await house.getAll("history"); }
+  catch (e) { console.error(e); $("#historyList").textContent = "Der Verlauf ließ sich nicht laden."; return; }
+  renderHistory();
+}
+function renderHistory() {
+  const filter = $("#historyFilter");
+  filter.textContent = "";
+  [{ id: null, name: "Alle Läden" }, ...sortedStores()].forEach(s => {
+    const c = el("button", "chip" + (historyFilter === s.id ? " on" : ""), s.name);
+    if (s.color) c.style.setProperty("--c", s.color);
+    c.onclick = () => { historyFilter = s.id; renderHistory(); };
+    filter.appendChild(c);
+  });
+  const box = $("#historyList");
+  box.textContent = "";
+  const list = historyData.filter(h => !historyFilter || h.storeId === historyFilter).sort((a, b) => b.doneAt - a.doneAt).slice(0, 200);
+  if (!list.length) { box.appendChild(el("p", "notice", "Noch nichts im Verlauf. Abgehakte Sachen landen hier, sobald die Liste aufgeräumt wird.")); return; }
+  let lastDay = "";
+  for (const h of list) {
+    const day = new Date(h.doneAt).toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" });
+    if (day !== lastDay) { box.appendChild(el("p", "sectionlabel", day)); lastDay = day; }
+    const row = el("div", "histrow");
+    const s = storeById(h.storeId);
+    const dot = el("span", "dot");
+    dot.style.background = s?.color || "var(--muted)";
+    const txt = el("span", "histtext", `${h.qty ? h.qty + " " : ""}${h.text}`);
+    const meta = el("span", "small", `${s?.name || "?"} · besorgt von ${nameOf(h.doneBy)}`);
+    const again = el("button", "btn ghost small", "+ Liste");
+    again.setAttribute("aria-label", `${h.text} wieder auf die Liste`);
+    again.disabled = !S.current;
+    again.onclick = () => { addItem((h.qty ? h.qty + " " : "") + h.text, { cat: h.cat }); again.textContent = "✓"; again.disabled = true; };
+    const col = el("span", "histcol");
+    col.append(txt, meta);
+    row.append(dot, col, again);
+    box.appendChild(row);
+  }
+}
+$("#historyBtn").onclick = openHistory;
+$("#historyClose").onclick = () => $("#historyDlg").close();
+
+/* ---------- Ausgaben ---------- */
+const monthKey = d => `${d.getFullYear()}-${d.getMonth()}`;
+function renderMoney() {
+  const m = S.month;
+  $("#monthLabel").textContent = m.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
+  const inMonth = S.receipts.filter(r => monthKey(new Date(r.date)) === monthKey(m)).sort((a, b) => b.date - a.date);
+  const sum = inMonth.reduce((t, r) => t + (r.amount || 0), 0);
+  const open = S.receipts.filter(r => !r.settled).reduce((t, r) => t + (r.amount || 0), 0);
+  $("#monthTotal").textContent = euro(sum);
+  $("#openTotal").textContent = euro(open);
+
+  // Summe pro Laden als kleine Balken
+  const per = $("#perStore");
+  per.textContent = "";
+  const byStore = {};
+  inMonth.forEach(r => { byStore[r.storeId] = (byStore[r.storeId] || 0) + r.amount; });
+  Object.entries(byStore).sort((a, b) => b[1] - a[1]).forEach(([id, cents]) => {
+    const s = storeById(id);
+    const row = el("div", "barrow");
+    row.style.setProperty("--c", s?.color || "var(--muted)");
+    row.appendChild(el("span", "barname", s?.name || "?"));
+    const bar = el("span", "bar");
+    const fill = el("span", "barfill");
+    fill.style.width = (sum ? Math.max(4, cents / sum * 100) : 0) + "%";
+    bar.appendChild(fill);
+    row.append(bar, el("span", "baramount", euro(cents)));
+    per.appendChild(row);
+  });
+
+  const box = $("#receipts");
+  box.textContent = "";
+  if (!inMonth.length) { box.appendChild(el("p", "notice", "In diesem Monat noch keine Kassenbons.")); return; }
+  inMonth.forEach(r => {
+    const s = storeById(r.storeId);
+    const row = el("div", "receipt" + (r.settled ? " settled" : ""));
+    row.style.setProperty("--c", s?.color || "var(--muted)");
+    const main = el("button", "receiptmain");
+    main.setAttribute("aria-label", `Kassenbon ${s?.name || ""} ${euro(r.amount)} bearbeiten`);
+    const col = el("span", "histcol");
+    col.append(el("strong", "", s?.name || "?"),
+      el("span", "small", `${new Date(r.date).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} · bezahlt von ${r.by === S.uid ? "dir" : nameOf(r.by)}${r.note ? " · " + r.note : ""}`));
+    main.append(col, el("span", "amount", euro(r.amount)));
+    main.onclick = () => openReceiptDlg(r);
+    row.appendChild(main);
+    if (r.photo) {
+      const img = el("button", "thumb");
+      img.style.backgroundImage = `url("${r.photo}")`;
+      img.setAttribute("aria-label", "Kassenbon groß anzeigen");
+      img.onclick = () => showPhoto(r.photo);
+      row.appendChild(img);
+    }
+    const settle = el("button", "chip settle" + (r.settled ? " on" : ""), r.settled ? "✓ erstattet" : "offen");
+    settle.setAttribute("aria-pressed", r.settled ? "true" : "false");
+    settle.onclick = () => house.update("receipts", r.id, { settled: !r.settled, settledAt: Date.now() }).catch(fail("Speichern"));
+    row.appendChild(settle);
+    box.appendChild(row);
+  });
+}
+$("#monthPrev").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); renderMoney(); };
+$("#monthNext").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderMoney(); };
+$("#newReceiptBtn").onclick = () => openReceiptDlg(null);
+
+let editReceipt = null, receiptPhoto = null, receiptStore = null;
+const isoDay = ts => { const d = new Date(ts); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
+function openReceiptDlg(r, storeId = null) {
+  editReceipt = r;
+  receiptPhoto = r?.photo || null;
+  receiptStore = r?.storeId || storeId || myTrip()?.storeId || sortedStores()[0]?.id || null;
+  $("#receiptTitle").textContent = r ? "Kassenbon bearbeiten" : "Kassenbon erfassen";
+  $("#rAmount").value = r ? (r.amount / 100).toFixed(2).replace(".", ",") : "";
+  $("#rDate").value = isoDay(r?.date || Date.now());
+  $("#rNote").value = r?.note || "";
+  $("#rSettled").checked = !!r?.settled;
+  $("#rDelete").hidden = !r;
+  $("#rError").textContent = "";
+  $("#rMeta").textContent = r ? `Erfasst von ${nameOf(r.by)}, ${when(r.at)}` : "";
+  renderReceiptStores();
+  renderReceiptPhoto();
+  $("#receiptDlg").showModal();
+}
+function renderReceiptStores() {
+  const box = $("#rStores");
+  box.textContent = "";
+  sortedStores().forEach(s => {
+    const b = el("button", "chip" + (s.id === receiptStore ? " on" : ""), s.name);
+    b.type = "button";
+    b.style.setProperty("--c", s.color);
+    b.onclick = () => { receiptStore = s.id; renderReceiptStores(); };
+    box.appendChild(b);
+  });
+}
+function renderReceiptPhoto() {
+  $("#rPhoto").hidden = !receiptPhoto;
+  if (receiptPhoto) $("#rPhoto").src = receiptPhoto;
+  $("#rPhotoLabel").textContent = receiptPhoto ? "Neues Foto" : "Bon fotografieren";
+}
+$("#rPhoto").onclick = () => showPhoto(receiptPhoto);
+$("#rPhotoInput").onchange = async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  // Bons sind lang und schmal: etwas größer lassen, damit man die Zahlen lesen kann
+  try { receiptPhoto = await compressImage(file, 1400, 600_000); renderReceiptPhoto(); }
+  catch { $("#rError").textContent = "Das Foto ließ sich nicht verarbeiten."; }
+};
+$("#rCancel").onclick = () => $("#receiptDlg").close();
+$("#receiptForm").onsubmit = async e => {
+  e.preventDefault();
+  const amount = Math.round(parseFloat($("#rAmount").value.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) * 100);
+  if (!amount || amount < 0) { $("#rError").textContent = "Bitte einen Betrag eingeben, z. B. 23,45."; return; }
+  if (!receiptStore) { $("#rError").textContent = "Bitte einen Laden wählen."; return; }
+  const [y, mo, d] = $("#rDate").value.split("-").map(Number);
+  const data = {
+    storeId: receiptStore, amount, date: new Date(y, mo - 1, d, 12).getTime(), note: $("#rNote").value.trim(),
+    photo: receiptPhoto || null, settled: $("#rSettled").checked
+  };
+  try {
+    if (editReceipt) await house.update("receipts", editReceipt.id, data);
+    else await house.add("receipts", { ...data, by: S.uid, at: Date.now() });
+    $("#receiptDlg").close();
+    S.month = new Date(y, mo - 1, 1);
+    if (S.view !== "money") toast(`Kassenbon über ${euro(amount)} gespeichert`, { label: "Ansehen", run: () => setView("money") });
+    else renderMoney();
+  } catch (err) { console.error(err); $("#rError").textContent = "Speichern hat nicht geklappt" + (receiptPhoto ? " (Foto zu groß?)." : "."); }
+};
+$("#rDelete").onclick = async () => {
+  if (!confirm("Diesen Kassenbon löschen?")) return;
+  try { await house.remove("receipts", editReceipt.id); $("#receiptDlg").close(); }
+  catch { $("#rError").textContent = "Löschen hat nicht geklappt."; }
+};
+
 /* ---------- Einstellungen ---------- */
 const inviteLink = () => location.origin + location.pathname + "?join=" + S.code;
 $("#settingsBtn").onclick = () => {
@@ -577,6 +1012,7 @@ $("#settingsBtn").onclick = () => {
   $("#bigText").checked = ls.get("ek.bigText") === "1";
   $("#keepAwake").checked = ls.get("ek.awake") !== "0";
   $("#keepAwake").parentElement.hidden = !("wakeLock" in navigator);
+  $("#simpleMode").checked = ls.get("ek.simple") === "1";
   $("#modeNote").textContent = store.mode === "local" ? "Demo-Modus: Alles bleibt nur auf diesem Gerät." : "";
   renderMembers();
   $("#settingsDlg").showModal();
@@ -597,7 +1033,7 @@ $("#saveName").onclick = async () => {
   if (!n) return;
   S.name = n; ls.set("ek.name", n);
   $("#hello").textContent = `Hallo ${n}`;
-  await house.set("members", S.uid, { name: n, seenAt: Date.now() }).catch(fail("Speichern"));
+  await house.patch("members", S.uid, { name: n, seenAt: Date.now() }).catch(fail("Speichern"));
   toast("Name geändert");
 };
 $("#shareBtn").onclick = async () => {
@@ -613,6 +1049,9 @@ $("#copyBtn").onclick = async () => {
 $("#bigText").onchange = e => { ls.set("ek.bigText", e.target.checked ? "1" : "0"); applyBigText(e.target.checked); };
 $("#keepAwake").onchange = e => { ls.set("ek.awake", e.target.checked ? "1" : "0"); wakeLock(!!S.current); };
 function applyBigText(on) { document.documentElement.classList.toggle("big", on); }
+// Einfacher Modus: blendet alles mit der Klasse "adv" aus (Läden bearbeiten, Ausgaben, Verlauf, Löschen …)
+$("#simpleMode").onchange = e => { ls.set("ek.simple", e.target.checked ? "1" : "0"); applySimple(e.target.checked); };
+function applySimple(on) { document.documentElement.classList.toggle("simple", on); }
 $("#leaveBtn").onclick = () => {
   if (!confirm("Auf diesem Gerät abmelden? Mit dem Code kommst du jederzeit wieder rein.")) return;
   unsubs.forEach(u => u());

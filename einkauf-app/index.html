@@ -61,12 +61,18 @@
       <button class="iconbtn" id="settingsBtn" aria-label="Einstellungen und Einladen">⚙</button>
     </header>
     <div class="scroll">
+      <div id="trips" class="trips"></div>
       <div class="stores" id="stores"></div>
-      <div id="storeSuggest" class="panel" hidden>
+      <div id="storeSuggest" class="panel adv" hidden>
         <p class="small">Tippe einen Laden an, um seine Liste anzulegen:</p>
         <div class="chips" id="storeSuggestChips"></div>
       </div>
-      <button class="btn ghost wide" id="newStoreBtn">+ Laden hinzufügen</button>
+      <button class="btn ghost wide adv" id="newStoreBtn">+ Laden hinzufügen</button>
+      <button class="moneycard adv" id="moneyBtn">
+        <span class="moneyicon" aria-hidden="true">💶</span>
+        <span><strong>Ausgaben</strong><span class="small" id="moneySummary">Kassenbons und was noch offen ist</span></span>
+        <span aria-hidden="true">›</span>
+      </button>
     </div>
   </section>
 
@@ -75,10 +81,13 @@
     <header class="listtop" id="listTop">
       <button class="iconbtn back" id="backBtn" aria-label="Zurück zur Übersicht">‹</button>
       <h1 id="listTitle"></h1>
-      <button class="iconbtn" id="storeEditBtn" aria-label="Laden umbenennen oder Farbe ändern">✎</button>
+      <button class="iconbtn adv" id="historyBtn" aria-label="Verlauf: was schon gekauft wurde">🕘</button>
+      <button class="iconbtn adv" id="storeEditBtn" aria-label="Laden bearbeiten">✎</button>
     </header>
+    <div class="tripbar" id="tripBar"></div>
     <form class="addbar" id="addForm" autocomplete="off">
       <input id="addInput" enterkeyhint="done" placeholder="Was fehlt?" aria-label="Neuer Eintrag">
+      <button type="button" class="btn ghost mic" id="micBtn" aria-label="Einsprechen" hidden>🎤</button>
       <button class="btn add" aria-label="Hinzufügen">+</button>
     </form>
     <div class="suggest" id="suggest" hidden></div>
@@ -88,6 +97,29 @@
         <div class="chips" id="oftenChips"></div>
       </div>
       <div id="items"></div>
+      <p class="small hint" id="swipeHint" hidden>Tipp: Zum Abhaken kannst du einen Eintrag auch nach rechts wischen.</p>
+    </div>
+  </section>
+
+  <!-- Ausgaben -->
+  <section id="money" class="view" hidden>
+    <header class="listtop money">
+      <button class="iconbtn back" id="moneyBack" aria-label="Zurück zur Übersicht">‹</button>
+      <h1>Ausgaben</h1>
+    </header>
+    <div class="scroll">
+      <div class="monthnav">
+        <button class="iconbtn" id="monthPrev" aria-label="Voriger Monat">‹</button>
+        <strong id="monthLabel"></strong>
+        <button class="iconbtn" id="monthNext" aria-label="Nächster Monat">›</button>
+      </div>
+      <div class="totals">
+        <div class="total"><span class="small">Diesen Monat</span><strong id="monthTotal"></strong></div>
+        <div class="total open"><span class="small">Noch nicht erstattet</span><strong id="openTotal"></strong></div>
+      </div>
+      <div id="perStore" class="perstore"></div>
+      <button class="btn wide" id="newReceiptBtn">📷 Kassenbon erfassen</button>
+      <div id="receipts"></div>
     </div>
   </section>
 </div>
@@ -103,7 +135,7 @@
         <label for="fQty">Menge</label>
         <input id="fQty" maxlength="20" placeholder="z. B. 2 oder 1 kg">
       </div>
-      <div>
+      <div class="adv">
         <label for="fCat">Abteilung</label>
         <select id="fCat"></select>
       </div>
@@ -113,7 +145,7 @@
 
     <label>Foto vom Produkt</label>
     <div class="photorow">
-      <img id="fPhoto" alt="Foto vom Produkt" hidden>
+      <img id="fPhoto" alt="Foto vom Produkt, antippen zum Vergrößern" hidden>
       <label class="btn ghost filebtn">📷 <span id="fPhotoLabel">Foto machen</span>
         <input type="file" id="fPhotoInput" accept="image/*" capture="environment" hidden>
       </label>
@@ -122,14 +154,16 @@
 
     <label class="check"><input type="checkbox" id="fUrgent"> Dringend</label>
 
-    <label>Auf welche Liste?</label>
-    <div class="chips" id="fStores"></div>
+    <div class="adv">
+      <label>Auf welche Liste?</label>
+      <div class="chips" id="fStores"></div>
+    </div>
 
     <p class="meta" id="fMeta"></p>
     <p class="error" id="fError" role="alert"></p>
     <div class="dlgactions">
-      <button type="button" class="btn ghost danger" id="fDelete">Löschen</button>
-      <button type="button" class="btn ghost" id="fMissing">Gab's nicht</button>
+      <button type="button" class="btn ghost danger adv" id="fDelete">Löschen</button>
+      <button type="button" class="btn ghost adv" id="fMissing">Gab's nicht</button>
       <button type="button" class="btn ghost" id="fCancel">Abbrechen</button>
       <button class="btn" id="fSave">Speichern</button>
     </div>
@@ -145,6 +179,11 @@
     <div class="chips" id="sNameChips"></div>
     <label>Farbe</label>
     <div class="swatches" id="sColors"></div>
+    <div id="sOrderBox">
+      <label>Reihenfolge im Laden</label>
+      <p class="small">Einmal so sortieren, wie du durch den Laden läufst. Die Liste zeigt die Abteilungen dann in dieser Reihenfolge, für alle.</p>
+      <ol class="catorder" id="sOrder"></ol>
+    </div>
     <p class="error" id="sError" role="alert"></p>
     <div class="dlgactions">
       <button type="button" class="btn ghost danger" id="sDelete" hidden>Laden löschen</button>
@@ -152,6 +191,77 @@
       <button class="btn">Speichern</button>
     </div>
   </form>
+</dialog>
+
+<!-- Einkauf abschließen -->
+<dialog id="finishDlg">
+  <form method="dialog" class="dlg" id="finishForm">
+    <h2>Fertig eingekauft</h2>
+    <p class="small" id="finishInfo"></p>
+    <label for="finishMsg">Nachricht an die anderen (optional)</label>
+    <input id="finishMsg" maxlength="100" placeholder="z. B. Bin um 17 Uhr bei dir">
+    <div class="chips" id="finishChips"></div>
+    <label class="check"><input type="checkbox" id="finishClear" checked> Abgehakte Sachen in den Verlauf legen</label>
+    <label class="check adv"><input type="checkbox" id="finishReceipt"> Danach Kassenbon erfassen</label>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost" id="finishCancel">Abbrechen</button>
+      <button class="btn">Abschließen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Verlauf -->
+<dialog id="historyDlg">
+  <div class="dlg">
+    <h2 id="historyTitle">Verlauf</h2>
+    <div class="chips" id="historyFilter"></div>
+    <div id="historyList" class="historylist"></div>
+    <div class="dlgactions">
+      <button class="btn" id="historyClose">Schließen</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Kassenbon -->
+<dialog id="receiptDlg">
+  <form method="dialog" class="dlg" id="receiptForm">
+    <h2 id="receiptTitle">Kassenbon</h2>
+    <label>Laden</label>
+    <div class="chips" id="rStores"></div>
+    <div class="row2">
+      <div>
+        <label for="rAmount">Betrag in €</label>
+        <input id="rAmount" inputmode="decimal" placeholder="0,00" required>
+      </div>
+      <div>
+        <label for="rDate">Datum</label>
+        <input id="rDate" type="date" required>
+      </div>
+    </div>
+    <label for="rNote">Notiz</label>
+    <input id="rNote" maxlength="100" placeholder="z. B. inkl. Pfand, Apotheke Zuzahlung">
+    <label>Foto vom Bon</label>
+    <div class="photorow">
+      <img id="rPhoto" alt="Foto vom Kassenbon, antippen zum Vergrößern" hidden>
+      <label class="btn ghost filebtn">📷 <span id="rPhotoLabel">Bon fotografieren</span>
+        <input type="file" id="rPhotoInput" accept="image/*" capture="environment" hidden>
+      </label>
+    </div>
+    <label class="check"><input type="checkbox" id="rSettled"> Schon erstattet</label>
+    <p class="meta" id="rMeta"></p>
+    <p class="error" id="rError" role="alert"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost danger" id="rDelete" hidden>Löschen</button>
+      <button type="button" class="btn ghost" id="rCancel">Abbrechen</button>
+      <button class="btn">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Foto groß -->
+<dialog id="photoDlg" class="photodlg">
+  <img id="photoBig" alt="">
+  <button class="iconbtn photoclose" id="photoClose" aria-label="Schließen">✕</button>
 </dialog>
 
 <!-- Einstellungen -->
@@ -166,20 +276,24 @@
       <button class="btn ghost" id="saveName">Ändern</button>
     </div>
 
-    <label>Jemanden einladen</label>
-    <p class="small">Schick diesen Link, z. B. per WhatsApp. Auf dem iPhone die App erst zum Home-Bildschirm hinzufügen und dort den Code eingeben.</p>
-    <div class="codebox"><span>Code</span><strong id="myCode"></strong></div>
-    <div class="joinrow">
-      <button class="btn" id="shareBtn">Einladung teilen</button>
-      <button class="btn ghost" id="copyBtn">Link kopieren</button>
+    <div class="adv">
+      <label>Jemanden einladen</label>
+      <p class="small">Schick diesen Link, z. B. per WhatsApp. Auf dem iPhone die App erst zum Home-Bildschirm hinzufügen und dort den Code eingeben.</p>
+      <div class="codebox"><span>Code</span><strong id="myCode"></strong></div>
+      <div class="joinrow">
+        <button class="btn" id="shareBtn">Einladung teilen</button>
+        <button class="btn ghost" id="copyBtn">Link kopieren</button>
+      </div>
     </div>
 
     <label class="check"><input type="checkbox" id="bigText"> Große Schrift</label>
     <label class="check"><input type="checkbox" id="keepAwake"> Bildschirm im Laden anlassen</label>
+    <label class="check"><input type="checkbox" id="simpleMode"> Einfacher Modus</label>
+    <p class="small">Einfacher Modus: nur Eintragen, Abhaken und Fotos. Bearbeiten von Läden, Ausgaben und Verlauf sind ausgeblendet, damit nichts aus Versehen gelöscht wird. Gilt nur auf diesem Handy.</p>
 
     <p class="small" id="modeNote"></p>
     <div class="dlgactions">
-      <button class="btn ghost danger" id="leaveBtn">Abmelden</button>
+      <button class="btn ghost danger adv" id="leaveBtn">Abmelden</button>
       <button class="btn" id="settingsClose">Fertig</button>
     </div>
   </div>
