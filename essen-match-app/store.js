@@ -5,7 +5,9 @@ import { firebaseConfig } from "./firebase-config.js";
 const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
 // KI-Modell für Rezeptideen (Firebase AI Logic, Gemini Developer API, ohne Bezahltarif nutzbar).
 // Ältere Modelle schaltet Google regelmäßig ab; dann hier den Namen aktualisieren.
-const AI_MODEL = "gemini-3.8-flash";
+// gemini-3.8-flash antwortete im Test (Okt. 2026) nicht; Flash-Lite liefert in ~2 s gute Rezepte.
+const AI_MODEL = "gemini-3.5-flash-lite";
+const AI_TIMEOUT_MS = 45000;
 export const hasFirebase = !!(firebaseConfig && firebaseConfig.apiKey);
 
 export async function createStore() {
@@ -73,7 +75,11 @@ async function firebaseStore() {
     mode: "firebase",
     // Liefert { recipes: [{ name, mins, description, ingredients[], missing[], steps[] }] }
     async suggestRecipes(prompt) {
-      const result = await (await getModel()).generateContent(prompt);
+      const m = await getModel();
+      const result = await Promise.race([
+        m.generateContent(prompt),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Zeitüberschreitung")), AI_TIMEOUT_MS))
+      ]);
       return JSON.parse(result.response.text());
     },
     async roomExists(code) {
