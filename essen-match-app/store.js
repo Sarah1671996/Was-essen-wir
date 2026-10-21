@@ -62,6 +62,12 @@ async function firebaseStore() {
           const batch = fs.writeBatch(db);
           list.forEach(d => batch.set(fs.doc(col(c)), d));
           await batch.commit();
+        },
+        async replace(c, removeIds, list) {
+          const batch = fs.writeBatch(db);
+          removeIds.forEach(id => batch.delete(fs.doc(base, c, id)));
+          list.forEach(d => batch.set(fs.doc(col(c)), d));
+          await batch.commit();
         }
       };
     }
@@ -109,7 +115,13 @@ function localStore() {
         async add(c, data) { const id = randomCode(12); change(r => { r[c][id] = data; }); return id; },
         async update(c, id, data) { change(r => { Object.assign(r[c][id], data); }); },
         async remove(c, id) { change(r => { delete r[c][id]; }); },
-        async addMany(c, items) { change(r => items.forEach(d => { r[c][randomCode(12)] = d; })); }
+        async addMany(c, items) { change(r => items.forEach(d => { r[c][randomCode(12)] = d; })); },
+        async replace(c, removeIds, items) {
+          change(r => {
+            removeIds.forEach(id => { delete r[c][id]; });
+            items.forEach(d => { r[c][randomCode(12)] = d; });
+          });
+        }
       };
     }
   };

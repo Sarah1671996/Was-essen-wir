@@ -1,6 +1,12 @@
 import { createStore, hasFirebase, randomCode } from "./store.js";
 import { STARTER_DISHES } from "./starter-dishes.js";
 
+// Die Beispielgerichte der ersten Version. Sie werden beim Übernehmen der neuen Liste entfernt.
+const OLD_STARTER_NAMES = new Set(["Spaghetti Carbonara", "Pizza Margherita", "Lasagne", "Pilz-Risotto", "Sushi", "Ramen",
+  "Tacos", "Burrito", "Chili sin Carne", "Burger mit Pommes", "Chicken Tikka Masala", "Pad Thai", "Käsespätzle",
+  "Schnitzel mit Kartoffelsalat", "Flammkuchen", "Falafel-Bowl", "Dumplings", "Poke Bowl", "Paella", "Raclette",
+  "Döner", "Kürbissuppe", "Shakshuka", "Pancakes", "Salat mit Ziegenkäse", "Ofenlachs mit Gemüse"]);
+
 const $ = s => document.querySelector(s);
 const ls = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -113,7 +119,7 @@ async function tryEnter(code, create) {
     if (create) {
       await store.createRoom(code);
       const now = Date.now();
-      await store.room(code).addMany("dishes", STARTER_DISHES.map((d, i) => ({ ...d, createdAt: now + i, createdBy: S.uid })));
+      await store.room(code).addMany("dishes", STARTER_DISHES.map((d, i) => ({ ...d, starter: true, createdAt: now + i, createdBy: S.uid })));
     } else if (!(await store.roomExists(code))) {
       $("#setupError").textContent = hasFirebase
         ? "Diesen Code gibt es nicht. Prüf ihn nochmal oder lass dir den Link schicken."
@@ -574,7 +580,57 @@ function openRoom() {
   $("#nameEdit").value = S.name;
   $("#modeLine").textContent = hasFirebase ? "" : "Demo-Modus: Daten bleiben nur auf diesem Gerät, bis Firebase eingerichtet ist.";
   renderResetBox();
+  renderListBox();
   $("#roomDlg").showModal();
+}
+
+// Alte Beispielgerichte gegen die aktuelle Startliste tauschen. Selbst angelegte oder
+// bearbeitete Gerichte (mit Foto oder Rezept) bleiben erhalten.
+function listUpdate() {
+  const remove = S.dishes.filter(d => d.starter ||
+    (OLD_STARTER_NAMES.has(d.name) && !d.image && !d.ingredients && !d.steps && !d.link));
+  const removeIds = new Set(remove.map(d => d.id));
+  const keptNames = new Set(S.dishes.filter(d => !removeIds.has(d.id)).map(d => d.name.toLowerCase()));
+  const add = STARTER_DISHES.filter(d => !keptNames.has(d.name.toLowerCase()));
+  return { remove, add };
+}
+function renderListBox() {
+  const box = $("#listBox");
+  box.textContent = "";
+  const { remove, add } = listUpdate();
+  const current = remove.filter(d => d.starter).length === STARTER_DISHES.length && !add.length;
+  if (current) return;
+  box.appendChild(el("p", "small", `Es gibt eine neue Gerichteliste mit ${STARTER_DISHES.length} Gerichten.`));
+  const b = el("button", "btn ghost", "Neue Gerichteliste übernehmen");
+  b.onclick = () => {
+    box.textContent = "";
+    box.appendChild(el("p", "small",
+      `${remove.length} alte Beispielgerichte werden entfernt, ${add.length} Gerichte kommen dazu. Eure eigenen Gerichte und Wünsche bleiben.`));
+    const row = el("div", "joinrow");
+    const yes = el("button", "btn", "Übernehmen");
+    const no = el("button", "btn ghost", "Abbrechen");
+    yes.onclick = async () => {
+      yes.disabled = no.disabled = true;
+      try {
+        const now = Date.now();
+        await room.replace("dishes", remove.map(d => d.id),
+          add.map((d, i) => ({ ...d, starter: true, createdAt: now + i, createdBy: S.uid })));
+        remove.forEach(d => { delete S.myVotes[d.id]; });
+        saveMe();
+        $("#roomDlg").close();
+        showTab("swipe");
+        toast("Neue Gerichte sind da!");
+      } catch (e) {
+        console.error(e);
+        yes.disabled = no.disabled = false;
+        toast("Das hat nicht geklappt. Versuch es nochmal.");
+      }
+    };
+    no.onclick = renderListBox;
+    row.append(yes, no);
+    box.appendChild(row);
+  };
+  box.appendChild(b);
 }
 $("#peopleBtn").onclick = openRoom;
 $("#roomClose").onclick = () => $("#roomDlg").close();
