@@ -16,9 +16,11 @@ const ls = {
 
 const S = {
   uid: null, code: null, name: "",
-  dishes: [], members: [], wishes: [],
+  dishes: [], members: [], wishes: [], shopping: [],
   myVotes: {}, history: [], salt: ls.get("em.salt") || "1",
-  votesLoaded: false
+  votesLoaded: false,
+  // Runden: Wer "Neue Runde" startet, erhöht round. Jedes Handy leert dann seine eigenen Swipes.
+  round: 0, myRound: 0, roundLoaded: false
 };
 let store, room, unsubs = [];
 
@@ -66,7 +68,8 @@ function avatar(m) {
 }
 const others = () => S.members.filter(m => m.id !== S.uid);
 const nameOf = uid => uid === S.uid ? "Du" : (S.members.find(m => m.id === uid)?.name || "Jemand");
-const likersOf = id => others().filter(m => m.votes?.[id] === 1);
+const inRound = m => (m.round || 0) === S.round;
+const likersOf = id => others().filter(m => inRound(m) && m.votes?.[id] === 1);
 function fmtDate(ts) { return ts ? new Date(ts).toLocaleDateString("de-DE", { day: "numeric", month: "short" }) : ""; }
 
 /* ---------- Einrichtung ---------- */
@@ -143,6 +146,7 @@ function enterRoom() {
   $("#app").hidden = false;
   unsubs.forEach(u => u());
   S.votesLoaded = false;
+  S.roundLoaded = false;
   room = store.room(S.code);
   const onErr = e => { console.error(e); toast("Verbindung unterbrochen. Lade die App neu."); };
   unsubs = [
@@ -153,13 +157,34 @@ function enterRoom() {
       if (!S.votesLoaded) {
         S.votesLoaded = true;
         S.myVotes = { ...(mine?.votes || {}), ...S.myVotes };
+        S.myRound = mine?.round || 0;
         if (!mine || mine.name !== S.name) saveMe();
+        checkRound();
       }
       renderAll();
     }, null, onErr),
-    room.watch("wishes", list => { S.wishes = list; renderWishes(); }, { field: "at", dir: "desc" }, onErr)
+    room.watch("wishes", list => { S.wishes = list; renderWishes(); }, { field: "at", dir: "desc" }, onErr),
+    room.watch("shopping", list => { S.shopping = list; renderShopping(); }, { field: "at" }, onErr),
+    room.watch("meta", list => {
+      S.round = list.find(x => x.id === "round")?.n || 0;
+      S.roundLoaded = true;
+      checkRound();
+      renderAll();
+    }, null, onErr)
   ];
   renderAll();
+}
+
+// Hat jemand eine neue Runde gestartet, leert dieses Handy seine eigenen Swipes
+function checkRound() {
+  if (!S.votesLoaded || !S.roundLoaded || S.myRound >= S.round) return;
+  const fresh = S.myRound > 0 || Object.keys(S.myVotes).length;
+  S.myRound = S.round;
+  S.myVotes = {}; S.history = []; S.front = null;
+  S.salt = String(Date.now()); ls.set("em.salt", S.salt);
+  saveMe();
+  renderDeck(true);
+  if (fresh) toast("Neue Runde! Alle Gerichte sind wieder im Stapel.", true);
 }
 
 /* ---------- eigene Swipes speichern (immer nur ein Schreibvorgang gleichzeitig) ---------- */
@@ -168,7 +193,7 @@ async function saveMe() {
   if (saving) { again = true; return; }
   saving = true;
   try {
-    await room.setMember({ name: S.name, votes: { ...S.myVotes }, updatedAt: Date.now() });
+    await room.setMember({ name: S.name, votes: { ...S.myVotes }, round: S.myRound, updatedAt: Date.now() });
   } catch (e) {
     console.error(e);
     toast("Speichern hat nicht geklappt.");
@@ -327,6 +352,97 @@ function renderMatches() {
     list.appendChild(el("div", "sectlabel", `Nur du willst (${onlyMe.length})`));
     onlyMe.forEach(d => list.appendChild(dishRow(d, "Wartet auf ein zweites Herz", () => openDetail(d.id))));
   }
+  const roundBox = el("div", "panel round");
+  list.appendChild(roundBox);
+  renderRoundBox(roundBox);
+}
+
+/* ---------- Neue Runde: Swipes und Matches für alle löschen ---------- */
+function renderRoundBox(box) {
+  box.textContent = "";
+  box.appendChild(el("p", "small", "Neue Woche, neue Runde: Die Swipes und Matches von euch allen werden gelöscht, und ihr swipt wieder von vorn. Gerichte, Wünsche und Einkaufsliste bleiben."));
+  const b = el("button", "btn ghost", "Neue Runde starten");
+  b.onclick = () => {
+    box.textContent = "";
+    box.appendChild(el("p", "small", "Wirklich alle Swipes und Matches löschen?"));
+    const row = el("div", "joinrow");
+    const yes = el("button", "btn danger", "Ja, neue Runde");
+    const no = el("button", "btn ghost", "Abbrechen");
+    yes.onclick = async () => {
+      yes.disabled = no.disabled = true;
+      try {
+        await room.set("meta", "round", { n: S.round + 1, at: Date.now(), by: S.uid });
+        showTab("swipe");
+      } catch (e) {
+        console.error(e);
+        toast("Das hat nicht geklappt. Versuch es nochmal.");
+        renderRoundBox(box);
+      }
+    };
+    no.onclick = () => renderRoundBox(box);
+    row.append(yes, no);
+    box.appendChild(row);
+  };
+  box.appendChild(b);
+}
+
+/* ---------- Einkaufsliste ---------- */
+function shopRow(item) {
+  const r = el("div", "row" + (item.done ? " done" : ""));
+  const c = el("button", "check", item.done ? "✓" : "");
+  c.setAttribute("aria-label", item.done ? "Wieder offen" : "Abhaken");
+  c.onclick = () => room.update("shopping", item.id, { done: !item.done, doneBy: S.uid, doneAt: Date.now() })
+    .catch(() => toast("Konnte nicht speichern"));
+  const txt = el("div", "txt");
+  const who = item.done
+    ? `abgehakt von ${item.doneBy === S.uid ? "dir" : nameOf(item.doneBy)}`
+    : `${nameOf(item.by)}${item.from ? " · für " + item.from : ""}`;
+  txt.append(el("div", "t", item.text), el("div", "s", who));
+  const del = el("button", "iconbtn", "✕");
+  del.setAttribute("aria-label", "Eintrag löschen");
+  del.onclick = () => room.remove("shopping", item.id).catch(() => toast("Löschen hat nicht geklappt"));
+  r.append(c, txt, del);
+  return r;
+}
+function renderShopping() {
+  const open = S.shopping.filter(i => !i.done), done = S.shopping.filter(i => i.done);
+  $("#shopCount").textContent = open.length || "";
+  const list = $("#shopList"), doneList = $("#shopDone");
+  list.textContent = ""; doneList.textContent = "";
+  if (!S.shopping.length) {
+    list.appendChild(el("div", "notice", "Die Einkaufsliste ist leer. Trag oben ein, was fehlt. Ihr seht beide sofort alle Änderungen."));
+  }
+  open.forEach(i => list.appendChild(shopRow(i)));
+  if (done.length) {
+    const head = el("div", "toolbar");
+    head.style.alignItems = "center";
+    const lbl = el("div", "sectlabel", `Erledigt (${done.length})`);
+    lbl.style.flex = "1";
+    const clear = el("button", "btn mini ghost", "Erledigte löschen");
+    clear.onclick = () => room.replace("shopping", done.map(i => i.id), []).catch(() => toast("Löschen hat nicht geklappt"));
+    head.append(lbl, clear);
+    doneList.appendChild(head);
+    done.forEach(i => doneList.appendChild(shopRow(i)));
+  }
+}
+$("#shopForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = $("#shopText").value.trim();
+  if (!text) return;
+  $("#shopText").value = "";
+  try { await room.add("shopping", { text, by: S.uid, at: Date.now(), done: false }); }
+  catch { $("#shopText").value = text; toast("Konnte nicht speichern"); }
+  $("#shopText").focus();
+});
+async function addIngredientsToShopping(d) {
+  const lines = (d.ingredients || "").split("\n").map(x => x.trim()).filter(Boolean);
+  const have = new Set(S.shopping.filter(i => !i.done).map(i => i.text.toLowerCase()));
+  const now = Date.now();
+  const items = lines.filter(l => !have.has(l.toLowerCase()))
+    .map((text, i) => ({ text, by: S.uid, at: now + i, done: false, from: d.name }));
+  if (!items.length) { toast("Steht schon alles auf der Liste"); return; }
+  try { await room.addMany("shopping", items); toast(`${items.length} Zutaten auf der Einkaufsliste`); }
+  catch { toast("Konnte nicht speichern"); }
 }
 
 /* ---------- Gerichte-Liste ---------- */
@@ -366,7 +482,8 @@ function openDetail(id) {
   others().forEach(m => {
     const ov = m.votes?.[id];
     // Stimmen der anderen erst zeigen, wenn du selbst geswipt hast
-    votes.push(`${m.name}: ${mv === undefined ? "?" : ov === 1 ? "♥" : ov === 0 ? "✕" : "–"}`);
+    const shown = inRound(m) ? ov : undefined;
+    votes.push(`${m.name}: ${mv === undefined ? "?" : shown === 1 ? "♥" : shown === 0 ? "✕" : "–"}`);
   });
   $("#detailVotes").textContent = votes.join("   ");
 
@@ -389,6 +506,8 @@ function openDetail(id) {
   }
   if (!ing.length && !steps.length && !d.link) r.appendChild(el("p", "small", "Noch kein Rezept hinterlegt. Über „Bearbeiten“ kannst du eins eintragen."));
   if (d.createdBy && S.members.length > 1) r.appendChild(el("p", "small", `Angelegt von ${nameOf(d.createdBy)}`));
+  $("#detailShop").hidden = !ing.length;
+  $("#detailShop").onclick = () => addIngredientsToShopping(d);
   $("#detailDlg").showModal();
 }
 $("#detailClose").onclick = () => $("#detailDlg").close();
@@ -678,7 +797,8 @@ $("#leaveBtn").onclick = () => {
   b.dataset.armed = ""; b.textContent = "Küche verlassen";
   unsubs.forEach(u => u()); unsubs = [];
   ls.del("em.code");
-  S.code = null; S.myVotes = {}; S.history = []; S.members = []; S.dishes = []; S.wishes = [];
+  S.code = null; S.myVotes = {}; S.history = []; S.members = []; S.dishes = []; S.wishes = []; S.shopping = [];
+  S.round = 0; S.myRound = 0;
   $("#roomDlg").close();
   showSetup();
 };
@@ -686,7 +806,7 @@ $("#leaveBtn").onclick = () => {
 /* ---------- Tabs & Rendern ---------- */
 function showTab(t) {
   document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-  for (const v of ["swipe", "match", "dishes", "wish"]) $("#view-" + v).hidden = v !== t;
+  for (const v of ["swipe", "match", "dishes", "shop", "wish"]) $("#view-" + v).hidden = v !== t;
   ls.set("em.tab", t);
 }
 document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -702,6 +822,7 @@ function renderAll() {
   renderMatches();
   renderDishes();
   renderWishes();
+  renderShopping();
   renderPeople();
   if (!$("#listNotice").dataset.confirming) renderListBox($("#listNotice"));
 }

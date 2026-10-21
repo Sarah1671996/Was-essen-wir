@@ -55,6 +55,7 @@ async function firebaseStore() {
           return fs.onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onError);
         },
         setMember: data => fs.setDoc(fs.doc(base, "members", uid), data),
+        set: (c, id, data) => fs.setDoc(fs.doc(base, c, id), data),
         add: async (c, data) => (await fs.addDoc(col(c), data)).id,
         update: (c, id, data) => fs.updateDoc(fs.doc(base, c, id), data),
         remove: (c, id) => fs.deleteDoc(fs.doc(base, c, id)),
@@ -88,10 +89,10 @@ function localStore() {
     uid,
     mode: "local",
     async roomExists(code) { return !!load(code); },
-    async createRoom(code) { save(code, { dishes: {}, members: {}, wishes: {} }); },
+    async createRoom(code) { save(code, { dishes: {}, members: {}, wishes: {}, shopping: {}, meta: {} }); },
     room(code) {
       const list = (c, order) => {
-        const items = Object.entries(load(code)[c]).map(([id, v]) => ({ id, ...v }));
+        const items = Object.entries(load(code)[c] || {}).map(([id, v]) => ({ id, ...v }));
         if (order) {
           const dir = order.dir === "desc" ? -1 : 1;
           items.sort((a, b) => ((a[order.field] ?? 0) > (b[order.field] ?? 0) ? 1 : -1) * dir);
@@ -112,7 +113,8 @@ function localStore() {
           return () => subs.delete(s);
         },
         async setMember(data) { change(r => { r.members[uid] = data; }); },
-        async add(c, data) { const id = randomCode(12); change(r => { r[c][id] = data; }); return id; },
+        async set(c, id, data) { change(r => { (r[c] ||= {})[id] = data; }); },
+        async add(c, data) { const id = randomCode(12); change(r => { (r[c] ||= {})[id] = data; }); return id; },
         async update(c, id, data) { change(r => { Object.assign(r[c][id], data); }); },
         async remove(c, id) { change(r => { delete r[c][id]; }); },
         async addMany(c, items) { change(r => items.forEach(d => { r[c][randomCode(12)] = d; })); },

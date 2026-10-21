@@ -80,6 +80,17 @@
       </div>
     </section>
 
+    <section id="view-shop" class="view" hidden>
+      <div class="scroll">
+        <form id="shopForm" class="joinrow">
+          <input id="shopText" maxlength="80" placeholder="Was muss eingekauft werden?" aria-label="Neuer Eintrag" autocomplete="off">
+          <button class="btn" type="submit">Hinzufügen</button>
+        </form>
+        <div id="shopList" class="list"></div>
+        <div id="shopDone" class="list"></div>
+      </div>
+    </section>
+
     <section id="view-wish" class="view" hidden>
       <div class="scroll">
         <form id="wishForm" class="panel">
@@ -95,8 +106,9 @@
 
   <nav class="tabbar" role="tablist">
     <button role="tab" data-tab="swipe" aria-selected="true"><span class="ti">♥</span>Swipen</button>
-    <button role="tab" data-tab="match" aria-selected="false"><span class="ti">✓</span>Matches<b class="badge" id="matchCount"></b></button>
+    <button role="tab" data-tab="match" aria-selected="false"><span class="ti">★</span>Matches<b class="badge" id="matchCount"></b></button>
     <button role="tab" data-tab="dishes" aria-selected="false"><span class="ti">☰</span>Gerichte</button>
+    <button role="tab" data-tab="shop" aria-selected="false"><span class="ti">☑</span>Einkauf<b class="badge" id="shopCount"></b></button>
     <button role="tab" data-tab="wish" aria-selected="false"><span class="ti">✎</span>Wünsche<b class="badge" id="wishCount"></b></button>
   </nav>
 </div>
@@ -109,6 +121,7 @@
     <div class="meta" id="detailMeta"></div>
     <div id="detailVotes" class="votesline"></div>
     <div id="detailRecipe"></div>
+    <button class="btn ghost" id="detailShop" hidden>Zutaten auf die Einkaufsliste</button>
     <div class="sheet-actions">
       <button class="btn ghost" id="detailEdit">Bearbeiten</button>
       <button class="btn" id="detailClose">Schließen</button>
