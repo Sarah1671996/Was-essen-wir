@@ -1,0 +1,30 @@
+// Diese Gerichte landen automatisch in jeder neu angelegten Küche.
+// In der App kannst du sie danach bearbeiten, löschen oder eigene dazunehmen.
+export const STARTER_DISHES = [
+  { name: "Spaghetti Carbonara", emoji: "🍝", cuisine: "Italienisch", mins: 25 },
+  { name: "Pizza Margherita", emoji: "🍕", cuisine: "Italienisch", mins: 40 },
+  { name: "Lasagne", emoji: "🧀", cuisine: "Italienisch", mins: 75 },
+  { name: "Pilz-Risotto", emoji: "🍚", cuisine: "Italienisch", mins: 35 },
+  { name: "Sushi", emoji: "🍣", cuisine: "Japanisch", mins: 60 },
+  { name: "Ramen", emoji: "🍜", cuisine: "Japanisch", mins: 45 },
+  { name: "Tacos", emoji: "🌮", cuisine: "Mexikanisch", mins: 30 },
+  { name: "Burrito", emoji: "🌯", cuisine: "Mexikanisch", mins: 30 },
+  { name: "Chili sin Carne", emoji: "🌶️", cuisine: "Mexikanisch", mins: 50 },
+  { name: "Burger mit Pommes", emoji: "🍔", cuisine: "Amerikanisch", mins: 35 },
+  { name: "Chicken Tikka Masala", emoji: "🍛", cuisine: "Indisch", mins: 45 },
+  { name: "Pad Thai", emoji: "🥢", cuisine: "Thailändisch", mins: 25 },
+  { name: "Käsespätzle", emoji: "🧅", cuisine: "Deutsch", mins: 40 },
+  { name: "Schnitzel mit Kartoffelsalat", emoji: "🥩", cuisine: "Deutsch", mins: 45 },
+  { name: "Flammkuchen", emoji: "🥓", cuisine: "Französisch", mins: 30 },
+  { name: "Falafel-Bowl", emoji: "🧆", cuisine: "Orientalisch", mins: 30 },
+  { name: "Dumplings", emoji: "🥟", cuisine: "Asiatisch", mins: 50 },
+  { name: "Poke Bowl", emoji: "🥗", cuisine: "Hawaiianisch", mins: 20 },
+  { name: "Paella", emoji: "🥘", cuisine: "Spanisch", mins: 60 },
+  { name: "Raclette", emoji: "🫕", cuisine: "Schweizerisch", mins: 20 },
+  { name: "Döner", emoji: "🥙", cuisine: "Türkisch", mins: 15 },
+  { name: "Kürbissuppe", emoji: "🎃", cuisine: "Herbstlich", mins: 40 },
+  { name: "Shakshuka", emoji: "🍳", cuisine: "Frühstück", mins: 25 },
+  { name: "Pancakes", emoji: "🥞", cuisine: "Frühstück", mins: 20 },
+  { name: "Salat mit Ziegenkäse", emoji: "🥬", cuisine: "Leicht", mins: 15 },
+  { name: "Ofenlachs mit Gemüse", emoji: "🐟", cuisine: "Leicht", mins: 30 }
+];
