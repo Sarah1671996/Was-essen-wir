@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Was essen wir?</title>
+  <meta name="description" content="Zu zweit durch Gerichte swipen und sehen, worauf ihr beide Lust habt.">
+  <meta name="theme-color" content="#1f6b45">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Was essen wir?">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,700;12..96,800&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Einrichtung: Name + Küche anlegen oder beitreten -->
+<div class="setup" id="setup" hidden>
+  <div class="setup-inner">
+    <div class="logo" aria-hidden="true">🍽️</div>
+    <h1>Was essen wir?</h1>
+    <p class="lead">Ihr swipt beide durch Gerichte. Was euch beiden schmeckt, landet bei den Matches.</p>
+
+    <label for="setupName">Wie heißt du?</label>
+    <input id="setupName" maxlength="24" autocomplete="given-name" placeholder="Dein Vorname">
+
+    <div id="setupInvite" hidden class="stack">
+      <p class="notice">Du wurdest in eine Küche eingeladen.</p>
+      <button class="btn big" id="setupJoinInvite">Mitmachen</button>
+    </div>
+
+    <div id="setupChoice" class="stack">
+      <button class="btn big" id="setupCreate">Neue Küche anlegen</button>
+      <div class="divider"><span>oder mit Code beitreten</span></div>
+      <div class="joinrow">
+        <input id="setupCode" maxlength="10" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="Einladungscode" aria-label="Einladungscode">
+        <button class="btn ghost" id="setupJoin">Beitreten</button>
+      </div>
+    </div>
+    <p class="error" id="setupError" role="alert"></p>
+    <p class="notice" id="demoNote" hidden>Demo-Modus: Firebase ist noch nicht eingerichtet. Alles bleibt nur auf diesem Gerät.</p>
+  </div>
+</div>
+
+<!-- Haupt-App -->
+<div class="app" id="app" hidden>
+  <header class="top">
+    <h1>Was essen wir?</h1>
+    <button class="people" id="peopleBtn" aria-label="Küche und Einstellungen"></button>
+  </header>
+
+  <main>
+    <section id="view-swipe" class="view">
+      <div class="deck" id="deck"></div>
+      <div class="votebar" id="votebar">
+        <button class="vote no" id="btnNo" aria-label="Lieber nicht">✕</button>
+        <button class="vote small" id="btnUndo" aria-label="Letzten Swipe rückgängig">↶</button>
+        <button class="vote yes" id="btnYes" aria-label="Will ich">♥</button>
+      </div>
+    </section>
+
+    <section id="view-match" class="view" hidden>
+      <div class="scroll" id="matchList"></div>
+    </section>
+
+    <section id="view-dishes" class="view" hidden>
+      <div class="scroll">
+        <div class="toolbar">
+          <input id="dishSearch" type="search" placeholder="Gericht suchen" aria-label="Gericht suchen">
+          <button class="btn" id="newDishBtn">+ Neu</button>
+        </div>
+        <div id="dishList" class="list"></div>
+      </div>
+    </section>
+
+    <section id="view-wish" class="view" hidden>
+      <div class="scroll">
+        <form id="wishForm" class="panel">
+          <label for="wishText">Worauf hast du Lust? Ein neues Gericht, ein Restaurant, irgendwas mit Käse …</label>
+          <textarea id="wishText" maxlength="300" placeholder="Ich hätte Lust auf …"></textarea>
+          <button class="btn" type="submit">Wunsch eintragen</button>
+        </form>
+        <div class="sectlabel">Eure Wünsche</div>
+        <div id="wishList" class="list"></div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" role="tablist">
+    <button role="tab" data-tab="swipe" aria-selected="true"><span class="ti">♥</span>Swipen</button>
+    <button role="tab" data-tab="match" aria-selected="false"><span class="ti">✓</span>Matches<b class="badge" id="matchCount"></b></button>
+    <button role="tab" data-tab="dishes" aria-selected="false"><span class="ti">☰</span>Gerichte</button>
+    <button role="tab" data-tab="wish" aria-selected="false"><span class="ti">✎</span>Wünsche<b class="badge" id="wishCount"></b></button>
+  </nav>
+</div>
+
+<!-- Gericht ansehen -->
+<dialog id="detailDlg" class="sheet">
+  <div class="sheet-pic" id="detailPic"></div>
+  <div class="sheet-body">
+    <h2 id="detailName"></h2>
+    <div class="meta" id="detailMeta"></div>
+    <div id="detailVotes" class="votesline"></div>
+    <div id="detailRecipe"></div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="detailEdit">Bearbeiten</button>
+      <button class="btn" id="detailClose">Schließen</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Gericht anlegen / bearbeiten -->
+<dialog id="formDlg" class="sheet">
+  <form id="dishForm" class="sheet-body" method="dialog">
+    <h2 id="formTitle">Neues Gericht</h2>
+    <div class="photo-pick">
+      <div class="photo-preview" id="photoPreview"></div>
+      <div class="stack">
+        <label class="btn ghost filebtn" for="dishPhoto">Foto wählen</label>
+        <input id="dishPhoto" type="file" accept="image/*" hidden>
+        <button type="button" class="btn ghost" id="photoRemove" hidden>Foto entfernen</button>
+      </div>
+    </div>
+    <label for="dishName">Name</label>
+    <input id="dishName" maxlength="60" required placeholder="z. B. Omas Gulasch">
+    <div class="grid3">
+      <div><label for="dishEmoji">Symbol</label><input id="dishEmoji" maxlength="4" placeholder="🍽️"></div>
+      <div><label for="dishCuisine">Küche</label><input id="dishCuisine" maxlength="30" placeholder="Hausmannskost"></div>
+      <div><label for="dishMins">Minuten</label><input id="dishMins" type="number" inputmode="numeric" min="5" max="600" step="5" placeholder="45"></div>
+    </div>
+    <label for="dishIngredients">Zutaten (eine pro Zeile)</label>
+    <textarea id="dishIngredients" rows="4" placeholder="500 g Rindergulasch&#10;2 Zwiebeln&#10;1 EL Paprikapulver"></textarea>
+    <label for="dishSteps">Zubereitung (ein Schritt pro Zeile)</label>
+    <textarea id="dishSteps" rows="4" placeholder="Zwiebeln würfeln und anbraten&#10;Fleisch dazugeben …"></textarea>
+    <label for="dishLink">Link zum Rezept (optional)</label>
+    <input id="dishLink" type="url" inputmode="url" placeholder="https://…">
+    <p class="error" id="formError" role="alert"></p>
+    <div class="sheet-actions">
+      <button type="button" class="btn danger-ghost" id="formDelete" hidden>Löschen</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="formCancel">Abbrechen</button>
+      <button type="submit" class="btn" id="formSave">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Küche / Einstellungen -->
+<dialog id="roomDlg" class="sheet">
+  <div class="sheet-body">
+    <h2>Eure Küche</h2>
+    <div id="memberList" class="list"></div>
+    <label>Einladen</label>
+    <p class="small">Schick diesen Link an deinen Partner oder deine Partnerin:</p>
+    <div class="joinrow">
+      <input id="inviteLink" readonly aria-label="Einladungslink">
+      <button class="btn" id="inviteShare">Teilen</button>
+    </div>
+    <p class="small">Code: <b id="roomCode" class="mono"></b></p>
+    <label for="nameEdit">Dein Name</label>
+    <div class="joinrow">
+      <input id="nameEdit" maxlength="24">
+      <button class="btn ghost" id="nameSave">Ändern</button>
+    </div>
+    <div class="stack" id="listBox"></div>
+    <div class="stack" id="resetBox"></div>
+    <p class="small" id="modeLine"></p>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="leaveBtn">Küche verlassen</button>
+      <span class="spacer"></span>
+      <button class="btn" id="roomClose">Fertig</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
