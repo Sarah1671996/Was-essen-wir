@@ -33,6 +33,12 @@ oder in der Firebase-Konsole unter **Firestore → Regeln** den Inhalt der Datei
 - Große Schrift (⚙) und Bildschirm bleibt im Laden an.
 - Funktioniert auch bei schlechtem Empfang, Änderungen werden nachgeholt.
 
+## Listen über Claude bearbeiten
+
+`cli.mjs` liest und ändert die Listen von der Kommandozeile aus (`node einkauf-app/cli.mjs hilfe`).
+Der Claude-Skill in `.claude/skills/einkauf/` sagt Claude Code, wie es das Werkzeug benutzt; dann reicht im Chat z. B. „setz Milch auf Kaufland“.
+Einmalig verbinden: `node einkauf-app/cli.mjs code <code aus ⚙> <Vorname>`. Der Code landet in `~/.einkauf.json`, nicht im Repo.
+
 ## Testen
 
 `node serve.mjs . 5175` im übergeordneten Ordner, dann http://localhost:5175/einkauf-app/?demo

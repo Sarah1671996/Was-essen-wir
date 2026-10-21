@@ -1,4 +1,5 @@
-.claude/
+.claude/*
+!.claude/skills/
 essen-match.html
 firebase-debug.log
 node_modules/

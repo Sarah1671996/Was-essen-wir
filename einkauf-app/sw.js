@@ -1,8 +1,8 @@
 // Hält die App-Dateien offline bereit (im Laden ist oft schlechter Empfang). Erst Netz, bei Funkloch der Zwischenspeicher.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "einkauf-v1";
+const CACHE = "einkauf-v2";
 const FILES = [
-  "./", "index.html", "style.css", "app.js", "store.js", "../essen-match-app/firebase-config.js",
+  "./", "index.html", "style.css", "app.js", "store.js", "cats.js", "../essen-match-app/firebase-config.js",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
 ];
 
