@@ -41,6 +41,14 @@ oder in der Firebase-Konsole unter **Firestore → Regeln** den Inhalt der Datei
 - Fotos per Kamera oder **aus der Galerie**; bei Kassenbons liest die KI (Gemini über Firebase AI Logic) Betrag und Datum automatisch ab.
 - Funktioniert auch bei schlechtem Empfang, Änderungen werden nachgeholt.
 
+## Sicherheit
+
+- Eine Familienliste ist nur mit ihrem 10-stelligen Code erreichbar; Auflisten aller Listen ist verboten.
+- Die Firestore-Regeln nehmen nur an, was die App selbst schreibt: feste Felder, begrenzte Längen, Fotos nur als eingebettetes JPEG, Farben nur als `#rrggbb`. Die App prüft Fotos und Farben beim Anzeigen zusätzlich.
+- Eine Content-Security-Policy in `index.html` erlaubt Code nur von dieser Seite und von Google (Firebase) und Verbindungen nur zu Google-Diensten.
+- **Neuen Code erzeugen** (⚙ → Sicherheit): Alle Daten ziehen in eine neue Familienliste um, die alte wird geleert und geschlossen. Alte Einladungslinks funktionieren danach nicht mehr, wer noch drin war, sieht einen Hinweis.
+- Wichtigster Schutz bleibt: Zwei-Faktor-Anmeldung für das GitHub-Konto und das Google-Konto des Firebase-Projekts.
+
 ## Listen über Claude bearbeiten
 
 `cli.mjs` liest und ändert die Listen von der Kommandozeile aus (`node einkauf-app/cli.mjs hilfe`).

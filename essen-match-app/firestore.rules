@@ -35,19 +35,95 @@ service cloud.firestore {
     }
 
     // Einkaufs-App: eine "Familienliste" ist ebenfalls nur mit ihrem Code erreichbar.
+    // Geschrieben wird nur, was die App selbst erzeugt: feste Felder, begrenzte Längen,
+    // Fotos nur als eingebettetes JPEG. Eine geschlossene Liste (nach Code-Wechsel) nimmt nichts mehr an.
     match /households/{house} {
-      allow get, create: if request.auth != null;
-      allow list, update, delete: if false;
+      allow get: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["createdAt", "createdBy"])
+        && request.resource.data.createdBy == request.auth.uid;
+      // Einzige Änderung: beim Code-Wechsel einmalig als geschlossen markieren
+      allow update: if request.auth != null
+        && !("closedAt" in resource.data)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["closedAt"])
+        && request.resource.data.closedAt is number;
+      allow list, delete: if false;
 
-      match /members/{uid} {
-        allow read: if request.auth != null;
-        allow write: if request.auth != null && request.auth.uid == uid;
+      function signedIn() { return request.auth != null; }
+      function open() {
+        return get(/databases/$(database)/documents/households/$(house)).data.get("closedAt", null) == null;
+      }
+      function d() { return request.resource.data; }
+      function str(k, max) { return !(k in d()) || (d()[k] is string && d()[k].size() <= max); }
+      function needStr(k, max) { return k in d() && d()[k] is string && d()[k].size() > 0 && d()[k].size() <= max; }
+      function num(k) { return !(k in d()) || d()[k] is number; }
+      function flag(k) { return !(k in d()) || d()[k] is bool; }
+      function idOrNull(k) { return !(k in d()) || d()[k] == null || (d()[k] is string && d()[k].size() <= 64); }
+      function photoOk() {
+        return !("photo" in d()) || d().photo == null
+          || (d().photo is string && d().photo.size() < 900000 && d().photo.matches("data:image/jpeg;base64,[A-Za-z0-9+/=]+"));
       }
 
-      match /{col}/{id} {
-        allow read, write: if request.auth != null
-          && col in ["stores", "items", "known", "history", "receipts", "categories"]
-          && exists(/databases/$(database)/documents/households/$(house));
+      match /members/{uid} {
+        allow read: if signedIn();
+        allow delete: if signedIn() && request.auth.uid == uid;
+        allow create, update: if signedIn() && request.auth.uid == uid && open()
+          && d().keys().hasOnly(["name", "seenAt", "trip"])
+          && needStr("name", 40) && num("seenAt")
+          && (!("trip" in d()) || d().trip == null || (d().trip is map
+              && d().trip.keys().hasOnly(["storeId", "at", "state", "doneAt", "count", "msg"])
+              && d().trip.get("msg", "") is string && d().trip.get("msg", "").size() <= 140));
+      }
+
+      match /stores/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && open()
+          && d().keys().hasOnly(["name", "color", "createdAt", "order", "by", "catOrder"])
+          && needStr("name", 40) && d().color is string && d().color.matches("#[0-9a-fA-F]{6}")
+          && num("createdAt") && num("order") && idOrNull("by")
+          && (!("catOrder" in d()) || d().catOrder == null || (d().catOrder is list && d().catOrder.size() <= 60));
+      }
+
+      match /items/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && open()
+          && d().keys().hasOnly(["text", "qty", "note", "cat", "storeId", "done", "urgent", "by", "at", "photo",
+                                 "missing", "missingAt", "missingBy", "doneBy", "doneAt"])
+          && needStr("text", 100) && str("qty", 30) && str("note", 200) && str("cat", 64) && needStr("storeId", 64)
+          && flag("done") && flag("urgent") && flag("missing") && num("at") && num("missingAt") && num("doneAt")
+          && idOrNull("by") && idOrNull("missingBy") && idOrNull("doneBy") && photoOk();
+      }
+
+      match /known/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && open()
+          && d().keys().hasOnly(["text", "cat", "count", "last", "stores"])
+          && needStr("text", 100) && str("cat", 64) && num("count") && num("last")
+          && (!("stores" in d()) || (d().stores is map && d().stores.size() <= 100));
+      }
+
+      match /history/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && open()
+          && d().keys().hasOnly(["text", "qty", "cat", "storeId", "by", "at", "doneBy", "doneAt"])
+          && needStr("text", 100) && str("qty", 30) && str("cat", 64) && idOrNull("storeId")
+          && idOrNull("by") && idOrNull("doneBy") && num("at") && num("doneAt");
+      }
+
+      match /receipts/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && open()
+          && d().keys().hasOnly(["storeId", "storeName", "amount", "date", "note", "photo", "settled", "settledAt", "by", "at"])
+          && idOrNull("storeId") && str("storeName", 40) && str("note", 200)
+          && d().amount is number && d().amount >= 0 && d().amount <= 10000000
+          && num("date") && flag("settled") && num("settledAt") && idOrNull("by") && num("at") && photoOk();
+      }
+
+      match /categories/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && open()
+          && d().keys().hasOnly(["name", "emoji", "words", "createdAt", "by"])
+          && needStr("name", 40) && str("emoji", 16) && str("words", 400) && num("createdAt") && idOrNull("by");
       }
     }
   }

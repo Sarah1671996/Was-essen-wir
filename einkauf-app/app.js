@@ -58,6 +58,10 @@ function when(ts) {
   return d.toLocaleDateString("de-DE", { day: "numeric", month: "short" });
 }
 
+// Nur Werte anzeigen, die die App selbst erzeugt: Fotos als eingebettetes JPEG, Farben als #rrggbb.
+// So kann auch ein manipulierter Eintrag keine fremden Seiten laden oder das Layout kapern.
+const safePhoto = p => typeof p === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p) ? p : null;
+const safeColor = c => typeof c === "string" && /^#[0-9a-fA-F]{6}$/.test(c) ? c : "#6b6b6b";
 const euro = cents => (cents / 100).toLocaleString("de-DE", { style: "currency", currency: "EUR" });
 const uid20 = () => randomCode(20);
 
@@ -136,7 +140,7 @@ async function join(code) {
   if (!takeName() || !store) return;
   if (!/^[a-z0-9]{10}$/.test(code || "")) { $("#setupError").textContent = "Der Code hat 10 Zeichen."; return; }
   try {
-    if (!(await store.exists(code))) { $("#setupError").textContent = "Diesen Code gibt es nicht. Tippfehler?"; return; }
+    if (!(await store.exists(code))) { $("#setupError").textContent = "Diesen Code gibt es nicht (mehr). Tippfehler, oder wurde ein neuer Code erzeugt?"; return; }
   } catch (e) { console.error(e); $("#setupError").textContent = "Keine Verbindung. Bist du online?"; return; }
   history.replaceState(null, "", location.pathname);
   enter(code);
@@ -156,7 +160,8 @@ function enter(code) {
     house.watch("members", l => { S.members = l; renderMembers(); renderAll(); }, onErr),
     house.watch("known", l => { S.known = l; if (S.current) renderOften(); }, onErr),
     house.watch("receipts", l => { S.receipts = l; renderAll(); }, onErr),
-    house.watch("categories", l => { S.cats = l; renderAll(); if ($("#storeDlg").open) syncOrder(); }, onErr)
+    house.watch("categories", l => { S.cats = l; renderAll(); if ($("#storeDlg").open) syncOrder(); }, onErr),
+    house.watchHouse(h => { if (h?.closedAt) houseClosed(); }, onErr)
   ];
 
   $("#setup").hidden = true;
@@ -220,7 +225,7 @@ function tripBanner(m, t, here = false) {
   const s = storeById(t.storeId);
   const who = m.id === S.uid ? "Du" : m.name;
   const b = el(here ? "div" : "button", "trip" + (t.state === "fertig" ? " finished" : ""));
-  b.style.setProperty("--c", s.color);
+  b.style.setProperty("--c", safeColor(s.color));
   const icon = el("span", "tripicon", t.state === "fertig" ? "✅" : "🛒");
   const txt = el("span", "triptext");
   if (t.state === "fertig") {
@@ -256,7 +261,7 @@ function renderHome() {
   for (const s of sortedStores()) {
     const open = openOf(s.id);
     const card = el("button", "store");
-    card.style.setProperty("--c", s.color || COLORS[0]);
+    card.style.setProperty("--c", safeColor(s.color));
     const head = el("div", "storehead");
     head.appendChild(el("span", "storename", s.name));
     const count = el("span", "count", open.length ? String(open.length) : "✓");
@@ -465,8 +470,8 @@ function renderList() {
   const s = storeById(S.current);
   if (!s) { $("#listTitle").textContent = "…"; return; }
   $("#listTitle").textContent = s.name;
-  $("#listTop").style.setProperty("--c", s.color);
-  document.querySelector("#list").style.setProperty("--c", s.color);
+  $("#listTop").style.setProperty("--c", safeColor(s.color));
+  document.querySelector("#list").style.setProperty("--c", safeColor(s.color));
 
   const box = $("#items");
   box.textContent = "";
@@ -566,6 +571,7 @@ function swipeable(li, row, onSwipe) {
 }
 
 function showPhoto(src) {
+  if (!safePhoto(src)) return;
   $("#photoBig").src = src;
   $("#photoDlg").showModal();
 }
@@ -602,11 +608,11 @@ function itemRow(i) {
   body.onclick = () => openItemDlg(i);
   row.appendChild(body);
 
-  if (i.photo) {
+  if (safePhoto(i.photo)) {
     const img = el("button", "thumb");
-    img.style.backgroundImage = `url("${i.photo}")`;
+    img.style.backgroundImage = `url("${safePhoto(i.photo)}")`;
     img.setAttribute("aria-label", `Foto von ${i.text} groß anzeigen`);
-    img.onclick = () => showPhoto(i.photo);
+    img.onclick = () => showPhoto(safePhoto(i.photo));
     row.appendChild(img);
   }
   return li;
@@ -790,7 +796,7 @@ $("#fCat").onchange = e => {
 };
 
 function openItemDlg(i) {
-  editItem = i; editPhoto = i.photo || null; editStoreId = i.storeId;
+  editItem = i; editPhoto = safePhoto(i.photo); editStoreId = i.storeId;
   $("#fText").value = i.text;
   $("#fQty").value = i.qty || "";
   $("#fNote").value = i.note || "";
@@ -816,7 +822,7 @@ function renderStoreChips() {
   sortedStores().forEach(s => {
     const b = el("button", "chip" + (s.id === editStoreId ? " on" : ""), s.name);
     b.type = "button";
-    b.style.setProperty("--c", s.color);
+    b.style.setProperty("--c", safeColor(s.color));
     b.onclick = () => { editStoreId = s.id; renderStoreChips(); };
     box.appendChild(b);
   });
@@ -945,7 +951,7 @@ function renderHistory() {
   filter.textContent = "";
   [{ id: null, name: "Alle Läden" }, ...sortedStores()].forEach(s => {
     const c = el("button", "chip" + (historyFilter === s.id ? " on" : ""), s.name);
-    if (s.color) c.style.setProperty("--c", s.color);
+    if (s.color) c.style.setProperty("--c", safeColor(s.color));
     c.onclick = () => { historyFilter = s.id; renderHistory(); };
     filter.appendChild(c);
   });
@@ -980,7 +986,7 @@ $("#historyClose").onclick = () => $("#historyDlg").close();
 const monthKey = d => `${d.getFullYear()}-${d.getMonth()}`;
 // Ein Bon gehört zu einem Laden mit Liste (storeId) oder nur zu einem Namen (storeName, z. B. "Bäcker")
 const receiptName = r => storeById(r.storeId)?.name || r.storeName || "?";
-const receiptColor = r => storeById(r.storeId)?.color || (r.storeName ? COLORS[hash(norm(r.storeName)) % COLORS.length] : "var(--muted)");
+const receiptColor = r => storeById(r.storeId) ? safeColor(storeById(r.storeId).color) : (r.storeName ? COLORS[hash(norm(r.storeName)) % COLORS.length] : "var(--muted)");
 function renderMoney() {
   const m = S.month;
   $("#monthLabel").textContent = m.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
@@ -1025,11 +1031,11 @@ function renderMoney() {
     main.append(col, el("span", "amount", euro(r.amount)));
     main.onclick = () => openReceiptDlg(r);
     row.appendChild(main);
-    if (r.photo) {
+    if (safePhoto(r.photo)) {
       const img = el("button", "thumb");
-      img.style.backgroundImage = `url("${r.photo}")`;
+      img.style.backgroundImage = `url("${safePhoto(r.photo)}")`;
       img.setAttribute("aria-label", "Kassenbon groß anzeigen");
-      img.onclick = () => showPhoto(r.photo);
+      img.onclick = () => showPhoto(safePhoto(r.photo));
       row.appendChild(img);
     }
     const settle = el("button", "chip settle" + (r.settled ? " on" : ""), r.settled ? "✓ erstattet" : "offen");
@@ -1047,7 +1053,7 @@ let editReceipt = null, receiptPhoto = null, receiptStore = null, receiptOther =
 const isoDay = ts => { const d = new Date(ts); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 function openReceiptDlg(r, storeId = null) {
   editReceipt = r;
-  receiptPhoto = r?.photo || null;
+  receiptPhoto = safePhoto(r?.photo);
   receiptOther = r && !r.storeId ? r.storeName || "" : "";
   receiptStore = receiptOther ? null : r?.storeId || storeId || myTrip()?.storeId || sortedStores()[0]?.id || null;
   $("#rOtherRow").hidden = true;
@@ -1182,6 +1188,72 @@ $("#rDelete").onclick = async () => {
   try { await house.remove("receipts", editReceipt.id); $("#receiptDlg").close(); }
   catch { $("#rError").textContent = "Löschen hat nicht geklappt."; }
 };
+
+/* ---------- Neuer Code (z. B. wenn der Einladungslink weitergegeben wurde) ---------- */
+const HOUSE_COLS = ["stores", "items", "known", "history", "receipts", "categories"];
+// Schreibvorgänge in Pakete teilen (Firestore: höchstens 500 pro Paket und etwa 10 MB)
+function chunks(ops) {
+  const out = [];
+  let cur = [], size = 0;
+  for (const o of ops) {
+    const n = JSON.stringify(o.data || {}).length;
+    if (cur.length && (cur.length >= 300 || size + n > 5e6)) { out.push(cur); cur = []; size = 0; }
+    cur.push(o); size += n;
+  }
+  if (cur.length) out.push(cur);
+  return out;
+}
+async function rotateCode() {
+  if (!confirm("Neuen Code erzeugen?\n\nAlle Listen, Kassenbons und der Verlauf ziehen in eine neue Familienliste um. " +
+    "Der alte Code und alle alten Einladungslinks funktionieren danach nicht mehr.\n\n" +
+    "Alle anderen (z. B. Mama) brauchen danach den neuen Einladungslink.")) return;
+  const btn = $("#rotateBtn");
+  btn.disabled = true;
+  btn.textContent = "Ziehe um …";
+  const old = house;
+  let code = null;
+  try {
+    // 1. alles lesen und in eine neue Familienliste kopieren (IDs bleiben gleich, damit Bezüge stimmen)
+    const data = {};
+    for (const c of HOUSE_COLS) data[c] = await old.getAll(c);
+    code = randomCode(10);
+    await store.create(code);
+    const neu = store.open(code);
+    for (const part of chunks(HOUSE_COLS.flatMap(c => data[c].map(({ id, ...rest }) => ({ c, id, data: rest })))))
+      await neu.batch(part);
+    // 2. umschalten, dann die alte Liste leeren und schließen
+    unsubs.forEach(u => u());
+    unsubs = [];
+    $("#settingsDlg").close();
+    enter(code);
+    try {
+      for (const part of chunks(HOUSE_COLS.flatMap(c => data[c].map(x => ({ type: "delete", c, id: x.id })))))
+        await old.batch(part);
+      await old.remove("members", S.uid).catch(() => {});
+      await old.close();
+      toast("Neuer Code ist aktiv. Schick Mama jetzt den neuen Einladungslink.");
+    } catch (err) {
+      console.error(err);
+      toast("Neuer Code ist aktiv, aber die alte Liste ließ sich nicht ganz leeren. Bitte später noch mal versuchen.");
+    }
+    $("#settingsBtn").click();
+  } catch (err) {
+    console.error(err);
+    toast("Code-Wechsel hat nicht geklappt. Es wurde nichts gelöscht, der alte Code gilt weiter.");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "🔑 Neuen Code erzeugen";
+  }
+}
+// Jemand anderes hat einen neuen Code erzeugt: diese Liste ist geschlossen
+function houseClosed() {
+  unsubs.forEach(u => u());
+  unsubs = [];
+  ls.del("ek.code");
+  history.replaceState(null, "", location.pathname);
+  showSetup("Für eure Familienliste wurde ein neuer Code erzeugt. Lass dir bitte den neuen Einladungslink schicken.");
+}
+$("#rotateBtn").onclick = rotateCode;
 
 /* ---------- Einstellungen ---------- */
 const inviteLink = () => location.origin + location.pathname + "?join=" + S.code;

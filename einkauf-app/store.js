@@ -79,8 +79,10 @@ async function firebaseStore() {
       ]);
       return JSON.parse(result.response.text());
     },
+    // Gibt es die Familienliste, und ist sie noch offen (nicht nach einem Code-Wechsel geschlossen)?
     async exists(code) {
-      return (await fs.getDoc(fs.doc(db, "households", code))).exists();
+      const snap = await fs.getDoc(fs.doc(db, "households", code));
+      return snap.exists() && !snap.data().closedAt;
     },
     async create(code) {
       await fs.setDoc(fs.doc(db, "households", code), { createdAt: Date.now(), createdBy: uid });
@@ -92,6 +94,9 @@ async function firebaseStore() {
         watch(c, cb, onError) {
           return fs.onSnapshot(col(c), snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onError);
         },
+        // Die Familienliste selbst beobachten (wird beim Code-Wechsel geschlossen)
+        watchHouse: (cb, onError) => fs.onSnapshot(base, snap => cb(snap.exists() ? snap.data() : null), onError),
+        close: () => fs.updateDoc(base, { closedAt: Date.now() }),
         set: (c, id, data) => fs.setDoc(fs.doc(base, c, id), data),
         patch: (c, id, data) => fs.setDoc(fs.doc(base, c, id), data, { merge: true }),
         async getAll(c) { return (await fs.getDocs(col(c))).docs.map(d => ({ id: d.id, ...d.data() })); },
@@ -126,7 +131,7 @@ function localStore() {
     uid,
     mode: "local",
     readReceipt: null, // KI gibt es nur mit Firebase
-    async exists(code) { return !!load(code); },
+    async exists(code) { const r = load(code); return !!r && !r.meta?.closedAt; },
     async create(code) { save(code, {}); },
     open(code) {
       const list = c => Object.entries(load(code)[c] || {}).map(([id, v]) => ({ id, ...v }));
@@ -149,6 +154,13 @@ function localStore() {
           setTimeout(s.fire);
           return () => subs.delete(s);
         },
+        watchHouse(cb) {
+          const s = { code, fire: () => cb(load(code)?.meta || {}) };
+          subs.add(s);
+          setTimeout(s.fire);
+          return () => subs.delete(s);
+        },
+        async close() { change(r => { r.meta = { ...(r.meta || {}), closedAt: Date.now() }; }); },
         async set(c, id, data) { change(r => apply(r, { c, id, data })); },
         async patch(c, id, data) { change(r => { const m = (r[c] ||= {}); m[id] = { ...(m[id] || {}), ...data }; }); },
         async getAll(c) { return list(c); },

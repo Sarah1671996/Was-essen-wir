@@ -85,7 +85,8 @@ function db() {
   }
   const mask = data => Object.keys(data).map(k => "updateMask.fieldPaths=" + encodeURIComponent(k)).join("&");
   return {
-    exists: async () => !!(await call("GET", "")),
+    // null = gibt es nicht; sonst die Felder der Familienliste (closedAt nach einem Code-Wechsel)
+    house: async () => { const j = await call("GET", ""); return j ? Object.fromEntries(Object.entries(j.fields || {}).map(([k, v]) => [k, dec(v)])) : null; },
     async list(col) {
       const out = [];
       let page = "";
@@ -172,7 +173,9 @@ if (!cfg.code) die("Noch keine Familienliste verbunden. Den Code aus der App (�
 
 session = await auth();
 const d = db();
-if (!(await d.exists())) die(`Die Familienliste mit dem Code ${cfg.code} gibt es nicht.`);
+const h = await d.house();
+if (!h) die(`Die Familienliste mit dem Code ${cfg.code} gibt es nicht.`);
+if (h.closedAt) die("Für diese Familienliste wurde in der App ein neuer Code erzeugt. Neuen Code eintragen mit: node einkauf-app/cli.mjs code <neuer code>");
 const name = (cfg.name || "Claude") + " (über Claude)";
 await d.set("members", session.uid, { name, seenAt: Date.now() });
 

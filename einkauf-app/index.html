@@ -3,6 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Sicherheitsrichtlinie: Code nur von dieser Seite und von Google (Firebase), Daten nur zu Google-Diensten,
+       Bilder nur von hier oder eingebettet. Selbst eingeschleuster Code könnte so nichts nachladen oder Daten wegschicken. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
   <title>Einkauf</title>
   <meta name="description" content="Gemeinsame Einkaufslisten für die Familie, eine Liste pro Laden.">
   <meta name="theme-color" content="#f6f1e9" media="(prefers-color-scheme: light)">
@@ -317,6 +321,10 @@
         <button class="btn" id="shareBtn">Einladung teilen</button>
         <button class="btn ghost" id="copyBtn">Link kopieren</button>
       </div>
+
+      <label>Sicherheit</label>
+      <p class="small">Wer den Einladungslink hat, kommt in eure Liste. Falls er in falsche Hände geraten ist oder jemand nicht mehr mitmachen soll: neuen Code erzeugen. Alle Daten ziehen mit um, alte Links funktionieren danach nicht mehr.</p>
+      <button class="btn ghost danger" id="rotateBtn">🔑 Neuen Code erzeugen</button>
     </div>
 
     <label class="check"><input type="checkbox" id="bigText"> Große Schrift</label>
