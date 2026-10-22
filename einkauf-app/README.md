@@ -37,6 +37,8 @@ oder in der Firebase-Konsole unter **Firestore → Regeln** den Inhalt der Datei
 - **Verlauf** (🕘): was wann gekauft wurde, mit „+ Liste“ zum Wiederhinzufügen.
 - **Ausgaben** (💶 auf der Übersicht): Kassenbons mit Foto, Monatssumme, offen/erstattet.
 - **Einfacher Modus** (⚙, pro Handy): nur Eintragen, Abhaken und Fotos.
+- **Eigene Abteilungen** mit Stichwörtern (✎ beim Laden oder im Eintrag „Neue Abteilung …“).
+- Fotos per Kamera oder **aus der Galerie**; bei Kassenbons liest die KI (Gemini über Firebase AI Logic) Betrag und Datum automatisch ab.
 - Funktioniert auch bei schlechtem Empfang, Änderungen werden nachgeholt.
 
 ## Listen über Claude bearbeiten

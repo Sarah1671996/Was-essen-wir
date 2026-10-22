@@ -1,5 +1,5 @@
 import { createStore, hasFirebase, randomCode } from "./store.js";
-import { CATS, CAT, norm, keyOf, guessCat as guessFrom, splitQty } from "./cats.js";
+import { allCats, norm, keyOf, guessCat as guessFrom, splitQty } from "./cats.js";
 
 const $ = s => document.querySelector(s);
 const ls = {
@@ -13,7 +13,7 @@ const STORE_NAMES = ["Kaufland", "Netto", "Edeka", "Aldi", "Lidl", "Rewe", "Penn
 
 const S = {
   uid: null, code: null, name: "",
-  stores: [], items: [], members: [], known: [], receipts: [],
+  stores: [], items: [], members: [], known: [], receipts: [], cats: [],
   view: "home",           // home | list | money
   current: null,          // geöffneter Laden (id)
   month: new Date(new Date().getFullYear(), new Date().getMonth(), 1), // Ausgaben: angezeigter Monat
@@ -29,7 +29,10 @@ function el(tag, cls, text) {
   if (text != null) e.textContent = text;
   return e;
 }
-const guessCat = text => guessFrom(text, S.known);
+const guessCat = text => guessFrom(text, S.known, S.cats);
+// Alle Abteilungen: feste und selbst angelegte
+const cats = () => allCats(S.cats);
+const catById = id => cats().find(c => c.id === id);
 function hash(s) { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.codePointAt(0), 16777619); return h >>> 0; }
 
 function toast(msg, action) {
@@ -62,9 +65,10 @@ const storeById = id => S.stores.find(s => s.id === id);
 // Abteilungen in der Reihenfolge, die für diesen Laden festgelegt wurde
 function catsFor(s) {
   const order = s?.catOrder || [];
-  return [...CATS].sort((a, b) => {
+  const list = cats();
+  return [...list].sort((a, b) => {
     const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
-    return (ia < 0 ? 99 + CATS.indexOf(a) : ia) - (ib < 0 ? 99 + CATS.indexOf(b) : ib);
+    return (ia < 0 ? 99 + list.indexOf(a) : ia) - (ib < 0 ? 99 + list.indexOf(b) : ib);
   });
 }
 // Wer ist gerade unterwegs bzw. hat vor kurzem eingekauft
@@ -151,7 +155,8 @@ function enter(code) {
     house.watch("items", l => { S.items = l; renderAll(); }, onErr),
     house.watch("members", l => { S.members = l; renderMembers(); renderAll(); }, onErr),
     house.watch("known", l => { S.known = l; if (S.current) renderOften(); }, onErr),
-    house.watch("receipts", l => { S.receipts = l; renderAll(); }, onErr)
+    house.watch("receipts", l => { S.receipts = l; renderAll(); }, onErr),
+    house.watch("categories", l => { S.cats = l; renderAll(); if ($("#storeDlg").open) syncOrder(); }, onErr)
   ];
 
   $("#setup").hidden = true;
@@ -323,12 +328,21 @@ function renderOrder() {
   const box = $("#sOrder");
   box.textContent = "";
   editOrder.forEach((id, n) => {
+    const c = catById(id);
     const li = el("li", "catrow");
-    li.appendChild(el("span", "catname", `${CAT[id].emoji} ${CAT[id].name}`));
+    li.appendChild(el("span", "catname", `${c.emoji} ${c.name}`));
+    // Eigene Abteilungen lassen sich umbenennen oder löschen
+    if (c.custom) {
+      const edit = el("button", "iconbtn small", "✎");
+      edit.type = "button";
+      edit.setAttribute("aria-label", `${c.name} bearbeiten`);
+      edit.onclick = () => openCatDlg(S.cats.find(x => x.id === id));
+      li.appendChild(edit);
+    }
     const move = (d, label, sym) => {
       const b = el("button", "iconbtn small", sym);
       b.type = "button";
-      b.setAttribute("aria-label", `${CAT[id].name} ${label}`);
+      b.setAttribute("aria-label", `${c.name} ${label}`);
       b.disabled = n + d < 0 || n + d >= editOrder.length;
       b.onclick = () => { [editOrder[n], editOrder[n + d]] = [editOrder[n + d], editOrder[n]]; renderOrder(); };
       return b;
@@ -337,6 +351,74 @@ function renderOrder() {
     box.appendChild(li);
   });
 }
+// Neue oder gelöschte eigene Abteilungen in die gerade bearbeitete Reihenfolge übernehmen
+function syncOrder() {
+  const ids = cats().map(c => c.id);
+  editOrder = editOrder.filter(id => ids.includes(id));
+  ids.filter(id => !editOrder.includes(id)).forEach(id => {
+    const at = editOrder.indexOf("sonst");
+    editOrder.splice(at < 0 ? editOrder.length : at, 0, id);
+  });
+  renderOrder();
+}
+$("#sAddCat").onclick = () => openCatDlg(null);
+
+/* ---------- Eigene Abteilungen ---------- */
+const CAT_EMOJIS = ["🏷️", "🐾", "💊", "🌸", "🍷", "🥚", "🧂", "🍝", "🧃", "🍎", "🧻", "🎁", "🌱", "👶", "🧹", "🔧"];
+let editCat = null, catEmoji = CAT_EMOJIS[0], catDone = null;
+function openCatDlg(c, onDone = null) {
+  editCat = c; catDone = onDone;
+  catEmoji = c?.emoji || CAT_EMOJIS[0];
+  $("#catTitle").textContent = c ? "Abteilung bearbeiten" : "Neue Abteilung";
+  $("#cName").value = c?.name || "";
+  $("#cWords").value = c?.words || "";
+  $("#cDelete").hidden = !c;
+  $("#cError").textContent = "";
+  renderCatEmojis();
+  $("#catDlg").showModal();
+}
+function renderCatEmojis() {
+  const box = $("#cEmojis");
+  box.textContent = "";
+  CAT_EMOJIS.forEach(e => {
+    const b = el("button", "chip emoji" + (e === catEmoji ? " on" : ""), e);
+    b.type = "button";
+    b.onclick = () => { catEmoji = e; renderCatEmojis(); };
+    box.appendChild(b);
+  });
+}
+$("#cCancel").onclick = () => $("#catDlg").close();
+$("#catForm").onsubmit = async e => {
+  e.preventDefault();
+  const name = $("#cName").value.trim();
+  if (!name) return;
+  if (cats().some(c => c.id !== editCat?.id && norm(c.name) === norm(name))) { $("#cError").textContent = "Diese Abteilung gibt es schon."; return; }
+  const data = { name, emoji: catEmoji, words: $("#cWords").value.trim() };
+  try {
+    let id = editCat?.id;
+    if (editCat) await house.update("categories", id, data);
+    else {
+      const full = { ...data, createdAt: Date.now(), by: S.uid };
+      id = await house.add("categories", full);
+      // sofort verfügbar machen, auch wenn die Datenbank-Meldung noch unterwegs ist
+      if (!S.cats.some(x => x.id === id)) S.cats = [...S.cats, { id, ...full }];
+    }
+    $("#catDlg").close();
+    toast(editCat ? "Abteilung geändert" : `Abteilung „${name}“ angelegt`);
+    catDone?.(id);
+  } catch (err) { console.error(err); $("#cError").textContent = "Speichern hat nicht geklappt."; }
+};
+$("#cDelete").onclick = async () => {
+  const c = editCat, n = S.items.filter(i => i.cat === c.id).length;
+  if (!confirm(`Abteilung „${c.name}“ löschen?` + (n ? ` ${n} Einträge landen dann unter „Sonstiges“.` : ""))) return;
+  try {
+    await house.batch([
+      { type: "delete", c: "categories", id: c.id },
+      ...S.items.filter(i => i.cat === c.id).map(i => ({ type: "update", c: "items", id: i.id, data: { cat: "sonst" } }))
+    ]);
+    $("#catDlg").close();
+  } catch (err) { console.error(err); $("#cError").textContent = "Löschen hat nicht geklappt."; }
+};
 function renderSwatches() {
   const box = $("#sColors");
   box.textContent = "";
@@ -356,7 +438,7 @@ $("#storeForm").onsubmit = async e => {
   e.preventDefault();
   const name = $("#sName").value.trim();
   if (!name) return;
-  if (S.stores.some(x => x !== editStore && norm(x.name) === norm(name))) { $("#sError").textContent = "Diesen Laden gibt es schon."; return; }
+  if (S.stores.some(x => x.id !== editStore?.id && norm(x.name) === norm(name))) { $("#sError").textContent = "Diesen Laden gibt es schon."; return; }
   try {
     if (editStore) await house.update("stores", editStore.id, { name, color: pickedColor, catOrder: editOrder });
     else await createStore_(name, pickedColor, editOrder);
@@ -395,7 +477,7 @@ function renderList() {
   // Dringendes ganz oben, der Rest nach Abteilungen in der Reihenfolge des Ladens
   const groups = [{ label: "❗ Dringend", list: open.filter(i => i.urgent) }, ...catsFor(s).map(cat => ({
     label: `${cat.emoji} ${cat.name}`,
-    list: open.filter(i => !i.urgent && (CAT[i.cat] ? i.cat : "sonst") === cat.id)
+    list: open.filter(i => !i.urgent && (catById(i.cat) ? i.cat : "sonst") === cat.id)
   }))];
   for (const g of groups) {
     if (!g.list.length) continue;
@@ -685,14 +767,29 @@ function renderOften() {
 
 /* ---------- Eintrag-Dialog ---------- */
 let editItem = null, editPhoto = null, editStoreId = null;
-$("#fCat").append(...CATS.map(c => { const o = el("option", "", `${c.emoji} ${c.name}`); o.value = c.id; return o; }));
+// Abteilungs-Auswahl im Eintrag-Dialog, mit "Neue Abteilung …" am Ende
+function fillCatSelect(value) {
+  const sel = $("#fCat");
+  sel.textContent = "";
+  cats().forEach(c => { const o = el("option", "", `${c.emoji} ${c.name}`); o.value = c.id; sel.appendChild(o); });
+  const add = el("option", "", "＋ Neue Abteilung …");
+  add.value = "__new";
+  sel.appendChild(add);
+  sel.value = catById(value) ? value : "sonst";
+  sel.dataset.prev = sel.value;
+}
+$("#fCat").onchange = e => {
+  if (e.target.value !== "__new") { e.target.dataset.prev = e.target.value; return; }
+  e.target.value = e.target.dataset.prev;
+  openCatDlg(null, id => fillCatSelect(id));
+};
 
 function openItemDlg(i) {
   editItem = i; editPhoto = i.photo || null; editStoreId = i.storeId;
   $("#fText").value = i.text;
   $("#fQty").value = i.qty || "";
   $("#fNote").value = i.note || "";
-  $("#fCat").value = CAT[i.cat] ? i.cat : "sonst";
+  fillCatSelect(i.cat);
   $("#fUrgent").checked = !!i.urgent;
   $("#fError").textContent = "";
   $("#fMissing").hidden = i.done;
@@ -719,7 +816,8 @@ function renderStoreChips() {
     box.appendChild(b);
   });
 }
-$("#fPhotoInput").onchange = async e => {
+// Kamera und Galerie liefern beide eine Bilddatei
+$("#fPhotoInput").onchange = $("#fGalleryInput").onchange = async e => {
   const file = e.target.files[0];
   e.target.value = "";
   if (!file) return;
@@ -948,6 +1046,8 @@ function openReceiptDlg(r, storeId = null) {
   $("#rSettled").checked = !!r?.settled;
   $("#rDelete").hidden = !r;
   $("#rError").textContent = "";
+  scanRun++;
+  $("#rScan").hidden = true;
   $("#rMeta").textContent = r ? `Erfasst von ${nameOf(r.by)}, ${when(r.at)}` : "";
   renderReceiptStores();
   renderReceiptPhoto();
@@ -970,14 +1070,54 @@ function renderReceiptPhoto() {
   $("#rPhotoLabel").textContent = receiptPhoto ? "Neues Foto" : "Bon fotografieren";
 }
 $("#rPhoto").onclick = () => showPhoto(receiptPhoto);
-$("#rPhotoInput").onchange = async e => {
+$("#rPhotoInput").onchange = $("#rGalleryInput").onchange = async e => {
   const file = e.target.files[0];
   e.target.value = "";
   if (!file) return;
   // Bons sind lang und schmal: etwas größer lassen, damit man die Zahlen lesen kann
   try { receiptPhoto = await compressImage(file, 1400, 600_000); renderReceiptPhoto(); }
-  catch { $("#rError").textContent = "Das Foto ließ sich nicht verarbeiten."; }
+  catch { $("#rError").textContent = "Das Foto ließ sich nicht verarbeiten."; return; }
+  scanReceipt(receiptPhoto);
 };
+
+// "2026-10-21" oder "21.10.2026" / "21.10.26" → Datum (mittags, damit die Zeitzone nichts verschiebt)
+function parseDay(s) {
+  let m = /(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s || "");
+  if (m) return new Date(+m[1], m[2] - 1, +m[3], 12);
+  m = /(\d{1,2})\.(\d{1,2})\.(\d{2,4})/.exec(s || "");
+  if (m) return new Date(m[3].length === 2 ? 2000 + +m[3] : +m[3], m[2] - 1, +m[1], 12);
+  return null;
+}
+
+// Betrag, Datum und Laden vom Bon lesen lassen (KI über Firebase, nicht im Demo-Modus)
+let scanRun = 0;
+async function scanReceipt(photo) {
+  if (!store.readReceipt) return;
+  const run = ++scanRun, info = $("#rScan");
+  info.hidden = false;
+  info.className = "scan busy";
+  info.textContent = "Ich lese den Betrag vom Bon …";
+  try {
+    const r = await store.readReceipt(photo);
+    if (run !== scanRun || !$("#receiptDlg").open) return;
+    if (!(r?.total > 0)) { info.className = "scan"; info.textContent = "Betrag nicht erkannt, bitte selbst eintragen."; return; }
+    const cents = Math.round(r.total * 100);
+    $("#rAmount").value = (cents / 100).toFixed(2).replace(".", ",");
+    // Datum nur übernehmen, wenn es plausibel ist (nicht in der Zukunft, höchstens 90 Tage alt)
+    const d = parseDay(r.date);
+    const okDate = d && d <= new Date() && Date.now() - d < 90 * 864e5;
+    if (okDate) $("#rDate").value = isoDay(d);
+    const s = r.store ? sortedStores().find(x => norm(r.store).includes(norm(x.name)) || norm(x.name).includes(norm(r.store))) : null;
+    if (s) { receiptStore = s.id; renderReceiptStores(); }
+    info.className = "scan ok";
+    info.textContent = `Erkannt: ${euro(cents)}${okDate ? ", " + d.toLocaleDateString("de-DE") : ""}${s ? ", " + s.name : ""}. Bitte kurz prüfen.`;
+  } catch (err) {
+    console.error(err);
+    if (run !== scanRun) return;
+    info.className = "scan";
+    info.textContent = "Betrag konnte nicht gelesen werden, bitte selbst eintragen.";
+  }
+}
 $("#rCancel").onclick = () => $("#receiptDlg").close();
 $("#receiptForm").onsubmit = async e => {
   e.preventDefault();

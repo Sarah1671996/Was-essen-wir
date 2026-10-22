@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { firebaseConfig } from "../essen-match-app/firebase-config.js";
-import { CATS, CAT, norm, keyOf, guessCat, splitQty } from "./cats.js";
+import { allCats, norm, keyOf, guessCat, splitQty } from "./cats.js";
 
 const CONFIG = join(homedir(), ".einkauf.json");
 const COLORS = ["#c0392b", "#d9822b", "#c9a227", "#2e8b57", "#1f7a8c", "#2f5aa8", "#7b4fa8", "#b0487a", "#6b6b6b"];
@@ -124,12 +124,19 @@ function findItem(items, text, storeName) {
 const memberName = (members, uid) => members.find(m => m.id === uid)?.name || "?";
 const day = ts => ts ? new Date(ts).toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 
-function printStore(s, items, members, detail) {
+function printStore(s, items, members, detail, custom) {
+  const list = allCats(custom), known = new Set(list.map(c => c.id));
+  // Reihenfolge der Abteilungen, wie sie für den Laden festgelegt wurde
+  const order = s.catOrder || [];
+  const sorted = [...list].sort((a, b) => {
+    const ia = order.indexOf(a.id), ib = order.indexOf(b.id);
+    return (ia < 0 ? 99 + list.indexOf(a) : ia) - (ib < 0 ? 99 + list.indexOf(b) : ib);
+  });
   const open = items.filter(i => i.storeId === s.id && !i.done);
   const done = items.filter(i => i.storeId === s.id && i.done);
   console.log(`\n${s.name}: ${open.length ? open.length + " offen" : "nichts offen"}${done.length ? `, ${done.length} abgehakt` : ""}`);
   const groups = [{ name: "Dringend", list: open.filter(i => i.urgent) },
-    ...CATS.map(c => ({ name: c.name, list: open.filter(i => !i.urgent && (CAT[i.cat] ? i.cat : "sonst") === c.id) }))];
+    ...sorted.map(c => ({ name: c.name, list: open.filter(i => !i.urgent && (known.has(i.cat) ? i.cat : "sonst") === c.id) }))];
   for (const g of groups) {
     if (!g.list.length) continue;
     if (detail) console.log(`  ${g.name}:`);
@@ -175,14 +182,14 @@ if (cmd === "code") {
   process.exit(0);
 }
 
-const [stores, items, members] = await Promise.all([d.list("stores"), d.list("items"), d.list("members")]);
+const [stores, items, members, custom] = await Promise.all([d.list("stores"), d.list("items"), d.list("members"), d.list("categories")]);
 stores.sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
 
 switch (cmd) {
   case "liste": {
-    if (args[0]) printStore(findStore(stores, args[0]), items, members, true);
+    if (args[0]) printStore(findStore(stores, args[0]), items, members, true, custom);
     else if (!stores.length) console.log("Noch keine Läden angelegt.");
-    else stores.forEach(s => printStore(s, items, members, false));
+    else stores.forEach(s => printStore(s, items, members, false, custom));
     break;
   }
   case "neu": {
@@ -194,7 +201,7 @@ switch (cmd) {
     for (const raw of args.slice(1).join(",").split(/[,\n]/).map(x => x.trim()).filter(Boolean)) {
       const { qty, text } = splitQty(raw);
       if (open.has(norm(text))) { skipped.push(text); continue; }
-      const cat = guessCat(text, known);
+      const cat = guessCat(text, known, custom);
       const now = Date.now() + added.length;
       await d.add("items", { text, qty, note: flags.notiz, cat, storeId: s.id, done: false, urgent: flags.dringend, by: session.uid, at: now });
       const k = known.find(x => x.id === keyOf(text));

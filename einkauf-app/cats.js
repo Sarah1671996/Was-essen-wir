@@ -22,16 +22,32 @@ export const norm = s => s.trim().toLowerCase().replace(/\s+/g, " ");
 // Dokument-ID für die "known"-Sammlung
 export const keyOf = s => norm(s).replace(/[\/.#$\[\]]/g, "-").slice(0, 80) || "x";
 
-// Abteilung raten: erst was wir schon gelernt haben, dann Stichwörter
-export function guessCat(text, known = []) {
+// Feste Abteilungen plus die selbst angelegten der Familie ("categories"), "Sonstiges" immer zuletzt
+export function allCats(custom = []) {
+  return [
+    ...CATS.filter(c => c.id !== "sonst"),
+    ...[...custom].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+      .map(c => ({ id: c.id, name: c.name, emoji: c.emoji || "🏷️", words: c.words || "", custom: true })),
+    CAT.sonst
+  ];
+}
+// Stichwörter der eigenen Abteilungen, durch Komma getrennt eingegeben
+const customWords = c => (c.words || "").split(",").map(w => norm(w)).filter(Boolean);
+
+// Wort passt, wenn ein Teil des Eintrags damit anfängt oder aufhört ("Vollmilch" → "milch"); kurze nur als ganzes Wort
+function matches(words, w) {
+  return w.length <= 3 ? words.includes(w) : words.some(x => x.startsWith(w) || x.endsWith(w));
+}
+
+// Abteilung raten: erst was wir schon gelernt haben, dann eigene Stichwörter, dann die festen
+export function guessCat(text, known = [], custom = []) {
+  const valid = new Set(allCats(custom).map(c => c.id));
   const k = known.find(x => x.id === keyOf(text));
-  if (k?.cat) return k.cat;
+  if (k?.cat && valid.has(k.cat)) return k.cat;
   const words = norm(text).split(/[\s,\-]+/);
+  for (const c of custom) if (customWords(c).some(w => matches(words, w) || norm(text) === w)) return c.id;
   if (words.includes("tk") || words[0].startsWith("tiefkühl")) return "tk"; // "TK Spinat" ist kein Gemüse-Regal
-  for (const [w, cat] of KEYWORDS) {
-    if (w.length <= 3) { if (words.includes(w)) return cat; }
-    else if (words.some(x => x.startsWith(w) || x.endsWith(w))) return cat;
-  }
+  for (const [w, cat] of KEYWORDS) if (matches(words, w)) return cat;
   return "sonst";
 }
 

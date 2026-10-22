@@ -301,3 +301,11 @@ dialog::backdrop { background: rgba(20, 14, 6, .45); }
 .photodlg img { width: 100%; height: 100%; object-fit: contain; display: block; }
 .photoclose { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); right: 12px; background: rgba(255,255,255,.2); color: #fff; }
 .photorow img { cursor: zoom-in; }
+
+/* ---------- Bon lesen, eigene Abteilungen ---------- */
+.scan { margin: 4px 0 0; padding: 10px 14px; border-radius: 12px; background: var(--chip); font-weight: 600; font-size: .92rem; }
+.scan.busy::before { content: ""; display: inline-block; width: .9em; height: .9em; margin-right: 8px; vertical-align: -1px;
+  border: 2px solid var(--muted); border-top-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+.scan.ok { background: color-mix(in srgb, var(--new) 14%, transparent); color: var(--new); }
+@keyframes spin { to { transform: rotate(360deg); } }
+.chip.emoji { min-width: 48px; font-size: 1.3rem; padding: 4px 8px; }

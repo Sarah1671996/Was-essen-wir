@@ -149,6 +149,9 @@
       <label class="btn ghost filebtn">📷 <span id="fPhotoLabel">Foto machen</span>
         <input type="file" id="fPhotoInput" accept="image/*" capture="environment" hidden>
       </label>
+      <label class="btn ghost filebtn">🖼️ Aus Galerie
+        <input type="file" id="fGalleryInput" accept="image/*" hidden>
+      </label>
       <button type="button" class="btn ghost" id="fPhotoDel" hidden>Entfernen</button>
     </div>
 
@@ -183,11 +186,32 @@
       <label>Reihenfolge im Laden</label>
       <p class="small">Einmal so sortieren, wie du durch den Laden läufst. Die Liste zeigt die Abteilungen dann in dieser Reihenfolge, für alle.</p>
       <ol class="catorder" id="sOrder"></ol>
+      <button type="button" class="btn ghost wide" id="sAddCat">+ Eigene Abteilung</button>
     </div>
     <p class="error" id="sError" role="alert"></p>
     <div class="dlgactions">
       <button type="button" class="btn ghost danger" id="sDelete" hidden>Laden löschen</button>
       <button type="button" class="btn ghost" id="sCancel">Abbrechen</button>
+      <button class="btn">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Eigene Abteilung -->
+<dialog id="catDlg">
+  <form method="dialog" class="dlg" id="catForm">
+    <h2 id="catTitle">Neue Abteilung</h2>
+    <label for="cName">Name</label>
+    <input id="cName" maxlength="30" required placeholder="z. B. Tierbedarf, Apotheke, Backzutaten">
+    <label>Symbol</label>
+    <div class="chips" id="cEmojis"></div>
+    <label for="cWords">Stichwörter (optional)</label>
+    <input id="cWords" maxlength="300" placeholder="z. B. katzenfutter, streu, leckerli">
+    <p class="small">Einträge mit diesen Wörtern landen automatisch hier. Gilt für alle Läden und alle in der Familie.</p>
+    <p class="error" id="cError" role="alert"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost danger" id="cDelete" hidden>Löschen</button>
+      <button type="button" class="btn ghost" id="cCancel">Abbrechen</button>
       <button class="btn">Speichern</button>
     </div>
   </form>
@@ -246,7 +270,11 @@
       <label class="btn ghost filebtn">📷 <span id="rPhotoLabel">Bon fotografieren</span>
         <input type="file" id="rPhotoInput" accept="image/*" capture="environment" hidden>
       </label>
+      <label class="btn ghost filebtn">🖼️ Aus Galerie
+        <input type="file" id="rGalleryInput" accept="image/*" hidden>
+      </label>
     </div>
+    <p class="scan" id="rScan" role="status" hidden></p>
     <label class="check"><input type="checkbox" id="rSettled"> Schon erstattet</label>
     <p class="meta" id="rMeta"></p>
     <p class="error" id="rError" role="alert"></p>

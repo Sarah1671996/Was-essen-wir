@@ -3,6 +3,10 @@
 import { firebaseConfig } from "../essen-match-app/firebase-config.js";
 
 const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
+// KI zum Lesen von Kassenbons (Firebase AI Logic, Gemini Developer API), dasselbe Modell wie in der Essens-App.
+// Ältere Modelle schaltet Google regelmäßig ab; dann hier den Namen aktualisieren.
+const AI_MODEL = "gemini-3.5-flash-lite";
+const AI_TIMEOUT_MS = 30000;
 const forceDemo = new URLSearchParams(location.search).has("demo");
 export const hasFirebase = !forceDemo && !!(firebaseConfig && firebaseConfig.apiKey);
 
@@ -39,9 +43,42 @@ async function firebaseStore() {
     db = fs.getFirestore(app);
   }
 
+  let model = null;
+  async function getModel() {
+    if (model) return model;
+    const ai = await import(FB + "firebase-ai.js");
+    const S = ai.Schema;
+    const schema = S.object({
+      properties: {
+        total: S.number({ description: "Endbetrag in Euro, den der Kunde bezahlt hat" }),
+        date: S.string({ description: "Kaufdatum im Format YYYY-MM-DD, z. B. 2026-10-21; leer wenn nicht lesbar" }),
+        store: S.string({ description: "Name des Geschäfts, z. B. Kaufland, leer wenn nicht lesbar" })
+      },
+      optionalProperties: ["date", "store"]
+    });
+    model = ai.getGenerativeModel(ai.getAI(app, { backend: new ai.GoogleAIBackend() }), {
+      model: AI_MODEL,
+      generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0 }
+    });
+    return model;
+  }
+
   return {
     uid,
     mode: "firebase",
+    // Liest einen Kassenbon (JPEG als data:-URL). Liefert { total, date, store }.
+    async readReceipt(dataUrl) {
+      const m = await getModel();
+      const prompt = "Das ist ein Foto eines deutschen Kassenbons. Lies den Endbetrag ab, den der Kunde bezahlt hat " +
+        "(Zeile wie SUMME, GESAMT, ZU ZAHLEN oder BAR/EC, nach Abzug von Rabatten und Pfandbons). " +
+        "Gib außerdem das Kaufdatum und den Namen des Geschäfts an. Erfinde nichts: Wenn der Betrag nicht lesbar ist, gib 0 zurück.";
+      const image = { inlineData: { mimeType: "image/jpeg", data: dataUrl.split(",")[1] } };
+      const result = await Promise.race([
+        m.generateContent([prompt, image]),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Zeitüberschreitung")), AI_TIMEOUT_MS))
+      ]);
+      return JSON.parse(result.response.text());
+    },
     async exists(code) {
       return (await fs.getDoc(fs.doc(db, "households", code))).exists();
     },
@@ -88,6 +125,7 @@ function localStore() {
   return {
     uid,
     mode: "local",
+    readReceipt: null, // KI gibt es nur mit Firebase
     async exists(code) { return !!load(code); },
     async create(code) { save(code, {}); },
     open(code) {
