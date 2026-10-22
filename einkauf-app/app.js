@@ -973,6 +973,9 @@ $("#historyClose").onclick = () => $("#historyDlg").close();
 
 /* ---------- Ausgaben ---------- */
 const monthKey = d => `${d.getFullYear()}-${d.getMonth()}`;
+// Ein Bon gehört zu einem Laden mit Liste (storeId) oder nur zu einem Namen (storeName, z. B. "Bäcker")
+const receiptName = r => storeById(r.storeId)?.name || r.storeName || "?";
+const receiptColor = r => storeById(r.storeId)?.color || (r.storeName ? COLORS[hash(norm(r.storeName)) % COLORS.length] : "var(--muted)");
 function renderMoney() {
   const m = S.month;
   $("#monthLabel").textContent = m.toLocaleDateString("de-DE", { month: "long", year: "numeric" });
@@ -986,12 +989,15 @@ function renderMoney() {
   const per = $("#perStore");
   per.textContent = "";
   const byStore = {};
-  inMonth.forEach(r => { byStore[r.storeId] = (byStore[r.storeId] || 0) + r.amount; });
-  Object.entries(byStore).sort((a, b) => b[1] - a[1]).forEach(([id, cents]) => {
-    const s = storeById(id);
+  inMonth.forEach(r => {
+    const k = norm(receiptName(r));
+    byStore[k] ||= { r, cents: 0 };
+    byStore[k].cents += r.amount;
+  });
+  Object.values(byStore).sort((a, b) => b.cents - a.cents).forEach(({ r, cents }) => {
     const row = el("div", "barrow");
-    row.style.setProperty("--c", s?.color || "var(--muted)");
-    row.appendChild(el("span", "barname", s?.name || "?"));
+    row.style.setProperty("--c", receiptColor(r));
+    row.appendChild(el("span", "barname", receiptName(r)));
     const bar = el("span", "bar");
     const fill = el("span", "barfill");
     fill.style.width = (sum ? Math.max(4, cents / sum * 100) : 0) + "%";
@@ -1004,13 +1010,12 @@ function renderMoney() {
   box.textContent = "";
   if (!inMonth.length) { box.appendChild(el("p", "notice", "In diesem Monat noch keine Kassenbons.")); return; }
   inMonth.forEach(r => {
-    const s = storeById(r.storeId);
     const row = el("div", "receipt" + (r.settled ? " settled" : ""));
-    row.style.setProperty("--c", s?.color || "var(--muted)");
+    row.style.setProperty("--c", receiptColor(r));
     const main = el("button", "receiptmain");
-    main.setAttribute("aria-label", `Kassenbon ${s?.name || ""} ${euro(r.amount)} bearbeiten`);
+    main.setAttribute("aria-label", `Kassenbon ${receiptName(r)} ${euro(r.amount)} bearbeiten`);
     const col = el("span", "histcol");
-    col.append(el("strong", "", s?.name || "?"),
+    col.append(el("strong", "", receiptName(r)),
       el("span", "small", `${new Date(r.date).toLocaleDateString("de-DE", { day: "numeric", month: "short" })} · bezahlt von ${r.by === S.uid ? "dir" : nameOf(r.by)}${r.note ? " · " + r.note : ""}`));
     main.append(col, el("span", "amount", euro(r.amount)));
     main.onclick = () => openReceiptDlg(r);
@@ -1033,12 +1038,15 @@ $("#monthPrev").onclick = () => { S.month = new Date(S.month.getFullYear(), S.mo
 $("#monthNext").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderMoney(); };
 $("#newReceiptBtn").onclick = () => openReceiptDlg(null);
 
-let editReceipt = null, receiptPhoto = null, receiptStore = null;
+let editReceipt = null, receiptPhoto = null, receiptStore = null, receiptOther = "";
 const isoDay = ts => { const d = new Date(ts); return new Date(d - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); };
 function openReceiptDlg(r, storeId = null) {
   editReceipt = r;
   receiptPhoto = r?.photo || null;
-  receiptStore = r?.storeId || storeId || myTrip()?.storeId || sortedStores()[0]?.id || null;
+  receiptOther = r && !r.storeId ? r.storeName || "" : "";
+  receiptStore = receiptOther ? null : r?.storeId || storeId || myTrip()?.storeId || sortedStores()[0]?.id || null;
+  $("#rOtherRow").hidden = true;
+  $("#rOther").value = "";
   $("#receiptTitle").textContent = r ? "Kassenbon bearbeiten" : "Kassenbon erfassen";
   $("#rAmount").value = r ? (r.amount / 100).toFixed(2).replace(".", ",") : "";
   $("#rDate").value = isoDay(r?.date || Date.now());
@@ -1053,17 +1061,41 @@ function openReceiptDlg(r, storeId = null) {
   renderReceiptPhoto();
   $("#receiptDlg").showModal();
 }
+// Läden mit Liste, dann früher benutzte freie Namen (Bäcker, Apotheke …), dann "+ Anderer Laden"
 function renderReceiptStores() {
   const box = $("#rStores");
   box.textContent = "";
-  sortedStores().forEach(s => {
-    const b = el("button", "chip" + (s.id === receiptStore ? " on" : ""), s.name);
+  const chip = (label, on, color, pick) => {
+    const b = el("button", "chip" + (on ? " on" : ""), label);
     b.type = "button";
-    b.style.setProperty("--c", s.color);
-    b.onclick = () => { receiptStore = s.id; renderReceiptStores(); };
+    b.style.setProperty("--c", color);
+    b.onclick = pick;
     box.appendChild(b);
+  };
+  sortedStores().forEach(s => chip(s.name, s.id === receiptStore, s.color, () => {
+    receiptStore = s.id; receiptOther = ""; $("#rOtherRow").hidden = true; renderReceiptStores();
+  }));
+  const taken = new Set(S.stores.map(s => norm(s.name)));
+  const others = [];
+  [...S.receipts].sort((a, b) => b.date - a.date).forEach(r => {
+    if (!r.storeId && r.storeName && !taken.has(norm(r.storeName)) && !others.some(o => norm(o) === norm(r.storeName))) others.push(r.storeName);
+  });
+  if (receiptOther && !others.some(o => norm(o) === norm(receiptOther))) others.unshift(receiptOther);
+  others.slice(0, 8).forEach(n => chip(n, !receiptStore && norm(n) === norm(receiptOther),
+    receiptColor({ storeName: n }), () => { receiptStore = null; receiptOther = n; $("#rOtherRow").hidden = true; renderReceiptStores(); }));
+  chip("+ Anderer Laden", false, "var(--accent)", () => {
+    $("#rOtherRow").hidden = false;
+    $("#rOther").focus();
   });
 }
+// Freier Name: übernehmen, sobald getippt wird (Laden mit gleichem Namen wird direkt gewählt)
+$("#rOther").oninput = e => {
+  const n = e.target.value.trim();
+  const s = S.stores.find(x => norm(x.name) === norm(n));
+  receiptStore = s ? s.id : null;
+  receiptOther = s ? "" : n;
+  renderReceiptStores();
+};
 function renderReceiptPhoto() {
   $("#rPhoto").hidden = !receiptPhoto;
   if (receiptPhoto) $("#rPhoto").src = receiptPhoto;
@@ -1108,9 +1140,11 @@ async function scanReceipt(photo) {
     const okDate = d && d <= new Date() && Date.now() - d < 90 * 864e5;
     if (okDate) $("#rDate").value = isoDay(d);
     const s = r.store ? sortedStores().find(x => norm(r.store).includes(norm(x.name)) || norm(x.name).includes(norm(r.store))) : null;
-    if (s) { receiptStore = s.id; renderReceiptStores(); }
+    if (s) { receiptStore = s.id; receiptOther = ""; renderReceiptStores(); }
+    // Kein passender Laden mit Liste: erkannten Namen als freien Namen nehmen (z. B. "Bäckerei Müller")
+    else if (r.store && r.store.trim()) { receiptStore = null; receiptOther = r.store.trim().slice(0, 30); renderReceiptStores(); }
     info.className = "scan ok";
-    info.textContent = `Erkannt: ${euro(cents)}${okDate ? ", " + d.toLocaleDateString("de-DE") : ""}${s ? ", " + s.name : ""}. Bitte kurz prüfen.`;
+    info.textContent = `Erkannt: ${euro(cents)}${okDate ? ", " + d.toLocaleDateString("de-DE") : ""}${s ? ", " + s.name : receiptOther ? ", " + receiptOther : ""}. Bitte kurz prüfen.`;
   } catch (err) {
     console.error(err);
     if (run !== scanRun) return;
@@ -1123,10 +1157,10 @@ $("#receiptForm").onsubmit = async e => {
   e.preventDefault();
   const amount = Math.round(parseFloat($("#rAmount").value.replace(/[^\d,.-]/g, "").replace(/\.(?=\d{3}\b)/g, "").replace(",", ".")) * 100);
   if (!amount || amount < 0) { $("#rError").textContent = "Bitte einen Betrag eingeben, z. B. 23,45."; return; }
-  if (!receiptStore) { $("#rError").textContent = "Bitte einen Laden wählen."; return; }
+  if (!receiptStore && !receiptOther) { $("#rError").textContent = "Bitte einen Laden wählen oder eintippen."; return; }
   const [y, mo, d] = $("#rDate").value.split("-").map(Number);
   const data = {
-    storeId: receiptStore, amount, date: new Date(y, mo - 1, d, 12).getTime(), note: $("#rNote").value.trim(),
+    storeId: receiptStore || null, storeName: receiptStore ? "" : receiptOther, amount, date: new Date(y, mo - 1, d, 12).getTime(), note: $("#rNote").value.trim(),
     photo: receiptPhoto || null, settled: $("#rSettled").checked
   };
   try {
