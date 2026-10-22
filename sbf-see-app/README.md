@@ -19,7 +19,7 @@ Ohne Lerncode bleibt der Lernstand nur auf dem jeweiligen Gerät. Die App funkti
 
 - **Karteikarten** zum Umdrehen oder Ankreuzen, jede Karte als **sicher / mittel / schlecht** markieren.
 - **Tagesfragen** (5–30), bevorzugt schlecht markierte und noch unbekannte Fragen; als Lernblatt mit verdeckten Antworten oder zum Abfragen.
-- **Prüfungsbogen** wie in der Prüfung: 30 Fragen (7 Basis + 23 See), 60 Minuten, bestanden ab 24 richtigen.
+- **Prüfungsbogen** wie in der Prüfung: 30 Fragen (7 Basis + 23 See), 60 Minuten, bestanden mit mindestens 5 von 7 Basis- und 18 von 23 See-Fragen.
 - **Drucken:** A4-PDF als Bogen zum Ankreuzen (Lösungen auf der letzten Seite) oder als Lernblatt mit Lösung.
 - Fragen auswählen nach **Nummern** (`1-10, 22, 30`), nach **Markierung**, Basis/See oder „mit Bild“ – in Karteikarten, Drucken und Katalog.
 - **Katalog** mit Suche nach Wort oder Nummer.

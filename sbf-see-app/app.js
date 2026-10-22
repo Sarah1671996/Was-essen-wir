@@ -21,7 +21,7 @@ const imgTag = (q, cls = "qimg") => q.img.map(id => `<img class="${cls}${LIGHT.h
 /* ---------- Lernstand (lokal + optional synchronisiert) ---------- */
 const LS_KEY = "sbfsee-progress-v1";
 let P = blank();
-function blank() { return { c: {}, daily: null, exams: [], dailySize: 10 }; }
+function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {} }; }
 try { const raw = localStorage.getItem(LS_KEY); if (raw) P = Object.assign(blank(), JSON.parse(raw)); } catch (e) {}
 function merge(a, b) {
   const out = Object.assign(blank(), a);
@@ -31,6 +31,8 @@ function merge(a, b) {
   const seen = new Set(out.exams.map(e => e.t));
   out.exams = out.exams.concat((b.exams || []).filter(e => !seen.has(e.t))).sort((x, y) => x.t - y.t).slice(-30);
   if (b.dailySize && (b.st || 0) > (a.st || 0)) out.dailySize = b.dailySize;
+  out.days = Object.assign({}, a.days);
+  for (const [k, v] of Object.entries(b.days || {})) out.days[k] = Math.max(out.days[k] || 0, v);
   out.st = Math.max(a.st || 0, b.st || 0);
   return out;
 }
@@ -138,15 +140,25 @@ function disconnect() {
 const MARKS = { s: "schlecht", m: "mittel", g: "sicher" };
 function stat(n) { return P.c[n] || { r: 0, w: 0, t: 0 }; }
 function mark(n) { const s = stat(n); if (s.m !== undefined) return s.m; return s.b === 1 ? "s" : s.b >= 4 ? "g" : s.b ? "m" : ""; }
-function setMark(n, m) { const s = Object.assign({}, stat(n)); s.m = m; delete s.b; s.t = Date.now(); P.c[n] = s; save(); }
+function setMark(n, m) { const s = Object.assign({}, stat(n)); s.m = m; delete s.b; s.t = Date.now(); P.c[n] = s; logDay(); save(); }
 // Ankreuzen setzt die Markierung automatisch: falsch -> schlecht, richtig -> eine Stufe besser
 function record(n, ok) {
   const s = Object.assign({}, stat(n)), cur = mark(n);
   if (ok) s.r++; else s.w++;
   s.m = ok ? (cur === "s" ? "m" : cur === "m" || cur === "g" ? "g" : "m") : "s";
-  delete s.b; s.t = Date.now(); P.c[n] = s; save();
+  delete s.b; s.t = Date.now(); P.c[n] = s; logDay(); save();
   return s.m;
 }
+// Lernkalender: wie viele Fragen pro Tag bearbeitet wurden (die letzten 120 Tage)
+function logDay() {
+  const d = Object.assign({}, P.days); d[today()] = (d[today()] || 0) + 1;
+  const keys = Object.keys(d).sort(); for (const k of keys.slice(0, Math.max(0, keys.length - 120))) delete d[k];
+  P.days = d;
+}
+// Sichere Fragen kommen nach einer Woche zum Auffrischen wieder
+const REFRESH_DAYS = 7;
+const isDue = n => mark(n) === "g" && Date.now() - (stat(n).t || 0) > REFRESH_DAYS * 86400000;
+const duePool = () => Q.map(q => q.n).filter(isDue).sort((a, b) => stat(a).t - stat(b).t);
 const markPill = n => { const k = mark(n); return `<span class="pill mk-${k || "n"}">${k ? MARKS[k] : "nicht markiert"}</span>`; };
 const markBar = n => { const k = mark(n); return `<span class="markbar" role="group" aria-label="Markierung für Frage ${n}">${["s", "m", "g"].map(x => `<button class="mk mk-${x}" data-mark="${x}" data-n="${n}" aria-pressed="${k === x}">${MARKS[x]}</button>`).join("")}</span>`; };
 // Klick auf eine Markierung: setzen bzw. bei erneutem Klick wieder entfernen
@@ -193,13 +205,14 @@ document.addEventListener("click", e => {
   render();
 });
 const POOLS = [["alle", "Alle 285 Fragen"], ["marks", "Nach Markierung (sicher, mittel, schlecht, unbewertet)"],
-  ["nummern", "Bestimmte Nummern (z. B. 1-10, 22, 30)"], ["basis", "Basisfragen (72)"], ["see", "Spezifische See-Fragen (213)"], ["bild", "Fragen mit Bild (Lichter, Zeichen, Signale)"]];
+  ["faellig", "Sichere Fragen zum Auffrischen (seit 7 Tagen nicht geübt)"], ["nummern", "Bestimmte Nummern (z. B. 1-10, 22, 30)"], ["basis", "Basisfragen (72)"], ["see", "Spezifische See-Fragen (213)"], ["bild", "Fragen mit Bild (Lichter, Zeichen, Signale)"]];
 function poolFor(key, nums) {
   if (key === "nummern") return parseNums(nums).ids;
   if (key === "basis") return BASIS.slice();
   if (key === "see") return SEE.slice();
   if (key === "bild") return Q.filter(q => q.img.length).map(q => q.n);
   if (key === "marks") return markPool();
+  if (key === "faellig") return duePool();
   return Q.map(q => q.n);
 }
 const poolOptions = sel => POOLS.map(([k, l]) => `<option value="${k}" ${sel === k ? "selected" : ""}>${l}</option>`).join("");
@@ -274,15 +287,100 @@ function vStart(m) {
         <div class="legend"><span><i style="background:var(--sb)"></i>sicher</span><span><i style="background:var(--mid)"></i>mittel</span><span><i style="background:var(--bb)"></i>schlecht</span><span><i style="background:var(--line)"></i>noch nicht markiert</span></div>
       </section>
     </div>
+    <div class="grid2">${readinessPanel(all)}${calendarPanel()}</div>
     ${CAN_FB ? devicePanel() : ""}
     <section class="panel">
       <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Prüfungssimulation</div><h3 style="margin-top:2px">30 Fragen: 7 Basis + 23 See</h3></div>
       <button class="btn primary" data-go="pruefung">Prüfungsbogen starten</button></div>
       ${ex.length ? `<ul class="examlist">${ex.map(e => `<li><span>${fmtDate(e.t)}</span><span class="mono">${e.score} / 30</span><span class="pill ${e.pass ? "ok" : "no"}">${e.pass ? "bestanden" : "nicht bestanden"}</span></li>`).join("")}</ul>` : `<p class="muted" style="margin:8px 0 0">Noch keine Prüfung geschrieben.</p>`}
     </section>
+    <section class="panel" style="display:grid;gap:10px">
+      <div class="eyebrow">Lernstand sichern</div>
+      <p style="margin:0;max-width:62ch">Speichere deinen Lernstand als Datei, falls mal etwas mit dem Lerncode schiefgeht. Beim Laden wird die Datei mit deinem jetzigen Stand zusammengeführt, es geht nichts verloren.</p>
+      <div class="row"><button class="btn" id="bexport">Sicherung speichern</button><button class="btn" id="bimport">Sicherung laden</button><input type="file" id="bfile" accept=".json,application/json" hidden></div>
+    </section>
   </div>`;
   m.querySelectorAll("[data-learn]").forEach(b => b.onclick = () => { markSel = b.dataset.learn.slice(3) || "n"; try { localStorage.setItem("sbfsee-marksel", markSel); } catch (e) {} flashCfg.pool = "marks"; flash = null; go("karten"); });
   if (CAN_FB) wireDevicePanel();
+  m.querySelectorAll("[data-due]").forEach(b => b.onclick = () => { flashCfg.pool = "faellig"; flash = null; go("karten"); });
+  $("#bexport").onclick = exportBackup;
+  $("#bimport").onclick = () => $("#bfile").click();
+  $("#bfile").onchange = e => { const f = e.target.files[0]; if (f) importBackup(f); e.target.value = ""; };
+}
+
+/* Prüfungsreife: Ampel aus Lernstand und den letzten Prüfungsbögen */
+function readinessPanel(all) {
+  const pct = all.g / Q.length, last3 = P.exams.slice(-3), passed = last3.filter(e => e.pass).length, due = duePool().length;
+  const checks = [
+    [pct >= 0.9, `Mindestens 90 % der Fragen sicher <span class="muted">(jetzt ${Math.round(pct * 100)} %)</span>`],
+    [all.s === 0, `Keine Frage als schlecht markiert <span class="muted">(jetzt ${all.s})</span>`],
+    [last3.length === 3 && passed === 3, `Die letzten 3 Prüfungsbögen bestanden <span class="muted">(${passed} von ${last3.length})</span>`]
+  ];
+  const ok = checks.filter(c => c[0]).length;
+  const [cls, label, text] = ok === 3 ? ["ok", "Bereit", "Du kannst dich zur Prüfung anmelden."]
+    : pct >= 0.6 || passed >= 1 ? ["warn", "Fast so weit", "Noch etwas üben, dann passt es."]
+    : ["no", "Weiter üben", "Lerne die schlecht markierten und neuen Fragen."];
+  return `<section class="panel" style="display:grid;gap:12px">
+    <div class="row" style="justify-content:space-between"><div class="eyebrow">Prüfungsreife</div><span class="pill ${cls}" style="font-size:.9rem">${label}</span></div>
+    <b>${text}</b>
+    <ul class="checks">${checks.map(([done, t]) => `<li class="${done ? "done" : ""}"><span aria-hidden="true">${done ? "✓" : "○"}</span><span>${t}</span></li>`).join("")}</ul>
+    ${due ? `<button class="btn small" data-due="1" style="justify-self:start">${due} sichere ${due === 1 ? "Frage" : "Fragen"} auffrischen</button>` : ""}
+    <p class="muted" style="margin:0;font-size:.82rem">Die Navigationsaufgabe (Kartenaufgabe) gehört auch zur Prüfung, ist hier aber nicht enthalten.</p>
+  </section>`;
+}
+
+/* Lernkalender der letzten 5 Wochen mit Serie */
+function dayKey(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function streak() {
+  const d = new Date(); let n = 0;
+  if (!P.days[dayKey(d)]) d.setDate(d.getDate() - 1);
+  while (P.days[dayKey(d)]) { n++; d.setDate(d.getDate() - 1); }
+  return n;
+}
+function calendarPanel() {
+  const end = new Date();
+  // 5 volle Wochen Mo–So, die letzte endet mit der aktuellen Woche
+  const monday = new Date(end); monday.setDate(end.getDate() - (end.getDay() + 6) % 7 - 28);
+  const cells = [];
+  for (let i = 0; i < 35; i++) {
+    const d = new Date(monday); d.setDate(monday.getDate() + i);
+    const k = dayKey(d), v = P.days[k] || 0, future = d > end;
+    const lvl = future ? "f" : v === 0 ? 0 : v < 10 ? 1 : v < 30 ? 2 : 3;
+    cells.push(`<i class="l${lvl}${k === today() ? " today" : ""}" title="${d.toLocaleDateString("de-DE")}: ${v} Fragen"></i>`);
+  }
+  const s = streak(), todayN = P.days[today()] || 0;
+  return `<section class="panel" style="display:grid;gap:12px">
+    <div class="row" style="justify-content:space-between"><div class="eyebrow">Lernkalender</div><span class="muted" style="font-size:.85rem">heute ${todayN} ${todayN === 1 ? "Frage" : "Fragen"}</span></div>
+    <div><span class="big mono" style="font-size:2rem">${s}</span> <b>${s === 1 ? "Tag" : "Tage"} am Stück gelernt</b></div>
+    <div class="cal">${["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"].map(d => `<span>${d}</span>`).join("")}${cells.join("")}</div>
+    <div class="legend" style="margin:0"><span><i style="background:var(--line)"></i>nichts</span><span><i class="lg1"></i>unter 10</span><span><i class="lg2"></i>10–29</span><span><i class="lg3"></i>30 und mehr</span></div>
+  </section>`;
+}
+
+/* Sicherung als Datei */
+async function exportBackup() {
+  const data = JSON.stringify(Object.assign({ app: "sbf-see-trainer", version: 1, exportedAt: new Date().toISOString() }, P), null, 1);
+  const filename = "sbf-see-lernstand-" + today() + ".json";
+  if (IN_ARTIFACT) {
+    const dl = await claude.use("downloads").catch(() => null);
+    if (!dl) { toast("Speichern ist in dieser Ansicht nicht möglich."); return; }
+    try { await dl.save({ filename, data }); toast("Sicherung gespeichert"); }
+    catch (e) { toast(e && e.code === "declined" ? "Speichern abgebrochen" : "Sicherung konnte nicht gespeichert werden"); }
+    return;
+  }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([data], { type: "application/json" })); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  toast("Sicherung gespeichert");
+}
+async function importBackup(file) {
+  try {
+    const d = JSON.parse(await file.text());
+    if (!d || typeof d.c !== "object" || Array.isArray(d.c)) throw new Error("format");
+    const before = Object.keys(P.c).length;
+    P = merge(P, d); save();
+    toast(`Sicherung geladen: ${Object.keys(d.c).length} Fragen in der Datei, ${Object.keys(P.c).length - before} davon neu hier`);
+    render();
+  } catch (e) { toast("Das ist keine Sicherung aus dieser App."); }
 }
 
 /* Handy und PC verbinden */
@@ -336,7 +434,14 @@ function rememberTag() { try { localStorage.setItem("sbfsee-tagnums", tagNums); 
 function ensureDaily(force, ownIds) {
   if (!force && P.daily && P.daily.date === today()) return P.daily;
   const rnd = seeded(today() + ":" + Date.now());
-  const ids = ownIds ? ownIds.slice(0, DAILY_MAX) : pickLearn(Q.map(q => q.n), P.dailySize || 10, rnd).sort((a, b) => a - b);
+  let ids;
+  if (ownIds) ids = ownIds.slice(0, DAILY_MAX);
+  else {
+    // Bis zu einem Drittel fällige sichere Fragen zum Auffrischen, der Rest wie gewohnt (schlecht zuerst)
+    const size = P.dailySize || 10, due = duePool().slice(0, Math.ceil(size / 3));
+    const rest = Q.map(q => q.n).filter(n => !due.includes(n));
+    ids = due.concat(pickLearn(rest, size - due.length, rnd)).sort((a, b) => a - b);
+  }
   P.daily = { date: today(), ids, res: {}, t: Date.now() };
   save(); return P.daily;
 }
@@ -555,7 +660,7 @@ function vPruefung(m) {
     m.innerHTML = `<div class="view">
       <div><div class="eyebrow">Wie in der theoretischen Prüfung</div><h2>Prüfungsbogen</h2></div>
       <section class="panel" style="display:grid;gap:12px">
-        <p style="margin:0;max-width:62ch">Ein Bogen mit <b>30 Fragen</b>: 7 Basisfragen und 23 spezifische See-Fragen, zufällig gezogen. Du hast <b>60 Minuten</b>. Bestanden ist der Bogen ab <b>24 richtigen</b> Antworten. Erst nach dem Abgeben siehst du, was richtig war.</p>
+        <p style="margin:0;max-width:62ch">Ein Bogen mit <b>30 Fragen</b>: 7 Basisfragen und 23 spezifische See-Fragen, zufällig gezogen. Du hast <b>60 Minuten</b>. Bestanden ist der Bogen mit mindestens <b>5 von 7 Basisfragen</b> und <b>18 von 23 See-Fragen</b>. Erst nach dem Abgeben siehst du, was richtig war.</p>
         <div class="row"><button class="btn primary" id="estart">Neuen Bogen beginnen</button><button class="btn" id="eprint">Bogen zum Ausdrucken</button></div>
       </section>
       <section class="panel"><div class="eyebrow">Bisherige Bögen</div>
@@ -573,8 +678,8 @@ function vPruefung(m) {
     ${e.done ? `<section class="panel result">
         <div><div class="eyebrow">Ergebnis</div><div class="big mono">${correct} / 30</div></div>
         <div style="display:grid;gap:6px"><span class="pill ${e.pass ? "ok" : "no"}" style="font-size:1rem;justify-self:start">${e.pass ? "Bestanden" : "Nicht bestanden"}</span>
-        <span class="muted">Basisfragen: ${basisOk} von 7 richtig · ${Math.round((e.end - e.start) / 60000)} Minuten</span></div>
-        <div class="row" style="margin-left:auto"><button class="btn" id="eclose">Schließen</button><button class="btn primary" id="eagain">Neuer Bogen</button></div>
+        <span class="muted">Basis ${basisOk} von 7 (nötig 5) · See ${correct - basisOk} von 23 (nötig 18) · ${Math.round((e.end - e.start) / 60000)} Minuten</span></div>
+        <div class="row" style="margin-left:auto"><button class="btn" id="eclose">Schließen</button>${correct < 30 ? `<button class="btn" id="ewrong">${30 - correct} falsche als Tagesfragen</button>` : ""}<button class="btn primary" id="eagain">Neuer Bogen</button></div>
       </section>`
       : `<div class="stickyexam"><b class="mono">${answered} / 30 beantwortet</b><span class="muted mono" id="clock"></span><span style="margin-left:auto"></span><button class="btn small" id="ecancel">Abbrechen</button><button class="btn primary small" id="esubmit">Abgeben</button></div>
          ${confirmSubmit ? `<section class="panel confirm row" style="justify-content:space-between"><span>${answered < 30 ? `<b>${30 - answered} Fragen</b> sind noch offen. ` : ""}Bogen jetzt abgeben?</span><span class="row"><button class="btn small" id="cno">Weiter bearbeiten</button><button class="btn primary small" id="cyes">Ja, abgeben</button></span></section>` : ""}`}
@@ -590,6 +695,10 @@ function vPruefung(m) {
   if (e.done) {
     $("#eclose").onclick = () => { exam = null; render(); };
     $("#eagain").onclick = () => { exam = null; render(); $("#estart").click(); };
+    if ($("#ewrong")) $("#ewrong").onclick = () => {
+      ensureDaily(true, e.ids.filter(n => e.ans[n] !== 0));
+      exam = null; tagView = "kreuz"; tagSheet = null; go("tag"); toast("Falsche Fragen sind jetzt deine Tagesfragen");
+    };
     return;
   }
   m.querySelectorAll(".opt").forEach(b => b.onclick = () => {
@@ -605,9 +714,11 @@ function vPruefung(m) {
     $("#cyes").onclick = () => {
       e.done = true; e.end = Date.now();
       const sc = e.ids.filter(n => e.ans[n] === 0).length;
-      e.pass = sc >= 24;
+      // Bestanden: mindestens 5 von 7 Basisfragen und 18 von 23 See-Fragen
+      const basis = e.ids.slice(0, 7).filter(n => e.ans[n] === 0).length, see = sc - basis;
+      e.pass = basis >= 5 && see >= 18;
       for (const n of e.ids) record(n, e.ans[n] === 0);
-      P.exams = P.exams.concat([{ t: e.end, score: sc, basis: e.ids.slice(0, 7).filter(n => e.ans[n] === 0).length, pass: e.pass }]).slice(-30);
+      P.exams = P.exams.concat([{ t: e.end, score: sc, basis, see, pass: e.pass }]).slice(-30);
       save(); confirmSubmit = false; render(); window.scrollTo(0, 0);
     };
   }
@@ -739,7 +850,7 @@ async function makePdf(items, kind, title, fname) {
     const cols = 5, cw = W / cols;
     items.forEach((it, i) => { const r = Math.floor(i / cols), c = i % cols; doc.text(`${i + 1}.  ${"ABCD"[it.order.indexOf(0)]}   (Nr. ${it.q.n})`, M + c * cw, y + r * 6.5); });
     y += Math.ceil(items.length / cols) * 6.5 + 4;
-    if (items.length === 30) { doc.setFontSize(9); doc.setTextColor(90); doc.text("Bestanden ab 24 richtigen Antworten.", M, y); doc.setTextColor(0); }
+    if (items.length === 30) { doc.setFontSize(9); doc.setTextColor(90); doc.text(printCfg.src === "pruefung" && kind === "bogen" ? "Bestanden mit mindestens 5 von 7 Basisfragen (Nr. 1-7) und 18 von 23 See-Fragen (Nr. 8-30)." : "", M, y); doc.setTextColor(0); }
   }
   const n = doc.getNumberOfPages();
   for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(120); doc.text(`Seite ${p} von ${n}`, PW / 2, PH - 8, { align: "center" }); doc.setTextColor(0); }
