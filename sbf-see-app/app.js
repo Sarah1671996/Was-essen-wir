@@ -234,7 +234,7 @@ function go(v) { view = v; try { history.replaceState(null, "", "#" + v); } catc
 function renderTabs() {
   $("#tabs").innerHTML = VIEWS.map(([k, l]) => `<button data-go="${k}" ${view === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg><span>${l}</span></button>`).join("");
 }
-document.addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (!b) return; if (b.dataset.daily) ensureDaily(false); go(b.dataset.go); });
+document.addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (!b) return; go(b.dataset.go); });
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h !== view && VIEWS.some(v => v[0] === h)) { view = h; render(); } });
 
 /* Laufende Sitzungen nicht durch Sync-Updates zerstören */
@@ -257,7 +257,7 @@ function meter(pool) {
 function vStart(m) {
   const all = counts(Q.map(q => q.n));
   const pct = Math.round(all.g / Q.length * 100);
-  const d = P.daily && P.daily.date === today() ? P.daily : null;
+  const st = stack(), d = st && st.ids.length ? st : null;
   const dDone = d ? d.ids.filter(n => d.res && d.res[n] === true).length : 0;
   const ex = P.exams.slice(-5).reverse();
   m.innerHTML = `<div class="view">
@@ -270,10 +270,10 @@ function vStart(m) {
     <div class="grid2">
       <section class="panel" style="display:grid;gap:12px">
         <div class="eyebrow">Heute</div>
-        ${d ? `<h3>${dDone} von ${d.ids.length} Tagesfragen richtig</h3>
+        ${d ? `<h3>Lernstapel: ${d.ids.length} ${d.ids.length === 1 ? "Frage" : "Fragen"}, heute ${dDone} richtig</h3>
           <div class="progress"><i style="width:${dDone / d.ids.length * 100}%"></i></div>`
-          : `<h3>Noch keine Tagesfragen für heute</h3><p class="muted" style="margin:0">Die App wählt Fragen aus, die du noch nicht kannst oder noch nie gesehen hast.</p>`}
-        <div class="row"><button class="btn primary" data-go="tag" data-daily="1">${d ? "Tagesfragen öffnen" : "Tagesfragen zusammenstellen"}</button>
+          : `<h3>Dein Lernstapel ist leer</h3><p class="muted" style="margin:0">Leg Fragen hinein, die du lernen willst: per Suche, nach Nummern, nach Markierung oder automatisch.</p>`}
+        <div class="row"><button class="btn primary" data-go="tag">${d ? "Lernstapel öffnen" : "Fragen hinzufügen"}</button>
         <button class="btn" data-go="karten">Karteikarten</button></div>
       </section>
       <section class="panel">
@@ -424,132 +424,213 @@ function wireDevicePanel() {
   if ($("#doffyes")) $("#doffyes").onclick = () => { devConfirmOff = false; disconnect(); };
 }
 
-/* ---------- Tagesfragen ---------- */
-let tagHide = true;
-// Eigene Nummern für die Tagesfragen (höchstens 40, so viele nimmt auch der Abgleich an)
+/* ---------- Tagesfragen = Lernstapel ----------
+   Der Stapel bleibt über mehrere Tage bestehen. Eine Frage verlässt ihn nur, wenn du „Kann ich“ tippst.
+   „Heute richtig/falsch“ (res) gilt nur für den aktuellen Tag; sicher/mittel/schlecht ist die langfristige Markierung. */
 const DAILY_MAX = 40;
-let tagMode = "auto", tagNums = "", tagMkCount = "10";
-try { tagNums = localStorage.getItem("sbfsee-tagnums") || ""; tagMode = localStorage.getItem("sbfsee-tagmode") || (localStorage.getItem("sbfsee-tagown") === "1" ? "own" : "auto"); } catch (e) {}
-function rememberTag() { try { localStorage.setItem("sbfsee-tagnums", tagNums); localStorage.setItem("sbfsee-tagmode", tagMode); } catch (e) {} }
-function ensureDaily(force, ownIds) {
-  if (!force && P.daily && P.daily.date === today()) return P.daily;
-  const rnd = seeded(today() + ":" + Date.now());
-  let ids;
-  if (ownIds) ids = ownIds.slice(0, DAILY_MAX);
-  else {
-    // Bis zu einem Drittel fällige sichere Fragen zum Auffrischen, der Rest wie gewohnt (schlecht zuerst)
-    const size = P.dailySize || 10, due = duePool().slice(0, Math.ceil(size / 3));
-    const rest = Q.map(q => q.n).filter(n => !due.includes(n));
-    ids = due.concat(pickLearn(rest, size - due.length, rnd)).sort((a, b) => a - b);
-  }
-  P.daily = { date: today(), ids, res: {}, t: Date.now() };
+let tagHide = true, tagView = "kreuz", tagSheet = null, tagAddOpen = false, tagConfirmClear = false;
+let tagAddMode = "suche", tagNums = "", tagMkCount = "10", tagAutoCount = "10", tagSearch = "", tagPicked = new Set();
+try { tagNums = localStorage.getItem("sbfsee-tagnums") || ""; tagAddMode = localStorage.getItem("sbfsee-tagadd") || "suche"; } catch (e) {}
+function rememberTag() { try { localStorage.setItem("sbfsee-tagnums", tagNums); localStorage.setItem("sbfsee-tagadd", tagAddMode); } catch (e) {} }
+// Stapel holen; an einem neuen Tag bleiben die Fragen, nur die Tagesergebnisse beginnen neu
+function stack() {
+  if (!P.daily) return null;
+  if (P.daily.date !== today()) { P.daily = { date: today(), ids: (P.daily.ids || []).slice(), res: {}, t: Date.now() }; save(); }
+  return P.daily;
+}
+function setStack(ids, res) {
+  const d = stack();
+  P.daily = { date: today(), ids: ids.slice(0, DAILY_MAX), res: res || (d ? d.res : {}), t: Date.now() };
   save(); return P.daily;
 }
-function tagNumsHint() {
-  const p = parseNums(tagNums);
-  if (!p.ids.length) return "Gib Nummern ein, z. B. 22, 23, 25, 30, 40-43";
-  return p.ids.length > DAILY_MAX ? `${p.ids.length} Fragen, für einen Tag werden die ersten ${DAILY_MAX} genommen` : numsHint(tagNums);
+// Fragen in den Stapel legen (ohne Doppelte); gibt zurück, wie viele neu hineinkamen
+function addToStack(ids) {
+  const d = stack(), cur = d ? d.ids : [], add = [...new Set(ids)].filter(n => !cur.includes(n));
+  const taken = add.slice(0, Math.max(0, DAILY_MAX - cur.length));
+  setStack(cur.concat(taken));
+  tagSheet = null;
+  if (add.length > taken.length) toast(`Der Stapel ist voll (höchstens ${DAILY_MAX}). ${add.length - taken.length} Fragen passten nicht mehr hinein.`);
+  else toast(taken.length === 1 ? "1 Frage in den Stapel gelegt" : taken.length + " Fragen in den Stapel gelegt");
+  return taken.length;
 }
+function removeFromStack(n) { const d = stack(); if (!d) return; const res = Object.assign({}, d.res); delete res[n]; setStack(d.ids.filter(x => x !== n), res); }
+const inStack = n => !!(P.daily && (P.daily.ids || []).includes(n));
+// Vorschlag für „Automatisch“: fällige sichere Fragen zum Auffrischen, dann schlecht markierte und neue
+function suggest(count) {
+  const due = duePool().filter(n => !inStack(n)).slice(0, Math.ceil(count / 3));
+  const rest = Q.map(q => q.n).filter(n => !inStack(n) && !due.includes(n));
+  return due.concat(pickLearn(rest, count - due.length));
+}
+// Für Drucken: liefert den Stapel und füllt ihn, falls er leer ist
+function ensureDaily() {
+  const d = stack();
+  if (d && d.ids.length) return d;
+  return setStack(suggest(P.dailySize || 10), {});
+}
+// Suche nach Wort oder Nummern (wie im Katalog)
+function searchQuestions(str) {
+  const s = str.trim().toLowerCase();
+  if (!s) return [];
+  if (/^(nr\.?\s*)?[\d\s,;\-–]+$/.test(s) && /\d/.test(s)) return parseNums(s.replace(/^nr\.?/, "")).ids;
+  return Q.filter(q => (q.q + " " + q.a.join(" ")).toLowerCase().includes(s)).map(q => q.n);
+}
+const tagOrder = (d, n) => shuffle([0, 1, 2, 3], seeded(d.date + ":" + n));
+
 function vTag(m) {
   if (quiz) return vQuiz(m);
-  const d = P.daily && P.daily.date === today() ? P.daily : null;
+  const d = stack(), ids = d ? d.ids : [];
+  const right = ids.filter(n => d.res[n] === true).length, wrong = ids.filter(n => d.res[n] === false).length;
+  const open = !ids.length || tagAddOpen;
   m.innerHTML = `<div class="view">
     <div class="noprint"><div class="eyebrow">${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}</div><h2>Tagesfragen</h2></div>
-    <section class="panel noprint" style="display:grid;gap:14px">
-      <div class="row" style="gap:12px"><span class="eyebrow">Fragen</span>
-        <div class="seg" role="group" aria-label="Auswahl der Tagesfragen">${[["auto", "Automatisch"], ["marks", "Nach Markierung"], ["own", "Eigene Nummern"]].map(([k, l]) => `<button data-tmode="${k}" aria-pressed="${tagMode === k}">${l}</button>`).join("")}</div></div>
-      ${tagMode === "marks" ? markChips() : ""}
-      <div class="row" style="align-items:end">
-        ${tagMode === "own" ? `<label class="field" style="flex:1 1 240px">Nummern<input type="text" id="dnums" inputmode="numeric" autocomplete="off" value="${esc(tagNums)}" placeholder="z. B. 22, 23, 25, 30, 40-43"></label>`
-          : tagMode === "marks" ? `<label class="field">Anzahl<select id="dmkcount">${["5", "10", "15", "20", "30", "alle"].map(n => `<option value="${n}" ${n === tagMkCount ? "selected" : ""}>${n === "alle" ? "alle (höchstens " + DAILY_MAX + ")" : n}</option>`).join("")}</select></label>`
-          : `<label class="field">Anzahl
-          <select id="dsize">${[5, 10, 15, 20, 30].map(n => `<option ${n === (P.dailySize || 10) ? "selected" : ""}>${n}</option>`).join("")}</select></label>`}
-        <button class="btn" id="dnew">${tagMode === "own" ? "Übernehmen" : d ? "Neu zusammenstellen" : "Zusammenstellen"}</button>
+    <section class="panel noprint" style="display:grid;gap:10px">
+      <div class="row" style="justify-content:space-between">
+        <div><div class="eyebrow">Dein Lernstapel</div>
+          <h3 style="margin-top:2px">${ids.length} ${ids.length === 1 ? "Frage" : "Fragen"}${ids.length ? ` · heute <span style="color:var(--sb)">${right} richtig</span>, <span style="color:var(--bb)">${wrong} falsch</span>` : ""}</h3></div>
+        ${ids.length ? `<div class="row"><button class="btn ${open ? "" : "primary"}" id="tadd">${open ? "Hinzufügen schließen" : "Fragen hinzufügen"}</button><button class="btn" id="tclear">Stapel leeren</button></div>` : ""}
       </div>
-      ${tagMode === "own" ? `<span class="muted" id="dhint" style="font-size:.85rem;margin-top:-6px">${tagNumsHint()}</span>`
-        : tagMode === "marks" ? `<span class="muted" style="font-size:.85rem;margin-top:-6px">${markPool().length} Fragen passen zu deiner Auswahl${markPool().length ? ", schlecht markierte kommen zuerst" : ""}.</span>` : ""}
+      <p class="muted" style="margin:0;font-size:.88rem;max-width:70ch">Fragen bleiben im Stapel, auch über mehrere Tage, bis du bei einer Frage <b>Kann ich</b> tippst. „Heute richtig/falsch“ gilt nur für heute. Deine Markierung sicher/mittel/schlecht ist davon getrennt und gilt dauerhaft.</p>
+      ${tagConfirmClear ? `<div class="panel confirm row" style="justify-content:space-between"><span>Alle ${ids.length} Fragen aus dem Stapel nehmen? Deine Markierungen bleiben.</span><span class="row"><button class="btn small" id="tclearno">Abbrechen</button><button class="btn small primary" id="tclearyes">Stapel leeren</button></span></div>` : ""}
     </section>
-    ${d ? `<section class="panel noprint row" style="justify-content:space-between">
+    ${open ? addPanelHTML() : ""}
+    ${ids.length ? `<section class="panel noprint row" style="justify-content:space-between">
         <div class="seg" role="group" aria-label="Ansicht"><button data-tview="kreuz" aria-pressed="${tagView === "kreuz"}">Ankreuzen</button><button data-tview="loes" aria-pressed="${tagView === "loes"}">Lösungen</button></div>
         <div class="row"><button class="btn" id="dpdf">Als PDF</button><button class="btn" id="dquiz">Einzeln abfragen</button></div>
       </section>
       ${tagView === "kreuz" ? tagSheetHTML(d)
         : `<div class="row noprint"><button class="btn small" id="dhide">${tagHide ? "Antworten zeigen" : "Antworten verdecken"}</button></div>
-           <div class="printarea">${sheetHTML(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Tagesfragen vom " + fmtDate(d.t), tagHide, d.res)}</div>`}`
-      : `<div class="panel empty">${tagMode === "own" ? "Gib die Nummern der Fragen ein, die du heute lernen willst, und tippe auf „Übernehmen“." : tagMode === "marks" ? "Wähle oben, welche Markierungen du üben willst, und tippe auf „Zusammenstellen“." : "Wähle die Anzahl und tippe auf „Zusammenstellen“. Bevorzugt kommen Fragen, die du als schlecht markiert hast oder noch nicht kennst."}</div>`}
+           <div class="printarea">${sheetHTML(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Lernstapel vom " + fmtDate(Date.now()), tagHide, d.res, true)}</div>`}` : ""}
   </div>`;
-  m.querySelectorAll("[data-tmode]").forEach(b => b.onclick = () => { tagMode = b.dataset.tmode; rememberTag(); render(); });
-  if ($("#dmkcount")) $("#dmkcount").onchange = e => { tagMkCount = e.target.value; };
-  if ($("#dsize")) $("#dsize").onchange = e => { P.dailySize = +e.target.value; save(); };
-  if ($("#dnums")) {
-    $("#dnums").oninput = e => { tagNums = e.target.value; rememberTag(); $("#dhint").textContent = tagNumsHint(); };
-    $("#dnums").onkeydown = e => { if (e.key === "Enter") $("#dnew").click(); };
-  }
-  $("#dnew").onclick = () => {
-    if (tagMode === "own") {
-      const ids = parseNums(tagNums).ids;
-      if (!ids.length) { toast("Bitte gültige Nummern zwischen 1 und 285 eingeben."); return; }
-      ensureDaily(true, ids); toast(Math.min(ids.length, DAILY_MAX) + " Tagesfragen übernommen");
-    } else if (tagMode === "marks") {
-      const pool = markPool();
-      if (!pool.length) { toast("Zu dieser Auswahl gibt es noch keine Fragen."); return; }
-      ensureDaily(true, pickLearn(pool, tagMkCount === "alle" ? DAILY_MAX : +tagMkCount).sort((x, y) => x - y));
-    } else { P.dailySize = +$("#dsize").value; ensureDaily(true); }
-    render();
-  };
-  if (d) {
+  if ($("#tadd")) $("#tadd").onclick = () => { tagAddOpen = !tagAddOpen; render(); };
+  if ($("#tclear")) $("#tclear").onclick = () => { tagConfirmClear = true; render(); };
+  if ($("#tclearno")) $("#tclearno").onclick = () => { tagConfirmClear = false; render(); };
+  if ($("#tclearyes")) $("#tclearyes").onclick = () => { tagConfirmClear = false; setStack([], {}); tagSheet = null; render(); };
+  if (open) wireAddPanel(m);
+  if (ids.length) {
     m.querySelectorAll("[data-tview]").forEach(b => b.onclick = () => { tagView = b.dataset.tview; render(); });
     if ($("#dhide")) $("#dhide").onclick = () => { tagHide = !tagHide; render(); };
     $("#dquiz").onclick = () => { quiz = { ids: shuffle(d.ids), i: 0, ok: 0, from: "tag" }; render(); };
-    $("#dpdf").onclick = () => makePdf(d.ids.map(n => ({ q: byN.get(n), order: tagOrder(d, n) })), "bogen", "Tagesfragen vom " + fmtDate(d.t), "Tagesfragen-" + d.date);
+    $("#dpdf").onclick = () => makePdf(d.ids.map(n => ({ q: byN.get(n), order: tagOrder(d, n) })), "bogen", "Lernstapel vom " + fmtDate(Date.now()), "Lernstapel-" + d.date);
     m.querySelectorAll(".ans.hidden").forEach(el => el.onclick = () => el.classList.remove("hidden"));
     if (tagView === "kreuz") wireTagSheet(m, d);
   }
 }
 
-/* Tagesfragen als Bogen: alle vier Antworten aus dem Katalog, gemischt, zum Ankreuzen */
-let tagView = "kreuz", tagSheet = null;
-// Reihenfolge der Antworten bleibt für denselben Tagesfragen-Satz gleich (auch nach Neuladen und im PDF)
-const tagOrder = (d, n) => shuffle([0, 1, 2, 3], seeded(d.t + ":" + n));
-function tagState(d) { if (!tagSheet || tagSheet.key !== d.t) tagSheet = { key: d.t, ans: {}, done: false }; return tagSheet; }
+/* Fragen hinzufügen: Suchen mit Haken, automatisch, nach Markierung oder nach Nummern */
+function addPanelHTML() {
+  const modes = [["suche", "Suchen"], ["auto", "Automatisch"], ["marks", "Nach Markierung"], ["nummern", "Nummern"]];
+  let body = "";
+  if (tagAddMode === "suche") body = `
+    <label class="field">Suche nach Wort oder Nummern<input type="search" id="tsearch" autocomplete="off" value="${esc(tagSearch)}" placeholder="z. B. Nebel, Tonne, Schallsignal  oder  20-30"></label>
+    <div id="tresults"></div>`;
+  if (tagAddMode === "auto") body = `
+    <p class="muted" style="margin:0">Die App schlägt Fragen vor: fällige sichere zum Auffrischen, dann schlecht markierte und neue.</p>
+    <div class="row" style="align-items:end"><label class="field">Anzahl<select id="tautocount">${["5", "10", "15", "20", "30"].map(n => `<option ${n === tagAutoCount ? "selected" : ""}>${n}</option>`).join("")}</select></label>
+    <button class="btn primary" id="taddauto">Hinzufügen</button></div>`;
+  if (tagAddMode === "marks") {
+    const free = markPool().filter(n => !inStack(n)).length;
+    body = `${markChips()}
+    <div class="row" style="align-items:end"><label class="field">Anzahl<select id="tmkcount">${["5", "10", "15", "20", "30", "alle"].map(n => `<option value="${n}" ${n === tagMkCount ? "selected" : ""}>${n === "alle" ? "alle" : n}</option>`).join("")}</select></label>
+    <button class="btn primary" id="taddmarks" ${free ? "" : "disabled"}>Hinzufügen</button></div>
+    <span class="muted" style="font-size:.85rem">${free} passende Fragen, die noch nicht im Stapel sind. Schlecht markierte kommen zuerst.</span>`;
+  }
+  if (tagAddMode === "nummern") body = `
+    <div class="row" style="align-items:end"><label class="field" style="flex:1 1 240px">Nummern<input type="text" id="tnums" inputmode="numeric" autocomplete="off" value="${esc(tagNums)}" placeholder="z. B. 22, 23, 25, 30, 40-43"></label>
+    <button class="btn primary" id="taddnums">Hinzufügen</button></div>
+    <span class="muted" id="tnumshint" style="font-size:.85rem">${numsHint(tagNums)}</span>`;
+  return `<section class="panel noprint" style="display:grid;gap:12px">
+    <div class="row" style="gap:12px"><span class="eyebrow">Fragen hinzufügen</span>
+      <div class="seg" role="group" aria-label="Wie hinzufügen">${modes.map(([k, l]) => `<button data-addmode="${k}" aria-pressed="${tagAddMode === k}">${l}</button>`).join("")}</div></div>
+    ${body}
+  </section>`;
+}
+function renderResults() {
+  const box = $("#tresults"); if (!box) return;
+  const hits = searchQuestions(tagSearch), shown = hits.slice(0, 60);
+  const pickable = shown.filter(n => !inStack(n));
+  if (!tagSearch.trim()) { box.innerHTML = `<p class="muted" style="margin:0">Tippe ein Stichwort oder Nummern ein. Dann hakst du die Fragen an, die du lernen willst.</p>`; return; }
+  box.innerHTML = hits.length ? `
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><b>${hits.length} Treffer${hits.length > 60 ? " (die ersten 60)" : ""}</b>
+      <span class="row"><button class="btn small" id="tpickall" ${pickable.length ? "" : "disabled"}>Alle anhaken</button><button class="btn small primary" id="taddpicked" ${tagPicked.size ? "" : "disabled"}>${tagPicked.size} angehakte hinzufügen</button></span></div>
+    <div class="picklist">${shown.map(n => { const q = byN.get(n), there = inStack(n);
+      return `<label class="pick${there ? " there" : ""}"><input type="checkbox" data-pick="${n}" ${there || tagPicked.has(n) ? "checked" : ""} ${there ? "disabled" : ""}>
+        <span class="mono">Nr. ${n}</span><span class="pt">${esc(q.q)}</span>${there ? `<span class="pill n">im Stapel</span>` : markPill(n)}</label>`; }).join("")}</div>`
+    : `<p class="muted" style="margin:0">Keine Frage gefunden.</p>`;
+  box.querySelectorAll("[data-pick]").forEach(c => c.onchange = () => { const n = +c.dataset.pick; c.checked ? tagPicked.add(n) : tagPicked.delete(n); updatePickBtn(); });
+  if ($("#tpickall")) $("#tpickall").onclick = () => { pickable.forEach(n => tagPicked.add(n)); renderResults(); };
+  if ($("#taddpicked")) $("#taddpicked").onclick = () => { addToStack([...tagPicked]); tagPicked.clear(); render(); };
+}
+function updatePickBtn() { const b = $("#taddpicked"); if (b) { b.disabled = !tagPicked.size; b.textContent = tagPicked.size + " angehakte hinzufügen"; } }
+function wireAddPanel(m) {
+  m.querySelectorAll("[data-addmode]").forEach(b => b.onclick = () => { tagAddMode = b.dataset.addmode; rememberTag(); render(); });
+  if ($("#tsearch")) { $("#tsearch").oninput = e => { tagSearch = e.target.value; renderResults(); }; renderResults(); }
+  if ($("#tautocount")) $("#tautocount").onchange = e => { tagAutoCount = e.target.value; };
+  if ($("#taddauto")) $("#taddauto").onclick = () => { addToStack(suggest(+tagAutoCount)); render(); };
+  if ($("#tmkcount")) $("#tmkcount").onchange = e => { tagMkCount = e.target.value; };
+  if ($("#taddmarks")) $("#taddmarks").onclick = () => { const pool = markPool().filter(n => !inStack(n)); addToStack(pickLearn(pool, tagMkCount === "alle" ? pool.length : +tagMkCount).sort((a, b) => a - b)); render(); };
+  if ($("#tnums")) {
+    $("#tnums").oninput = e => { tagNums = e.target.value; rememberTag(); $("#tnumshint").textContent = numsHint(tagNums); };
+    $("#tnums").onkeydown = e => { if (e.key === "Enter") $("#taddnums").click(); };
+  }
+  if ($("#taddnums")) $("#taddnums").onclick = () => { const ids = parseNums(tagNums).ids; if (!ids.length) { toast("Bitte gültige Nummern zwischen 1 und 285 eingeben."); return; } addToStack(ids); render(); };
+}
+
+/* „Kann ich“: Frage verlässt den Stapel und wird als sicher markiert */
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-know]"); if (!b) return;
+  const n = +b.dataset.know, y = window.scrollY;
+  removeFromStack(n); setMark(n, "g");
+  toast(`Nr. ${n} ist raus aus dem Stapel und als sicher markiert`);
+  render(); window.scrollTo(0, y);
+});
+
+/* Stapel als Bogen: alle vier Antworten aus dem Katalog, gemischt, zum Ankreuzen */
+function tagState(d) { if (!tagSheet || tagSheet.key !== d.date) tagSheet = { key: d.date, ans: {}, done: false, only: null }; return tagSheet; }
 function tagSheetHTML(d) {
-  const st = tagState(d);
-  const right = d.ids.filter(n => st.ans[n] === 0).length, answered = d.ids.filter(n => st.ans[n] !== undefined).length;
+  const st = tagState(d), list = (st.only || d.ids).filter(n => d.ids.includes(n));
+  const right = list.filter(n => st.ans[n] === 0).length, answered = list.filter(n => st.ans[n] !== undefined).length;
+  const wrongToday = d.ids.filter(n => d.res[n] === false);
   const summary = st.done
-    ? `<div class="row" style="justify-content:space-between"><div><span class="big mono" style="font-size:2rem">${right} / ${d.ids.length}</span> <span class="muted">richtig</span></div><button class="btn" id="tagagain">Nochmal ankreuzen</button></div>`
-    : "";
+    ? `<div class="row" style="justify-content:space-between"><div><span class="big mono" style="font-size:2rem">${right} / ${list.length}</span> <span class="muted">richtig</span></div>
+        <span class="row"><button class="btn" id="tagagain">Nochmal alle</button>${wrongToday.length ? `<button class="btn primary" id="tagwrong">Nur die ${wrongToday.length} falschen nochmal</button>` : ""}</span></div>
+       <p class="muted" style="margin:0">Was du jetzt sicher kannst, nimmst du mit <b>Kann ich</b> aus dem Stapel. Alles andere bleibt für morgen drin.</p>`
+    : st.only ? `<div class="row" style="justify-content:space-between"><b>Nur die heute falschen: ${list.length} Fragen</b><button class="btn small" id="tagall">Alle zeigen</button></div>` : "";
   return `<section class="panel" style="display:grid;gap:22px">
     ${summary}
-    ${d.ids.map((n, idx) => { const q = byN.get(n); return `<div class="examq">
-      <div class="qmeta"><span class="mono">Frage ${idx + 1}</span><span>·</span><span class="mono">Nr. ${n}</span>${st.done ? `<span class="pill ${st.ans[n] === 0 ? "ok" : "no"}">${st.ans[n] === 0 ? "richtig" : st.ans[n] === undefined ? "nicht angekreuzt" : "falsch"}</span>` : ""}</div>
+    ${list.map((n, idx) => { const q = byN.get(n), today = d.res[n]; return `<div class="examq">
+      <div class="qmeta" style="justify-content:space-between"><span class="row" style="gap:8px"><span class="mono">Frage ${idx + 1}</span><span>·</span><span class="mono">Nr. ${n}</span>${markPill(n)}${today !== undefined ? `<span class="pill ${today ? "ok" : "no"}">heute ${today ? "richtig" : "falsch"}</span>` : ""}</span>
+        <button class="btn small knowit" data-know="${n}">✓ Kann ich</button></div>
       <p class="qtext">${esc(q.q)}</p>${imgTag(q)}
       <div class="opts">${tagOrder(d, n).map((o, i) => { let c = ""; if (st.done) { if (o === 0) c = "right"; else if (st.ans[n] === o) c = "wrong"; } else if (st.ans[n] === o) c = "sel";
         return `<button class="opt ${c}" data-tn="${n}" data-o="${o}" ${st.done ? "disabled" : ""}><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`; }).join("")}</div>
       ${st.done ? `<div style="margin-top:6px">${markBar(n)}</div>` : ""}</div>`; }).join("")}
-    ${st.done ? "" : `<div class="row" style="justify-content:space-between"><b class="mono" id="tagcount">${answered} / ${d.ids.length} angekreuzt</b><button class="btn primary" id="tagcheck">Auswerten</button></div>`}
+    ${st.done ? "" : `<div class="row" style="justify-content:space-between"><b class="mono" id="tagcount">${answered} / ${list.length} angekreuzt</b><button class="btn primary" id="tagcheck">Auswerten</button></div>`}
   </section>`;
 }
 function wireTagSheet(m, d) {
-  const st = tagState(d);
+  const st = tagState(d), list = () => (st.only || d.ids).filter(n => d.ids.includes(n));
   m.querySelectorAll("[data-tn]").forEach(b => b.onclick = () => {
     st.ans[b.dataset.tn] = +b.dataset.o;
     b.parentNode.querySelectorAll(".opt").forEach(x => x.classList.toggle("sel", x === b));
-    $("#tagcount").textContent = d.ids.filter(n => st.ans[n] !== undefined).length + " / " + d.ids.length + " angekreuzt";
+    $("#tagcount").textContent = list().filter(n => st.ans[n] !== undefined).length + " / " + list().length + " angekreuzt";
   });
   if ($("#tagcheck")) $("#tagcheck").onclick = () => {
     const res = Object.assign({}, d.res);
-    for (const n of d.ids) if (st.ans[n] !== undefined) { const ok = st.ans[n] === 0; res[n] = ok; record(n, ok); }
-    d.res = res; st.done = true; save(); render(); window.scrollTo(0, 0);
+    for (const n of list()) if (st.ans[n] !== undefined) { const ok = st.ans[n] === 0; res[n] = ok; record(n, ok); }
+    setStack(d.ids, res); st.done = true; render(); window.scrollTo(0, 0);
   };
   if ($("#tagagain")) $("#tagagain").onclick = () => { tagSheet = null; render(); window.scrollTo(0, 0); };
+  if ($("#tagwrong")) $("#tagwrong").onclick = () => { const only = d.ids.filter(n => d.res[n] === false); tagSheet = { key: d.date, ans: {}, done: false, only }; render(); window.scrollTo(0, 0); };
+  if ($("#tagall")) $("#tagall").onclick = () => { tagSheet = null; render(); };
 }
+
 function vQuiz(m) {
   const z = quiz;
   if (z.i >= z.ids.length) {
     m.innerHTML = `<div class="view"><section class="panel" style="display:grid;gap:12px;text-align:center;justify-items:center;padding:36px">
       <div class="eyebrow">Abfrage beendet</div><div class="big mono">${z.ok} / ${z.ids.length}</div>
       <p class="muted" style="margin:0">${z.ok === z.ids.length ? "Alles richtig. Stark!" : "Falsch beantwortete Fragen sind jetzt als „schlecht“ markiert und kommen bald wieder."}</p>
-      <button class="btn primary" id="qback">Zurück zu den Tagesfragen</button></section></div>`;
+      <button class="btn primary" id="qback">Zurück zum Lernstapel</button></section></div>`;
     $("#qback").onclick = () => { quiz = null; render(); };
     return;
   }
@@ -679,7 +760,7 @@ function vPruefung(m) {
         <div><div class="eyebrow">Ergebnis</div><div class="big mono">${correct} / 30</div></div>
         <div style="display:grid;gap:6px"><span class="pill ${e.pass ? "ok" : "no"}" style="font-size:1rem;justify-self:start">${e.pass ? "Bestanden" : "Nicht bestanden"}</span>
         <span class="muted">Basis ${basisOk} von 7 (nötig 5) · See ${correct - basisOk} von 23 (nötig 18) · ${Math.round((e.end - e.start) / 60000)} Minuten</span></div>
-        <div class="row" style="margin-left:auto"><button class="btn" id="eclose">Schließen</button>${correct < 30 ? `<button class="btn" id="ewrong">${30 - correct} falsche als Tagesfragen</button>` : ""}<button class="btn primary" id="eagain">Neuer Bogen</button></div>
+        <div class="row" style="margin-left:auto"><button class="btn" id="eclose">Schließen</button>${correct < 30 ? `<button class="btn" id="ewrong">${30 - correct} falsche in den Lernstapel</button>` : ""}<button class="btn primary" id="eagain">Neuer Bogen</button></div>
       </section>`
       : `<div class="stickyexam"><b class="mono">${answered} / 30 beantwortet</b><span class="muted mono" id="clock"></span><span style="margin-left:auto"></span><button class="btn small" id="ecancel">Abbrechen</button><button class="btn primary small" id="esubmit">Abgeben</button></div>
          ${confirmSubmit ? `<section class="panel confirm row" style="justify-content:space-between"><span>${answered < 30 ? `<b>${30 - answered} Fragen</b> sind noch offen. ` : ""}Bogen jetzt abgeben?</span><span class="row"><button class="btn small" id="cno">Weiter bearbeiten</button><button class="btn primary small" id="cyes">Ja, abgeben</button></span></section>` : ""}`}
@@ -696,8 +777,8 @@ function vPruefung(m) {
     $("#eclose").onclick = () => { exam = null; render(); };
     $("#eagain").onclick = () => { exam = null; render(); $("#estart").click(); };
     if ($("#ewrong")) $("#ewrong").onclick = () => {
-      ensureDaily(true, e.ids.filter(n => e.ans[n] !== 0));
-      exam = null; tagView = "kreuz"; tagSheet = null; go("tag"); toast("Falsche Fragen sind jetzt deine Tagesfragen");
+      const wrongIds = e.ids.filter(n => e.ans[n] !== 0);
+      exam = null; tagView = "kreuz"; tagAddOpen = false; addToStack(wrongIds); go("tag");
     };
     return;
   }
@@ -737,7 +818,7 @@ let printCfg = { src: "alle", kind: "bogen", count: "10", nums: "1-10" };
 let printItems = null;
 function buildPrintItems() {
   const c = printCfg; let ids;
-  if (c.src === "tag") ids = ensureDaily(false).ids.slice();
+  if (c.src === "tag") ids = ensureDaily().ids.slice();
   else if (c.src === "pruefung") ids = newExamIds();
   else {
     ids = poolFor(c.src, c.nums);
@@ -746,7 +827,7 @@ function buildPrintItems() {
   if (c.src !== "pruefung") ids.sort((a, b) => a - b);
   printItems = ids.map(n => ({ q: byN.get(n), order: shuffle([0, 1, 2, 3]) }));
 }
-const SRC = [["tag", "Meine heutigen Tagesfragen"], ["pruefung", "Prüfungsbogen (7 Basis + 23 See)"]].concat(POOLS);
+const SRC = [["tag", "Mein Lernstapel (Tagesfragen)"], ["pruefung", "Prüfungsbogen (7 Basis + 23 See)"]].concat(POOLS);
 function printTitle() {
   return printCfg.kind === "bogen" ? (printCfg.src === "pruefung" ? "Prüfungsbogen SBF-See" : "Übungsbogen SBF-See") : "Lernblatt SBF-See";
 }
@@ -781,11 +862,11 @@ function vDrucken(m) {
   $("#ppdf").onclick = () => makePdf(printItems, c.kind, printTitle(), (c.kind === "bogen" ? "Bogen" : "Lernblatt") + "-SBF-See-" + today());
   if ($("#pprint")) $("#pprint").onclick = () => window.print();
 }
-function sheetHTML(items, kind, title, hide, res) {
+function sheetHTML(items, kind, title, hide, res, know) {
   const rows = items.map((it, i) => {
     const q = it.q, order = it.order || [0, 1, 2, 3];
     const mark = res && res[q.n] !== undefined ? ` <span class="pill ${res[q.n] ? "ok" : "no"}" style="font-size:.7rem">${res[q.n] ? "richtig" : "falsch"}</span>` : "";
-    return `<div class="pq"><div><div class="t">${i + 1}. ${esc(q.q)}<small>Nr. ${q.n}</small>${mark}</div>
+    return `<div class="pq"><div><div class="t">${i + 1}. ${esc(q.q)}<small>Nr. ${q.n}</small>${mark}${know ? ` <button class="btn small knowit noprint" data-know="${q.n}">✓ Kann ich</button>` : ""}</div>
       ${kind === "bogen" ? `<ul>${order.map((o, k) => `<li><span class="cb"></span><span>${"ABCD"[k]}) ${esc(q.a[o])}</span></li>`).join("")}</ul>`
         : `<div class="ans${hide ? " hidden" : ""}">${esc(q.a[0])}</div>`}</div>
       <div>${imgTag(q, "")}</div></div>`;

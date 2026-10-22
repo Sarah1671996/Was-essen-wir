@@ -202,6 +202,15 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 @media (max-width:520px){.catitem{grid-template-columns:1fr}.catitem img{width:100%;max-width:260px}}
 
 .confirm{border:2px solid var(--accent);background:var(--accent-soft)}
+.picklist{display:grid;gap:6px;max-height:440px;overflow:auto;padding-right:4px}
+.pick{display:grid;grid-template-columns:22px auto 1fr auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--surface)}
+.pick:hover{border-color:var(--ink)} .pick.there{opacity:.6;cursor:default}
+.pick input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
+.pick .mono{font-size:.82rem;color:var(--muted);white-space:nowrap;padding-top:2px}
+.pick .pt{min-width:0;line-height:1.35}
+@media (max-width:520px){.pick{grid-template-columns:22px 1fr}.pick .mono{grid-column:2}.pick .pt{grid-column:2}.pick .pill{grid-column:2;justify-self:start}}
+.knowit{border-color:var(--sb);color:var(--sb)} .knowit:hover{background:var(--sb);color:var(--surface)}
+.paper .knowit{font-size:.75rem;padding:3px 10px;margin-left:6px;background:#fff;color:#1B7F46;border-color:#1B7F46;vertical-align:1px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(96px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 18px;border-radius:99px;font-weight:700;z-index:20;max-width:calc(100% - 32px)}
 @media (min-width:761px){.toast{bottom:calc(24px + env(safe-area-inset-bottom,0px))}}
 .empty{padding:30px;text-align:center;color:var(--muted)}
