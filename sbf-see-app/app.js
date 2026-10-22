@@ -173,15 +173,33 @@ function parseNums(str) {
   return { ids: ok, bad: bad || ok.length < new Set(out).size };
 }
 /* Gemeinsame Fragen-Auswahl für Karteikarten, Drucken und Katalog */
-const POOLS = [["alle", "Alle 285 Fragen"], ["mk-s", "Markiert: schlecht"], ["mk-m", "Markiert: mittel"], ["mk-g", "Markiert: sicher"], ["mk-sm", "Schlecht + mittel (alles noch nicht Sichere)"], ["mk-", "Noch nicht markiert"],
+/* Auswahl nach Markierung, frei kombinierbar: g = sicher, m = mittel, s = schlecht, n = noch nicht bewertet.
+   Gilt gemeinsam für Karteikarten, Drucken, Katalog und Tagesfragen. */
+const MKSEL = [["g", "sicher"], ["m", "mittel"], ["s", "schlecht"], ["n", "unbewertet"]];
+let markSel = "sm";
+try { markSel = localStorage.getItem("sbfsee-marksel") ?? "sm"; } catch (e) {}
+const markPool = () => Q.map(q => q.n).filter(n => markSel.includes(mark(n) || "n"));
+function markChips() {
+  const c = counts(Q.map(q => q.n));
+  return `<div class="markbar" role="group" aria-label="Markierungen auswählen">${MKSEL.map(([k, l]) =>
+    `<button class="mk mk-${k === "n" ? "o" : k}" data-msel="${k}" aria-pressed="${markSel.includes(k)}">${l} · ${c[k === "n" ? "" : k]}</button>`).join("")}</div>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-msel]"); if (!b) return;
+  const k = b.dataset.msel;
+  markSel = markSel.includes(k) ? markSel.replace(k, "") : markSel + k;
+  try { localStorage.setItem("sbfsee-marksel", markSel); } catch (err) {}
+  if (view === "drucken") buildPrintItems();
+  render();
+});
+const POOLS = [["alle", "Alle 285 Fragen"], ["marks", "Nach Markierung (sicher, mittel, schlecht, unbewertet)"],
   ["nummern", "Bestimmte Nummern (z. B. 1-10, 22, 30)"], ["basis", "Basisfragen (72)"], ["see", "Spezifische See-Fragen (213)"], ["bild", "Fragen mit Bild (Lichter, Zeichen, Signale)"]];
 function poolFor(key, nums) {
   if (key === "nummern") return parseNums(nums).ids;
   if (key === "basis") return BASIS.slice();
   if (key === "see") return SEE.slice();
   if (key === "bild") return Q.filter(q => q.img.length).map(q => q.n);
-  if (key === "mk-sm") return Q.map(q => q.n).filter(n => mark(n) === "s" || mark(n) === "m");
-  if (key.startsWith("mk-")) return Q.map(q => q.n).filter(n => mark(n) === key.slice(3));
+  if (key === "marks") return markPool();
   return Q.map(q => q.n);
 }
 const poolOptions = sel => POOLS.map(([k, l]) => `<option value="${k}" ${sel === k ? "selected" : ""}>${l}</option>`).join("");
@@ -263,7 +281,7 @@ function vStart(m) {
       ${ex.length ? `<ul class="examlist">${ex.map(e => `<li><span>${fmtDate(e.t)}</span><span class="mono">${e.score} / 30</span><span class="pill ${e.pass ? "ok" : "no"}">${e.pass ? "bestanden" : "nicht bestanden"}</span></li>`).join("")}</ul>` : `<p class="muted" style="margin:8px 0 0">Noch keine Prüfung geschrieben.</p>`}
     </section>
   </div>`;
-  m.querySelectorAll("[data-learn]").forEach(b => b.onclick = () => { flashCfg.pool = b.dataset.learn; flash = null; go("karten"); });
+  m.querySelectorAll("[data-learn]").forEach(b => b.onclick = () => { markSel = b.dataset.learn.slice(3) || "n"; try { localStorage.setItem("sbfsee-marksel", markSel); } catch (e) {} flashCfg.pool = "marks"; flash = null; go("karten"); });
   if (CAN_FB) wireDevicePanel();
 }
 
@@ -312,9 +330,9 @@ function wireDevicePanel() {
 let tagHide = true;
 // Eigene Nummern für die Tagesfragen (höchstens 40, so viele nimmt auch der Abgleich an)
 const DAILY_MAX = 40;
-let tagOwn = false, tagNums = "";
-try { tagNums = localStorage.getItem("sbfsee-tagnums") || ""; tagOwn = localStorage.getItem("sbfsee-tagown") === "1"; } catch (e) {}
-function rememberTag() { try { localStorage.setItem("sbfsee-tagnums", tagNums); localStorage.setItem("sbfsee-tagown", tagOwn ? "1" : "0"); } catch (e) {} }
+let tagMode = "auto", tagNums = "", tagMkCount = "10";
+try { tagNums = localStorage.getItem("sbfsee-tagnums") || ""; tagMode = localStorage.getItem("sbfsee-tagmode") || (localStorage.getItem("sbfsee-tagown") === "1" ? "own" : "auto"); } catch (e) {}
+function rememberTag() { try { localStorage.setItem("sbfsee-tagnums", tagNums); localStorage.setItem("sbfsee-tagmode", tagMode); } catch (e) {} }
 function ensureDaily(force, ownIds) {
   if (!force && P.daily && P.daily.date === today()) return P.daily;
   const rnd = seeded(today() + ":" + Date.now());
@@ -334,16 +352,17 @@ function vTag(m) {
     <div class="noprint"><div class="eyebrow">${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" })}</div><h2>Tagesfragen</h2></div>
     <section class="panel noprint" style="display:grid;gap:14px">
       <div class="row" style="gap:12px"><span class="eyebrow">Fragen</span>
-        <div class="seg" role="group" aria-label="Auswahl der Tagesfragen"><button data-own="0" aria-pressed="${!tagOwn}">Automatisch</button><button data-own="1" aria-pressed="${tagOwn}">Eigene Nummern</button></div></div>
-      <div class="row" style="justify-content:space-between;align-items:end">
-        <div class="row" style="align-items:end;flex:1 1 300px">
-          ${tagOwn ? `<label class="field" style="flex:1 1 240px">Nummern<input type="text" id="dnums" inputmode="numeric" autocomplete="off" value="${esc(tagNums)}" placeholder="z. B. 22, 23, 25, 30, 40-43"></label>`
-            : `<label class="field">Anzahl
+        <div class="seg" role="group" aria-label="Auswahl der Tagesfragen">${[["auto", "Automatisch"], ["marks", "Nach Markierung"], ["own", "Eigene Nummern"]].map(([k, l]) => `<button data-tmode="${k}" aria-pressed="${tagMode === k}">${l}</button>`).join("")}</div></div>
+      ${tagMode === "marks" ? markChips() : ""}
+      <div class="row" style="align-items:end">
+        ${tagMode === "own" ? `<label class="field" style="flex:1 1 240px">Nummern<input type="text" id="dnums" inputmode="numeric" autocomplete="off" value="${esc(tagNums)}" placeholder="z. B. 22, 23, 25, 30, 40-43"></label>`
+          : tagMode === "marks" ? `<label class="field">Anzahl<select id="dmkcount">${["5", "10", "15", "20", "30", "alle"].map(n => `<option value="${n}" ${n === tagMkCount ? "selected" : ""}>${n === "alle" ? "alle (höchstens " + DAILY_MAX + ")" : n}</option>`).join("")}</select></label>`
+          : `<label class="field">Anzahl
           <select id="dsize">${[5, 10, 15, 20, 30].map(n => `<option ${n === (P.dailySize || 10) ? "selected" : ""}>${n}</option>`).join("")}</select></label>`}
-          <button class="btn" id="dnew">${tagOwn ? "Übernehmen" : d ? "Neu zusammenstellen" : "Zusammenstellen"}</button>
-        </div>
+        <button class="btn" id="dnew">${tagMode === "own" ? "Übernehmen" : d ? "Neu zusammenstellen" : "Zusammenstellen"}</button>
       </div>
-      ${tagOwn ? `<span class="muted" id="dhint" style="font-size:.85rem;margin-top:-6px">${tagNumsHint()}</span>` : ""}
+      ${tagMode === "own" ? `<span class="muted" id="dhint" style="font-size:.85rem;margin-top:-6px">${tagNumsHint()}</span>`
+        : tagMode === "marks" ? `<span class="muted" style="font-size:.85rem;margin-top:-6px">${markPool().length} Fragen passen zu deiner Auswahl${markPool().length ? ", schlecht markierte kommen zuerst" : ""}.</span>` : ""}
     </section>
     ${d ? `<section class="panel noprint row" style="justify-content:space-between">
         <div class="seg" role="group" aria-label="Ansicht"><button data-tview="kreuz" aria-pressed="${tagView === "kreuz"}">Ankreuzen</button><button data-tview="loes" aria-pressed="${tagView === "loes"}">Lösungen</button></div>
@@ -352,19 +371,24 @@ function vTag(m) {
       ${tagView === "kreuz" ? tagSheetHTML(d)
         : `<div class="row noprint"><button class="btn small" id="dhide">${tagHide ? "Antworten zeigen" : "Antworten verdecken"}</button></div>
            <div class="printarea">${sheetHTML(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Tagesfragen vom " + fmtDate(d.t), tagHide, d.res)}</div>`}`
-      : `<div class="panel empty">${tagOwn ? "Gib die Nummern der Fragen ein, die du heute lernen willst, und tippe auf „Übernehmen“." : "Wähle die Anzahl und tippe auf „Zusammenstellen“. Bevorzugt kommen Fragen, die du als schlecht markiert hast oder noch nicht kennst."}</div>`}
+      : `<div class="panel empty">${tagMode === "own" ? "Gib die Nummern der Fragen ein, die du heute lernen willst, und tippe auf „Übernehmen“." : tagMode === "marks" ? "Wähle oben, welche Markierungen du üben willst, und tippe auf „Zusammenstellen“." : "Wähle die Anzahl und tippe auf „Zusammenstellen“. Bevorzugt kommen Fragen, die du als schlecht markiert hast oder noch nicht kennst."}</div>`}
   </div>`;
-  m.querySelectorAll("[data-own]").forEach(b => b.onclick = () => { tagOwn = b.dataset.own === "1"; rememberTag(); render(); });
+  m.querySelectorAll("[data-tmode]").forEach(b => b.onclick = () => { tagMode = b.dataset.tmode; rememberTag(); render(); });
+  if ($("#dmkcount")) $("#dmkcount").onchange = e => { tagMkCount = e.target.value; };
   if ($("#dsize")) $("#dsize").onchange = e => { P.dailySize = +e.target.value; save(); };
   if ($("#dnums")) {
     $("#dnums").oninput = e => { tagNums = e.target.value; rememberTag(); $("#dhint").textContent = tagNumsHint(); };
     $("#dnums").onkeydown = e => { if (e.key === "Enter") $("#dnew").click(); };
   }
   $("#dnew").onclick = () => {
-    if (tagOwn) {
+    if (tagMode === "own") {
       const ids = parseNums(tagNums).ids;
       if (!ids.length) { toast("Bitte gültige Nummern zwischen 1 und 285 eingeben."); return; }
       ensureDaily(true, ids); toast(Math.min(ids.length, DAILY_MAX) + " Tagesfragen übernommen");
+    } else if (tagMode === "marks") {
+      const pool = markPool();
+      if (!pool.length) { toast("Zu dieser Auswahl gibt es noch keine Fragen."); return; }
+      ensureDaily(true, pickLearn(pool, tagMkCount === "alle" ? DAILY_MAX : +tagMkCount).sort((x, y) => x - y));
     } else { P.dailySize = +$("#dsize").value; ensureDaily(true); }
     render();
   };
@@ -467,6 +491,7 @@ function vKarten(m) {
       <div class="row" style="gap:16px;align-items:end">
         <label class="field">Welche Fragen?
           <select id="fpool">${poolOptions(flashCfg.pool)}</select></label>
+        ${flashCfg.pool === "marks" ? `<div style="flex:1 1 100%">${markChips()}</div>` : ""}
         ${flashCfg.pool === "nummern" ? `<label class="field" style="flex:1 1 220px">Nummern<input type="text" id="fnums" inputmode="numeric" value="${esc(flashCfg.nums)}" placeholder="z. B. 1-10, 22, 30, 32"></label>` : ""}
         <label class="field">Reihenfolge
           <select id="forder"><option value="lernen" ${flashCfg.order === "lernen" ? "selected" : ""}>Schlechte zuerst</option><option value="zufall" ${flashCfg.order === "zufall" ? "selected" : ""}>Zufällig</option><option value="nummer" ${flashCfg.order === "nummer" ? "selected" : ""}>Nach Fragennummer</option></select></label>
@@ -625,6 +650,7 @@ function vDrucken(m) {
       <div class="row" style="gap:16px;align-items:end">
         <label class="field">Fragen
           <select id="psrc">${SRC.map(([k, l]) => `<option value="${k}" ${c.src === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        ${c.src === "marks" ? `<div style="flex:1 1 100%">${markChips()}</div>` : ""}
         ${c.src === "nummern" ? `<label class="field" style="flex:1 1 220px">Nummern<input type="text" id="pnums" inputmode="numeric" value="${esc(c.nums)}" placeholder="z. B. 1-10, 22, 30, 32"></label>` : ""}
         ${needCount ? `<label class="field">Anzahl<select id="pcount">${["alle", "5", "10", "15", "20", "30", "40"].map(n => `<option value="${n}" ${n === c.count ? "selected" : ""}>${n === "alle" ? "alle (" + poolSize + ")" : n + " zufällig"}</option>`).join("")}</select></label>` : ""}
       </div>
@@ -636,7 +662,7 @@ function vDrucken(m) {
     </section>
     <div class="printarea">${printItems.length ? sheetHTML(printItems, c.kind, printTitle(), false) : `<div class="panel empty">Für diese Auswahl gibt es noch keine Fragen.</div>`}</div>
   </div>`;
-  $("#psrc").onchange = e => { c.src = e.target.value; c.count = e.target.value.startsWith("mk-") || e.target.value === "nummern" ? "alle" : "10"; buildPrintItems(); render(); };
+  $("#psrc").onchange = e => { c.src = e.target.value; c.count = e.target.value === "marks" || e.target.value === "nummern" ? "alle" : "10"; buildPrintItems(); render(); };
   if ($("#pcount")) $("#pcount").onchange = e => { c.count = e.target.value; buildPrintItems(); render(); };
   if ($("#pnums")) $("#pnums").onchange = e => { c.nums = e.target.value; buildPrintItems(); render(); };
   m.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => { c.kind = b.dataset.kind; render(); });
@@ -745,6 +771,7 @@ function vKatalog(m) {
         <label class="field" style="flex:1 1 240px">Suche nach Wort oder Nummern<input type="search" id="cs" placeholder="z. B. Nebel  oder  1-10, 22, 30" value="${esc(catCfg.s)}"></label>
         <label class="field">Auswahl<select id="csec">${POOLS.filter(p => p[0] !== "nummern").map(([k, l]) => `<option value="${k}" ${catCfg.sec === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       </div>
+      ${catCfg.sec === "marks" ? markChips() : ""}
       <div class="row" style="justify-content:space-between"><b id="ccount"></b>
         <span class="row"><button class="btn small" id="clearn">Diese als Karteikarten lernen</button><button class="btn small" id="cprint">Diese drucken</button></span></div>
     </section>
@@ -769,7 +796,7 @@ function vKatalog(m) {
     if ($("#cmore")) $("#cmore").onclick = () => { catCfg.limit += 40; list(); };
   };
   $("#cs").oninput = e => { catCfg.s = e.target.value; catCfg.limit = 40; list(); };
-  $("#csec").onchange = e => { catCfg.sec = e.target.value; catCfg.limit = 40; list(); };
+  $("#csec").onchange = e => { catCfg.sec = e.target.value; catCfg.limit = 40; render(); };
   $("#clearn").onclick = () => { flashCfg.pool = "nummern"; flashCfg.nums = compactNums(result); flash = null; go("karten"); };
   $("#cprint").onclick = () => { printCfg.src = "nummern"; printCfg.nums = compactNums(result); printCfg.count = "alle"; printItems = null; go("drucken"); };
   list();
