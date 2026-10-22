@@ -309,3 +309,8 @@ dialog::backdrop { background: rgba(20, 14, 6, .45); }
 .scan.ok { background: color-mix(in srgb, var(--new) 14%, transparent); color: var(--new); }
 @keyframes spin { to { transform: rotate(360deg); } }
 .chip.emoji { min-width: 48px; font-size: 1.3rem; padding: 4px 8px; }
+
+/* Ausgaben oben auf der Übersicht: rot hervorgehoben, solange etwas offen ist */
+#home .moneycard { margin: 0 0 14px; }
+.moneycard.due { box-shadow: inset 0 0 0 2px var(--urgent), var(--shadow); }
+.moneycard.due strong { color: var(--urgent); font-size: 1.35rem; }

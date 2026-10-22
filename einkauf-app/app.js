@@ -243,8 +243,13 @@ function renderHome() {
   trips.textContent = "";
   S.members.forEach(m => { const t = tripOf(m); if (t) trips.appendChild(tripBanner(m, t)); });
 
-  const open = S.receipts.filter(r => !r.settled).reduce((sum, r) => sum + (r.amount || 0), 0);
-  $("#moneySummary").textContent = open ? `${euro(open)} noch nicht erstattet` : "Kassenbons und was noch offen ist";
+  const openList = S.receipts.filter(r => !r.settled);
+  const open = openList.reduce((sum, r) => sum + (r.amount || 0), 0);
+  $("#moneyBtn").classList.toggle("due", open > 0);
+  $("#moneyTitle").textContent = open ? `${euro(open)} noch offen` : "Ausgaben";
+  $("#moneySummary").textContent = open
+    ? `${openList.length} ${openList.length === 1 ? "Kassenbon" : "Kassenbons"} noch nicht erstattet`
+    : "Alles erstattet · Kassenbons ansehen";
 
   const box = $("#stores");
   box.textContent = "";

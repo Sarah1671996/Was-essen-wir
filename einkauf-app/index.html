@@ -61,6 +61,12 @@
       <button class="iconbtn" id="settingsBtn" aria-label="Einstellungen und Einladen">⚙</button>
     </header>
     <div class="scroll">
+      <!-- Ausgaben ganz oben, damit sofort sichtbar ist, was noch offen ist (auch im einfachen Modus) -->
+      <button class="moneycard" id="moneyBtn">
+        <span class="moneyicon" aria-hidden="true">💶</span>
+        <span><strong id="moneyTitle">Ausgaben</strong><span class="small" id="moneySummary">Kassenbons und was noch offen ist</span></span>
+        <span aria-hidden="true">›</span>
+      </button>
       <div id="trips" class="trips"></div>
       <div class="stores" id="stores"></div>
       <div id="storeSuggest" class="panel adv" hidden>
@@ -68,11 +74,6 @@
         <div class="chips" id="storeSuggestChips"></div>
       </div>
       <button class="btn ghost wide adv" id="newStoreBtn">+ Laden hinzufügen</button>
-      <button class="moneycard adv" id="moneyBtn">
-        <span class="moneyicon" aria-hidden="true">💶</span>
-        <span><strong>Ausgaben</strong><span class="small" id="moneySummary">Kassenbons und was noch offen ist</span></span>
-        <span aria-hidden="true">›</span>
-      </button>
     </div>
   </section>
 
@@ -118,7 +119,7 @@
         <div class="total open"><span class="small">Noch nicht erstattet</span><strong id="openTotal"></strong></div>
       </div>
       <div id="perStore" class="perstore"></div>
-      <button class="btn wide" id="newReceiptBtn">📷 Kassenbon erfassen</button>
+      <button class="btn wide adv" id="newReceiptBtn">📷 Kassenbon erfassen</button>
       <div id="receipts"></div>
     </div>
   </section>
@@ -283,7 +284,7 @@
     <p class="meta" id="rMeta"></p>
     <p class="error" id="rError" role="alert"></p>
     <div class="dlgactions">
-      <button type="button" class="btn ghost danger" id="rDelete" hidden>Löschen</button>
+      <button type="button" class="btn ghost danger adv" id="rDelete" hidden>Löschen</button>
       <button type="button" class="btn ghost" id="rCancel">Abbrechen</button>
       <button class="btn">Speichern</button>
     </div>
@@ -321,7 +322,7 @@
     <label class="check"><input type="checkbox" id="bigText"> Große Schrift</label>
     <label class="check"><input type="checkbox" id="keepAwake"> Bildschirm im Laden anlassen</label>
     <label class="check"><input type="checkbox" id="simpleMode"> Einfacher Modus</label>
-    <p class="small">Einfacher Modus: nur Eintragen, Abhaken und Fotos. Bearbeiten von Läden, Ausgaben und Verlauf sind ausgeblendet, damit nichts aus Versehen gelöscht wird. Gilt nur auf diesem Handy.</p>
+    <p class="small">Einfacher Modus: nur Eintragen, Abhaken, Fotos und ansehen, was an Ausgaben offen ist. Bearbeiten von Läden, Bons erfassen, Löschen und Verlauf sind ausgeblendet, damit nichts aus Versehen verloren geht. Gilt nur auf diesem Handy.</p>
 
     <p class="small" id="modeNote"></p>
     <div class="dlgactions">
