@@ -1,0 +1,17 @@
+{
+  "name": "SBF-See Trainer",
+  "short_name": "SBF-See",
+  "description": "Lernen für den Sportbootführerschein See: Karteikarten, Tagesfragen, Prüfungsbögen und A4-Bögen.",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0F2A3F",
+  "theme_color": "#0F2A3F",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

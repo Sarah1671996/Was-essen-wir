@@ -126,5 +126,23 @@ service cloud.firestore {
           && needStr("name", 40) && str("emoji", 16) && str("words", 400) && num("createdAt") && idOrNull("by");
       }
     }
+
+    // SBF-See-Lernapp: ein Lernstand pro Lerncode, damit Handy und PC denselben Stand haben.
+    // Nur mit dem 10-stelligen Code erreichbar; Auflisten und Löschen sind verboten.
+    match /lernstand/{code} {
+      function l() { return request.resource.data; }
+      allow get: if request.auth != null;
+      allow create, update: if request.auth != null
+        && code.size() >= 10 && code.size() <= 40
+        && l().keys().hasOnly(["c", "daily", "exams", "dailySize", "st"])
+        && l().c is map && l().c.size() <= 300
+        && (!("exams" in l()) || (l().exams is list && l().exams.size() <= 30))
+        && (!("daily" in l()) || l().daily == null
+            || (l().daily is map && l().daily.keys().hasOnly(["date", "ids", "res", "t"])
+                && l().daily.ids is list && l().daily.ids.size() <= 40))
+        && (!("dailySize" in l()) || l().dailySize is number)
+        && (!("st" in l()) || l().st is number);
+      allow list, delete: if false;
+    }
   }
 }
