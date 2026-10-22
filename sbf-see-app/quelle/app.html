@@ -557,14 +557,16 @@ function vTag(m) {
           <select id="dsize">${[5, 10, 15, 20, 30].map(n => `<option ${n === (P.dailySize || 10) ? "selected" : ""}>${n}</option>`).join("")}</select></label>`}
           <button class="btn" id="dnew">${tagOwn ? "Übernehmen" : d ? "Neu zusammenstellen" : "Zusammenstellen"}</button>
         </div>
-        ${d ? `<div class="row">
-        <button class="btn" id="dhide">${tagHide ? "Antworten zeigen" : "Antworten verdecken"}</button>
-        <button class="btn" id="dpdf">Als PDF</button>
-        <button class="btn primary" id="dquiz">Abfragen</button></div>` : ""}
       </div>
       ${tagOwn ? `<span class="muted" id="dhint" style="font-size:.85rem;margin-top:-6px">${tagNumsHint()}</span>` : ""}
     </section>
-    ${d ? `<div class="printarea">${sheetHTML(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Tagesfragen vom " + fmtDate(d.t), tagHide, d.res)}</div>`
+    ${d ? `<section class="panel noprint row" style="justify-content:space-between">
+        <div class="seg" role="group" aria-label="Ansicht"><button data-tview="kreuz" aria-pressed="${tagView === "kreuz"}">Ankreuzen</button><button data-tview="loes" aria-pressed="${tagView === "loes"}">Lösungen</button></div>
+        <div class="row"><button class="btn" id="dpdf">Als PDF</button><button class="btn" id="dquiz">Einzeln abfragen</button></div>
+      </section>
+      ${tagView === "kreuz" ? tagSheetHTML(d)
+        : `<div class="row noprint"><button class="btn small" id="dhide">${tagHide ? "Antworten zeigen" : "Antworten verdecken"}</button></div>
+           <div class="printarea">${sheetHTML(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Tagesfragen vom " + fmtDate(d.t), tagHide, d.res)}</div>`}`
       : `<div class="panel empty">${tagOwn ? "Gib die Nummern der Fragen ein, die du heute lernen willst, und tippe auf „Übernehmen“." : "Wähle die Anzahl und tippe auf „Zusammenstellen“. Bevorzugt kommen Fragen, die du als schlecht markiert hast oder noch nicht kennst."}</div>`}
   </div>`;
   m.querySelectorAll("[data-own]").forEach(b => b.onclick = () => { tagOwn = b.dataset.own === "1"; rememberTag(); render(); });
@@ -582,11 +584,50 @@ function vTag(m) {
     render();
   };
   if (d) {
-    $("#dhide").onclick = () => { tagHide = !tagHide; render(); };
+    m.querySelectorAll("[data-tview]").forEach(b => b.onclick = () => { tagView = b.dataset.tview; render(); });
+    if ($("#dhide")) $("#dhide").onclick = () => { tagHide = !tagHide; render(); };
     $("#dquiz").onclick = () => { quiz = { ids: shuffle(d.ids), i: 0, ok: 0, from: "tag" }; render(); };
-    $("#dpdf").onclick = () => makePdf(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Tagesfragen vom " + fmtDate(d.t), "Tagesfragen-" + d.date);
+    $("#dpdf").onclick = () => makePdf(d.ids.map(n => ({ q: byN.get(n), order: tagOrder(d, n) })), "bogen", "Tagesfragen vom " + fmtDate(d.t), "Tagesfragen-" + d.date);
     m.querySelectorAll(".ans.hidden").forEach(el => el.onclick = () => el.classList.remove("hidden"));
+    if (tagView === "kreuz") wireTagSheet(m, d);
   }
+}
+
+/* Tagesfragen als Bogen: alle vier Antworten aus dem Katalog, gemischt, zum Ankreuzen */
+let tagView = "kreuz", tagSheet = null;
+// Reihenfolge der Antworten bleibt für denselben Tagesfragen-Satz gleich (auch nach Neuladen und im PDF)
+const tagOrder = (d, n) => shuffle([0, 1, 2, 3], seeded(d.t + ":" + n));
+function tagState(d) { if (!tagSheet || tagSheet.key !== d.t) tagSheet = { key: d.t, ans: {}, done: false }; return tagSheet; }
+function tagSheetHTML(d) {
+  const st = tagState(d);
+  const right = d.ids.filter(n => st.ans[n] === 0).length, answered = d.ids.filter(n => st.ans[n] !== undefined).length;
+  const summary = st.done
+    ? `<div class="row" style="justify-content:space-between"><div><span class="big mono" style="font-size:2rem">${right} / ${d.ids.length}</span> <span class="muted">richtig</span></div><button class="btn" id="tagagain">Nochmal ankreuzen</button></div>`
+    : "";
+  return `<section class="panel" style="display:grid;gap:22px">
+    ${summary}
+    ${d.ids.map((n, idx) => { const q = byN.get(n); return `<div class="examq">
+      <div class="qmeta"><span class="mono">Frage ${idx + 1}</span><span>·</span><span class="mono">Nr. ${n}</span>${st.done ? `<span class="pill ${st.ans[n] === 0 ? "ok" : "no"}">${st.ans[n] === 0 ? "richtig" : st.ans[n] === undefined ? "nicht angekreuzt" : "falsch"}</span>` : ""}</div>
+      <p class="qtext">${esc(q.q)}</p>${imgTag(q)}
+      <div class="opts">${tagOrder(d, n).map((o, i) => { let c = ""; if (st.done) { if (o === 0) c = "right"; else if (st.ans[n] === o) c = "wrong"; } else if (st.ans[n] === o) c = "sel";
+        return `<button class="opt ${c}" data-tn="${n}" data-o="${o}" ${st.done ? "disabled" : ""}><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`; }).join("")}</div>
+      ${st.done ? `<div style="margin-top:6px">${markBar(n)}</div>` : ""}</div>`; }).join("")}
+    ${st.done ? "" : `<div class="row" style="justify-content:space-between"><b class="mono" id="tagcount">${answered} / ${d.ids.length} angekreuzt</b><button class="btn primary" id="tagcheck">Auswerten</button></div>`}
+  </section>`;
+}
+function wireTagSheet(m, d) {
+  const st = tagState(d);
+  m.querySelectorAll("[data-tn]").forEach(b => b.onclick = () => {
+    st.ans[b.dataset.tn] = +b.dataset.o;
+    b.parentNode.querySelectorAll(".opt").forEach(x => x.classList.toggle("sel", x === b));
+    $("#tagcount").textContent = d.ids.filter(n => st.ans[n] !== undefined).length + " / " + d.ids.length + " angekreuzt";
+  });
+  if ($("#tagcheck")) $("#tagcheck").onclick = () => {
+    const res = Object.assign({}, d.res);
+    for (const n of d.ids) if (st.ans[n] !== undefined) { const ok = st.ans[n] === 0; res[n] = ok; record(n, ok); }
+    d.res = res; st.done = true; save(); render(); window.scrollTo(0, 0);
+  };
+  if ($("#tagagain")) $("#tagagain").onclick = () => { tagSheet = null; render(); window.scrollTo(0, 0); };
 }
 function vQuiz(m) {
   const z = quiz;
