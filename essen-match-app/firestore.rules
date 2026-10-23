@@ -134,7 +134,8 @@ service cloud.firestore {
       allow get: if request.auth != null;
       allow create, update: if request.auth != null
         && code.size() >= 10 && code.size() <= 40
-        && l().keys().hasOnly(["c", "daily", "exams", "dailySize", "st", "days", "nav", "notes"])
+        && l().keys().hasOnly(["c", "daily", "exams", "dailySize", "st", "days", "nav", "notes", "termin"])
+        && (!("termin" in l()) || l().termin == null || (l().termin is map && l().termin.keys().hasOnly(["d", "t"])))
         && (!("nav" in l()) || (l().nav is map && l().nav.size() <= 20))
         && (!("notes" in l()) || (l().notes is map && l().notes.size() <= 300))
         && (!("days" in l()) || (l().days is map && l().days.size() <= 400))

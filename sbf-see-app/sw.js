@@ -1,6 +1,6 @@
 // Hält die Lern-App offline bereit (unterwegs ohne Empfang). Erst Netz, bei Funkloch der Zwischenspeicher.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "sbfsee-v8";
+const CACHE = "sbfsee-v9";
 const FILES = [
   "./", "index.html", "app.js", "daten.js", "jspdf.umd.min.js", "pdfjs/pdf.min.js", "pdfjs/pdf.worker.min.js", "../essen-match-app/firebase-config.js",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"

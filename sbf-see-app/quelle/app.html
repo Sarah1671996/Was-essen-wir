@@ -301,7 +301,7 @@ const imgTag = (q, cls = "qimg") => q.img.map(id => `<img class="${cls}${LIGHT.h
 /* ---------- Lernstand (lokal + optional synchronisiert) ---------- */
 const LS_KEY = "sbfsee-progress-v1";
 let P = blank();
-function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {}, nav: {}, notes: {} }; }
+function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {}, nav: {}, notes: {}, termin: null }; }
 try { const raw = localStorage.getItem(LS_KEY); if (raw) P = Object.assign(blank(), JSON.parse(raw)); } catch (e) {}
 function merge(a, b) {
   const out = Object.assign(blank(), a);
@@ -313,6 +313,7 @@ function merge(a, b) {
   if (b.dailySize && (b.st || 0) > (a.st || 0)) out.dailySize = b.dailySize;
   out.days = Object.assign({}, a.days);
   for (const [k, v] of Object.entries(b.days || {})) out.days[k] = Math.max(out.days[k] || 0, v);
+  if (b.termin && (!out.termin || (b.termin.t || 0) > (out.termin.t || 0))) out.termin = b.termin;
   for (const f of ["nav", "notes"]) {
     out[f] = Object.assign({}, a[f]);
     for (const [k, v] of Object.entries(b[f] || {})) if (!out[f][k] || (v.t || 0) > (out[f][k].t || 0)) out[f][k] = v;
@@ -552,6 +553,7 @@ function vStart(m) {
       <p class="muted">Lerne mit Karteikarten, übe ganze Prüfungsbögen oder lass dir Tagesfragen und A4-Bögen zum Ausdrucken zusammenstellen. Die richtige Antwort steht jedes Mal an einer anderen Stelle.</p></div>
       <div style="text-align:right"><div class="big mono">${pct}<span style="font-size:1.4rem">%</span></div><div class="muted" style="font-size:.85rem">sicher beherrscht</div></div>
     </section>
+    ${terminPanel(all)}
     <div class="grid2">
       <section class="panel" style="display:grid;gap:12px">
         <div class="eyebrow">Heute</div>
@@ -589,10 +591,54 @@ function vStart(m) {
   m.querySelectorAll("[data-learn]").forEach(b => b.onclick = () => { markSel = b.dataset.learn.slice(3) || "n"; try { localStorage.setItem("sbfsee-marksel", markSel); } catch (e) {} flashCfg.pool = "marks"; flash = null; go("karten"); });
   if (CAN_FB) wireDevicePanel();
   wireHardest(m);
+  wireTermin(m);
   m.querySelectorAll("[data-due]").forEach(b => b.onclick = () => { flashCfg.pool = "faellig"; flash = null; go("karten"); });
   $("#bexport").onclick = exportBackup;
   $("#bimport").onclick = () => $("#bfile").click();
   $("#bfile").onchange = e => { const f = e.target.files[0]; if (f) importBackup(f); e.target.value = ""; };
+}
+
+/* Prüfungstermin: Tage bis zur Prüfung und wie viele Fragen pro Tag sicher werden müssen.
+   Die letzten 2 Tage bleiben zum Wiederholen frei. */
+let terminEdit = false;
+function terminInfo(all) {
+  const d = P.termin && P.termin.d; if (!d) return null;
+  const days = Math.round((new Date(d + "T00:00:00") - new Date(today() + "T00:00:00")) / 86400000);
+  const offen = Q.length - all.g, lernTage = Math.max(1, days - 2);
+  const navOffen = NAV.filter(t => Object.values(navRes(t.nr)).filter(Boolean).length < 7).length;
+  return { d, days, offen, perDay: days > 0 ? Math.ceil(offen / lernTage) : offen, lernTage, navOffen };
+}
+function terminPanel(all) {
+  const t = terminInfo(all);
+  if (!t || terminEdit) return `<section class="panel termin" style="display:grid;gap:10px">
+      <div class="eyebrow">Prüfungstermin</div>
+      <p style="margin:0">Trag dein (ungefähres) Prüfungsdatum ein. Dann siehst du, wie viele Tage noch bleiben und wie viele Fragen du pro Tag lernen solltest. Du kannst es jederzeit ändern.</p>
+      <div class="row" style="align-items:end"><label class="field">Datum<input type="date" id="tdate" min="${today()}" value="${t ? t.d : ""}"></label>
+        <button class="btn primary" id="tsave">Speichern</button>
+        ${t ? `<button class="btn" id="tcancel">Abbrechen</button><button class="btn" id="tdel">Termin löschen</button>` : `<button class="btn" id="tnov">Ende November (30.11.)</button>`}</div>
+    </section>`;
+  const date = new Date(t.d + "T00:00:00").toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const head = t.days > 1 ? `<span class="big mono">${t.days}</span> <b>Tage bis zur Prüfung</b>` : t.days === 1 ? `<b class="big" style="font-size:2rem">Morgen ist Prüfung!</b>` : t.days === 0 ? `<b class="big" style="font-size:2rem">Heute ist Prüfung. Viel Erfolg!</b>` : `<b>Der eingetragene Termin ist vorbei.</b>`;
+  const plan = t.days <= 0 ? "" : t.offen === 0
+    ? `<p style="margin:0">Alle 285 Fragen sind sicher. Jetzt nur noch wiederholen und Prüfungsbögen schreiben.</p>`
+    : t.days <= 2 ? `<p style="margin:0">Die letzten Tage: keine neuen Fragen mehr, nur noch die ${t.offen} unsicheren wiederholen und 1–2 Prüfungsbögen schreiben.</p>`
+    : `<p style="margin:0"><b>${t.offen} Fragen</b> sind noch nicht sicher. Damit alle bis 2 Tage vor der Prüfung sitzen, schaffst du <b>etwa ${t.perDay} ${t.perDay === 1 ? "Frage" : "Fragen"} pro Tag</b> (${t.lernTage} Lerntage).</p>`;
+  return `<section class="panel termin" style="display:grid;gap:10px">
+    <div class="row" style="justify-content:space-between"><div class="eyebrow">Prüfungstermin · ${date}</div><button class="linkbtn" id="tedit">ändern</button></div>
+    <div>${head}</div>
+    ${plan}
+    ${t.days > 0 && t.navOffen ? `<p class="muted" style="margin:0;font-size:.88rem">Navigation: ${t.navOffen} von 15 Aufgaben noch nicht mit 7 von 9 gelöst${t.days > 2 ? `, also etwa eine alle ${Math.max(1, Math.floor(t.lernTage / t.navOffen))} Tage` : ""}.</p>` : ""}
+    ${t.days > 2 && t.offen ? `<div><button class="btn primary" id="tpace">Heute ${t.perDay} ${t.perDay === 1 ? "Frage" : "Fragen"} in den Lernstapel</button></div>` : ""}
+  </section>`;
+}
+function wireTermin(m) {
+  const saveDate = d => { if (!/^\d{4}-\d{2}-\d{2}$/.test(d)) { toast("Bitte ein Datum wählen."); return; } P.termin = { d, t: Date.now() }; save(); terminEdit = false; render(); };
+  if ($("#tsave")) $("#tsave").onclick = () => saveDate($("#tdate").value);
+  if ($("#tnov")) $("#tnov").onclick = () => saveDate(new Date().getFullYear() + "-11-30");
+  if ($("#tcancel")) $("#tcancel").onclick = () => { terminEdit = false; render(); };
+  if ($("#tdel")) $("#tdel").onclick = () => { P.termin = { d: "", t: Date.now() }; save(); terminEdit = false; render(); };
+  if ($("#tedit")) $("#tedit").onclick = () => { terminEdit = true; render(); };
+  if ($("#tpace")) $("#tpace").onclick = () => { const t = terminInfo(counts(Q.map(q => q.n))); addToStack(suggest(Math.min(t.perDay, DAILY_MAX))); go("tag"); };
 }
 
 /* Prüfungsreife: Ampel aus Lernstand und den letzten Prüfungsbögen */
