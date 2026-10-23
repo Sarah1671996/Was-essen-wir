@@ -760,17 +760,60 @@ $("#addInput").oninput = () => {
 function hideSuggest() { $("#suggest").hidden = true; }
 
 // "Oft gekauft": was hier schon öfter drauf stand und gerade fehlt
-let oftenAll = false;
+let oftenAll = false, oftenEditing = false;
+
+// Vorschläge entfernen: nur für diesen Laden; steht ein Vorschlag nirgends mehr, wird er ganz gelöscht
+async function removeSuggestions(list) {
+  const id = S.current;
+  const ops = list.map(k => {
+    const stores = { ...(k.stores || {}) };
+    delete stores[id];
+    return Object.keys(stores).length
+      ? { type: "update", c: "known", id: k.id, data: { stores } }
+      : { type: "delete", c: "known", id: k.id };
+  });
+  const undo = list.map(({ id: kid, ...data }) => ({ c: "known", id: kid, data }));
+  try {
+    for (const part of chunks(ops)) await house.batch(part);
+    toast(list.length === 1 ? `„${list[0].text}“ aus den Vorschlägen entfernt` : `${list.length} Vorschläge entfernt`, {
+      label: "Rückgängig",
+      run: async () => { try { for (const part of chunks(undo)) await house.batch(part); } catch { fail("Wiederherstellen")(); } }
+    });
+  } catch (err) { console.error(err); fail("Entfernen")(); }
+}
+$("#oftenEdit").onclick = () => { oftenEditing = !oftenEditing; renderOften(); };
+$("#oftenClear").onclick = () => {
+  const all = S.known.filter(k => k.stores?.[S.current] && (k.count || 0) >= 2);
+  if (!all.length || !confirm(`Alle ${all.length} Vorschläge für diesen Laden entfernen?`)) return;
+  oftenEditing = false;
+  removeSuggestions(all);
+};
+
 function renderOften() {
   const id = S.current;
   const openNow = new Set(openOf(id).map(i => norm(i.text)));
   const all = S.known
     .filter(k => k.stores?.[id] && !openNow.has(norm(k.text)) && (k.count || 0) >= 2)
     .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, "de"));
-  const list = oftenAll ? all : all.slice(0, 10);
+  if (!all.length) oftenEditing = false;
+  // Beim Bearbeiten immer alle zeigen
+  const list = oftenAll || oftenEditing ? all : all.slice(0, 10);
   $("#often").hidden = !list.length;
-  $("#oftenMore").hidden = all.length <= 10;
+  $("#oftenMore").hidden = all.length <= 10 || oftenEditing;
   $("#oftenMore").textContent = oftenAll ? "Weniger anzeigen" : `Alle ${all.length} anzeigen`;
+  $("#oftenEdit").textContent = oftenEditing ? "Fertig" : "Bearbeiten";
+  $("#oftenEditHint").hidden = !oftenEditing;
+  if (oftenEditing) {
+    const box = $("#oftenChips");
+    box.textContent = "";
+    list.forEach(k => {
+      const b = el("button", "chip removable", "✕ " + k.text);
+      b.setAttribute("aria-label", `${k.text} aus den Vorschlägen entfernen`);
+      b.onclick = () => removeSuggestions([k]);
+      box.appendChild(b);
+    });
+    return;
+  }
   const box = $("#oftenChips");
   box.textContent = "";
   list.forEach(k => {

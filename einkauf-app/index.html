@@ -101,8 +101,12 @@
       <div id="often" class="often" hidden>
         <div class="oftenhead">
           <p class="sectionlabel">Oft gekauft</p>
-          <button class="linkbtn" id="oftenMore" hidden></button>
+          <span class="oftenbtns">
+            <button class="linkbtn adv" id="oftenEdit">Bearbeiten</button>
+            <button class="linkbtn" id="oftenMore" hidden></button>
+          </span>
         </div>
+        <p class="small" id="oftenEditHint" hidden>Tippe auf einen Vorschlag, um ihn zu entfernen. <button class="linkbtn danger" id="oftenClear">Alle entfernen</button></p>
         <div class="chips" id="oftenChips"></div>
       </div>
       <div id="items"></div>

@@ -329,3 +329,9 @@ textarea {
 }
 .chip.static { min-height: 34px; padding: 4px 12px; font-size: .88rem; }
 #importBtn { margin-top: 20px; }
+
+/* Vorschläge bearbeiten */
+.oftenbtns { display: flex; gap: 12px; }
+.chip.removable { border-color: color-mix(in srgb, var(--urgent) 50%, var(--line)); color: var(--urgent); border-style: solid; }
+.linkbtn.danger { color: var(--urgent); }
+#oftenEditHint { margin: 0 4px 8px; }
