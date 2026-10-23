@@ -12,7 +12,9 @@ const lightImages = JSON.parse(read("quelle/daten/hell.json"));
 const images = {};
 for (const id of new Set(questions.flatMap(q => q.img)))
   images[id] = "data:image/png;base64," + read(`quelle/daten/bilder/${id}.png`).toString("base64");
-const data = "const DATA = " + JSON.stringify({ questions, images, lightImages }) + ";";
+const boegen = JSON.parse(read("quelle/daten/boegen.json"));
+const navigation = JSON.parse(read("quelle/daten/navigation.json"));
+const data = "const DATA = " + JSON.stringify({ questions, images, lightImages, boegen, navigation }) + ";";
 
 const src = read("quelle/app.html").toString();
 const DATA_TAG = "<script>\n/*__DATA__*/\n</script>";

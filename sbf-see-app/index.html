@@ -202,6 +202,49 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 @media (max-width:520px){.catitem{grid-template-columns:1fr}.catitem img{width:100%;max-width:260px}}
 
 .confirm{border:2px solid var(--accent);background:var(--accent-soft)}
+nav.tabs .ts{display:none}
+@media (max-width:760px){nav.tabs .tl{display:none} nav.tabs .ts{display:inline}}
+@media (min-width:761px) and (max-width:980px){nav.tabs button{padding:8px 8px} nav.tabs svg{display:none}}
+.linkbtn{background:none;border:0;padding:0;color:var(--accent);font-weight:700;cursor:pointer;font-size:.88rem}
+.notebox{margin-top:8px}
+.note{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:baseline;background:var(--mid-soft);border-radius:8px;padding:8px 12px}
+.note-l{font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--mid)}
+.note-t{min-width:0;white-space:pre-wrap}
+.noteedit{display:grid;gap:8px}
+.noteedit textarea{width:100%;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);border-radius:8px;padding:8px 10px;font:inherit;resize:vertical}
+.hardlist{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.hardlist li{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;padding:8px 10px;border-radius:8px;background:var(--bg)}
+.hardlist .ht{min-width:0}
+@media (max-width:600px){.hardlist li{grid-template-columns:auto 1fr}.hardlist li>*:nth-child(n+3){grid-column:2;justify-self:start}}
+.simgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,280px),1fr));gap:14px}
+.simans{list-style:none;margin:0;padding:0;display:grid;gap:4px;font-size:.92rem}
+.simans li{color:var(--muted)} .simans li.ok{color:var(--sb);font-weight:700}
+.picq{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;align-items:start}
+.qimg.big{max-width:none;margin-top:0}
+@media (max-width:700px){.picq{grid-template-columns:1fr}}
+.bogengrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px}
+.bogenbtn{display:grid;gap:2px;text-align:left;border:1.5px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 12px;cursor:pointer}
+.bogenbtn:hover{border-color:var(--ink)} .bogenbtn span{font-size:.8rem;color:var(--muted)}
+.bogenbtn.ok{border-color:var(--sb);background:var(--sb-soft)} .bogenbtn.ok span{color:var(--sb)}
+.bogenbtn.no{border-color:var(--bb)} .bogenbtn.no span{color:var(--bb)}
+.navgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,240px),1fr));gap:12px}
+.navcard{display:grid;gap:6px;text-align:left;cursor:pointer;color:var(--ink);font:inherit;align-content:start}
+.navcard:hover{border-color:var(--ink)} .navcard .muted{font-size:.85rem}
+.navlage{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:start}
+@media (max-width:640px){.navlage{grid-template-columns:1fr}}
+.mapthumb{border:1px solid var(--line);border-radius:8px;padding:6px;background:var(--surface);cursor:pointer;display:grid;gap:4px;color:var(--accent);font-weight:700;font-size:.85rem}
+.mapthumb img{width:200px;max-width:100%;display:block;border-radius:4px}
+.navans{background:var(--sb-soft);border-radius:8px;padding:10px 12px;display:grid;gap:2px}
+.navans .note-l{color:var(--sb)}
+.grundlagen summary{cursor:pointer} .grundlagen h4{margin:16px 0 4px;font-family:var(--f-display);font-size:1.05rem} .grundlagen p{margin:0;max-width:72ch}
+.trainres{border-radius:8px;padding:10px 12px} .trainres.ok{background:var(--sb-soft)} .trainres.no{background:var(--bb-soft)}
+.trainres span{font-size:.9rem;color:var(--muted)}
+.mapview{position:fixed;inset:0;z-index:30;background:rgba(5,14,21,.94);display:grid;grid-template-rows:auto 1fr;
+  padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}
+.mapbar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 14px;color:#EDF2F5}
+.mapscroll{overflow:auto;-webkit-overflow-scrolling:touch}
+.mapscroll img{display:block;width:100%;max-width:none;height:auto;background:#fff}
+.mapview.zoom .mapscroll img{width:260%}
 .picklist{display:grid;gap:6px;max-height:440px;overflow:auto;padding-right:4px}
 .pick{display:grid;grid-template-columns:22px auto 1fr auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--surface)}
 .pick:hover{border-color:var(--ink)} .pick.there{opacity:.6;cursor:default}

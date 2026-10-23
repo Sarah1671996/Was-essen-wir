@@ -21,7 +21,7 @@ const imgTag = (q, cls = "qimg") => q.img.map(id => `<img class="${cls}${LIGHT.h
 /* ---------- Lernstand (lokal + optional synchronisiert) ---------- */
 const LS_KEY = "sbfsee-progress-v1";
 let P = blank();
-function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {} }; }
+function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {}, nav: {}, notes: {} }; }
 try { const raw = localStorage.getItem(LS_KEY); if (raw) P = Object.assign(blank(), JSON.parse(raw)); } catch (e) {}
 function merge(a, b) {
   const out = Object.assign(blank(), a);
@@ -33,6 +33,10 @@ function merge(a, b) {
   if (b.dailySize && (b.st || 0) > (a.st || 0)) out.dailySize = b.dailySize;
   out.days = Object.assign({}, a.days);
   for (const [k, v] of Object.entries(b.days || {})) out.days[k] = Math.max(out.days[k] || 0, v);
+  for (const f of ["nav", "notes"]) {
+    out[f] = Object.assign({}, a[f]);
+    for (const [k, v] of Object.entries(b[f] || {})) if (!out[f][k] || (v.t || 0) > (out[f][k].t || 0)) out[f][k] = v;
+  }
   out.st = Math.max(a.st || 0, b.st || 0);
   return out;
 }
@@ -225,26 +229,27 @@ const ICONS = {
   karten: '<rect x="6" y="3" width="15" height="12" rx="2"/><path d="M3 8v11a2 2 0 0 0 2 2h12"/>',
   pruefung: '<path d="M7 3h10l4 4v14H3V3z"/><path d="M7 11h2M7 15h2M12 11h5M12 15h5"/>',
   drucken: '<path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/>',
-  katalog: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/>'
+  katalog: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/>',
+  nav: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'
 };
-const VIEWS = [["start", "Übersicht"], ["tag", "Tagesfragen"], ["karten", "Karteikarten"], ["pruefung", "Prüfung"], ["drucken", "Drucken"], ["katalog", "Katalog"]];
+const VIEWS = [["start", "Übersicht", "Start"], ["tag", "Tagesfragen", "Heute"], ["karten", "Karteikarten", "Karten"], ["pruefung", "Prüfung", "Prüfung"], ["nav", "Navigation", "Navi"], ["drucken", "Drucken", "Druck"], ["katalog", "Katalog", "Katalog"]];
 let view = (location.hash || "").slice(1);
 if (!VIEWS.some(v => v[0] === view)) view = "start";
 function go(v) { view = v; try { history.replaceState(null, "", "#" + v); } catch (e) {} render(); window.scrollTo(0, 0); }
 function renderTabs() {
-  $("#tabs").innerHTML = VIEWS.map(([k, l]) => `<button data-go="${k}" ${view === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg><span>${l}</span></button>`).join("");
+  $("#tabs").innerHTML = VIEWS.map(([k, l, sh]) => `<button data-go="${k}" aria-label="${l}" ${view === k ? 'aria-current="page"' : ""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[k]}</svg><span class="tl">${l}</span><span class="ts">${sh}</span></button>`).join("");
 }
 document.addEventListener("click", e => { const b = e.target.closest("[data-go]"); if (!b) return; go(b.dataset.go); });
 window.addEventListener("hashchange", () => { const h = location.hash.slice(1); if (h !== view && VIEWS.some(v => v[0] === h)) { view = h; render(); } });
 
 /* Laufende Sitzungen nicht durch Sync-Updates zerstören */
 let flash = null, exam = null, quiz = null;
-const busy = () => (view === "karten" && flash && !flash.done) || (view === "pruefung" && exam && !exam.done) || (view === "tag" && quiz);
+const busy = () => (view === "karten" && ((flash && !flash.done) || pics)) || (view === "pruefung" && exam && !exam.done) || (view === "tag" && quiz);
 
 function render() {
   renderTabs();
   const m = $("#main");
-  ({ start: vStart, tag: vTag, karten: vKarten, pruefung: vPruefung, drucken: vDrucken, katalog: vKatalog })[view](m);
+  ({ start: vStart, tag: vTag, karten: vKarten, pruefung: vPruefung, nav: vNav, drucken: vDrucken, katalog: vKatalog })[view](m);
 }
 
 /* ---------- Übersicht ---------- */
@@ -288,6 +293,7 @@ function vStart(m) {
       </section>
     </div>
     <div class="grid2">${readinessPanel(all)}${calendarPanel()}</div>
+    ${hardestPanel()}
     ${CAN_FB ? devicePanel() : ""}
     <section class="panel">
       <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Prüfungssimulation</div><h3 style="margin-top:2px">30 Fragen: 7 Basis + 23 See</h3></div>
@@ -302,6 +308,7 @@ function vStart(m) {
   </div>`;
   m.querySelectorAll("[data-learn]").forEach(b => b.onclick = () => { markSel = b.dataset.learn.slice(3) || "n"; try { localStorage.setItem("sbfsee-marksel", markSel); } catch (e) {} flashCfg.pool = "marks"; flash = null; go("karten"); });
   if (CAN_FB) wireDevicePanel();
+  wireHardest(m);
   m.querySelectorAll("[data-due]").forEach(b => b.onclick = () => { flashCfg.pool = "faellig"; flash = null; go("karten"); });
   $("#bexport").onclick = exportBackup;
   $("#bimport").onclick = () => $("#bfile").click();
@@ -603,7 +610,7 @@ function tagSheetHTML(d) {
       <p class="qtext">${esc(q.q)}</p>${imgTag(q)}
       <div class="opts">${tagOrder(d, n).map((o, i) => { let c = ""; if (st.done) { if (o === 0) c = "right"; else if (st.ans[n] === o) c = "wrong"; } else if (st.ans[n] === o) c = "sel";
         return `<button class="opt ${c}" data-tn="${n}" data-o="${o}" ${st.done ? "disabled" : ""}><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`; }).join("")}</div>
-      ${st.done ? `<div style="margin-top:6px">${markBar(n)}</div>` : ""}</div>`; }).join("")}
+      ${st.done ? `<div style="margin-top:6px">${markBar(n)}</div>${noteBox(n)}` : ""}</div>`; }).join("")}
     ${st.done ? "" : `<div class="row" style="justify-content:space-between"><b class="mono" id="tagcount">${answered} / ${list.length} angekreuzt</b><button class="btn primary" id="tagcheck">Auswerten</button></div>`}
   </section>`;
 }
@@ -651,13 +658,14 @@ function mcQuestion(box, q, onAnswer, onNext) {
   box.innerHTML = `<div class="qmeta"><span class="mono">Nr. ${q.n}</span><span>·</span><span>${esc(q.section)}</span>${markPill(q.n)}</div>
     <p class="qtext">${esc(q.q)}</p>${imgTag(q)}
     <div class="opts">${order.map((o, i) => `<button class="opt" data-o="${o}"><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`).join("")}</div>
-    <div class="row" style="margin-top:16px;justify-content:space-between" hidden id="nextrow"><span class="row" style="gap:8px"><span class="muted" style="font-size:.85rem">Markierung:</span><span id="mbar"></span></span><button class="btn primary" id="next">Weiter</button></div>`;
+    <div class="row" style="margin-top:16px;justify-content:space-between" hidden id="nextrow"><span class="row" style="gap:8px"><span class="muted" style="font-size:.85rem">Markierung:</span><span id="mbar"></span></span><button class="btn primary" id="next">Weiter</button></div><div id="mnote"></div>`;
   box.querySelectorAll(".opt").forEach(b => b.onclick = () => {
     const ok = b.dataset.o === "0";
     box.querySelectorAll(".opt").forEach(x => { x.disabled = true; if (x.dataset.o === "0") x.classList.add("right"); });
     if (!ok) b.classList.add("wrong");
     onAnswer(ok);
     box.querySelector("#mbar").innerHTML = markBar(q.n);
+    box.querySelector("#mnote").innerHTML = noteBox(q.n);
     box.querySelector("#nextrow").hidden = false; box.querySelector("#next").focus();
   });
   box.querySelector("#next").onclick = onNext;
@@ -667,6 +675,8 @@ function mcQuestion(box, q, onAnswer, onNext) {
 let flashCfg = { pool: "alle", mode: "karte", order: "lernen", nums: "1-10" };
 const flashPool = () => poolFor(flashCfg.pool, flashCfg.nums);
 function vKarten(m) {
+  if (similar) return vSimilar(m);
+  if (pics) return vPics(m);
   if (flash && !flash.done) return vFlash(m);
   const pool = flashPool();
   const done = flash && flash.done ? flash : null;
@@ -687,7 +697,17 @@ function vKarten(m) {
       <p class="muted" style="margin:0">${flashCfg.mode === "karte" ? "Du siehst die Frage, überlegst die Antwort und drehst die Karte um. Dann markierst du sie als sicher, mittel oder schlecht." : "Du wählst aus vier Antworten, die bei jeder Karte neu gemischt werden. Falsch markiert die Karte als schlecht, richtig eine Stufe besser. Du kannst die Markierung danach selbst ändern."}</p>
       <div class="row"><button class="btn primary" id="fstart" ${pool.length ? "" : "disabled"}>${pool.length} Karten lernen</button>${flashCfg.pool === "nummern" ? `<span class="muted" id="fhint" style="font-size:.85rem">${numsHint(flashCfg.nums)}</span>` : ""}</div>
     </section>
+    <div class="grid2">
+      <section class="panel" style="display:grid;gap:10px;align-content:start"><div class="eyebrow">Bilder-Training</div>
+        <p style="margin:0">20 Fragen mit Bild schnell hintereinander: Lichter, Sichtzeichen, Schallsignale, Tafelzeichen. Richtige Antworten gehen automatisch weiter.</p>
+        <div><button class="btn primary" id="picstart">Bilder-Training starten</button></div></section>
+      <section class="panel" style="display:grid;gap:10px;align-content:start"><div class="eyebrow">Verwechslungsgefahr</div>
+        <p style="margin:0">${SIMILAR_GROUPS.length} Gruppen von Fragen mit gleichen Antworten, direkt nebeneinander. So siehst du, woran du sie unterscheidest.</p>
+        <div><button class="btn" id="simstart">Ähnliche Fragen vergleichen</button></div></section>
+    </div>
   </div>`;
+  $("#picstart").onclick = startPics;
+  $("#simstart").onclick = () => { similar = { i: 0 }; render(); window.scrollTo(0, 0); };
   $("#fpool").onchange = e => { flashCfg.pool = e.target.value; flash = null; render(); };
   $("#forder").onchange = e => { flashCfg.order = e.target.value; };
   if ($("#fnums")) $("#fnums").oninput = e => { flashCfg.nums = e.target.value; const n = flashPool().length; $("#fstart").disabled = !n; $("#fstart").textContent = n + " Karten lernen"; $("#fhint").textContent = numsHint(flashCfg.nums); };
@@ -713,7 +733,7 @@ function vFlash(m) {
     m.innerHTML = `<div class="view">${head}
       <div class="cardwrap"><div class="card" id="card" tabindex="0" role="button" aria-label="Karte umdrehen">
         <div class="face front">${meta}<p class="qtext">${esc(q.q)}</p>${imgTag(q)}<div class="hint">Antippen oder Leertaste zum Umdrehen</div></div>
-        <div class="face back">${meta}<p class="qtext" style="font-size:1rem;font-weight:400">${esc(q.q)}</p><div class="answer">${esc(q.a[0])}</div>${imgTag(q)}<div class="hint">Wie sicher warst du?</div></div>
+        <div class="face back">${meta}<p class="qtext" style="font-size:1rem;font-weight:400">${esc(q.q)}</p><div class="answer">${esc(q.a[0])}</div>${imgTag(q)}${noteBox(q.n)}<div class="hint">Wie sicher warst du?</div></div>
       </div></div>
       <div class="rate" id="rate" hidden><button class="btn bad" data-rate="s">Schlecht</button><button class="btn mid" data-rate="m">Mittel</button><button class="btn good" data-rate="g">Sicher</button></div>
     </div>`;
@@ -721,15 +741,15 @@ function vFlash(m) {
     const fit = () => { const a = card.querySelector(".front"), b = card.querySelector(".back"); a.style.position = b.style.position = "relative"; const h = Math.max(a.scrollHeight, b.scrollHeight, 340); a.style.position = b.style.position = ""; card.style.height = h + "px"; };
     fit(); card.querySelectorAll("img").forEach(i => i.onload = fit);
     const flip = () => { card.classList.toggle("flipped"); if (card.classList.contains("flipped")) $("#rate").hidden = false; };
-    card.onclick = flip;
-    card.onkeydown = e => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } };
+    card.onclick = e => { if (!e.target.closest("[data-notebox]")) flip(); };
+    card.onkeydown = e => { if (e.target.tagName === "TEXTAREA") return; if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } };
     m.querySelectorAll("[data-rate]").forEach(b => b.onclick = () => { const k = b.dataset.rate; setMark(q.n, k); f.seen++; if (k === "g") f.ok++; next(); });
     card.focus({ preventScroll: true });
   }
   $("#fstop").onclick = () => { f.done = true; render(); };
 }
 document.addEventListener("keydown", e => {
-  if (view !== "karten" || !flash || flash.done || flashCfg.mode !== "karte") return;
+  if (view !== "karten" || !flash || flash.done || flashCfg.mode !== "karte" || e.target.tagName === "TEXTAREA") return;
   if ($("#rate") && !$("#rate").hidden) { const k = { "1": "s", "2": "m", "3": "g" }[e.key]; if (k) document.querySelector(`[data-rate="${k}"]`).click(); }
 });
 
@@ -742,13 +762,22 @@ function vPruefung(m) {
       <div><div class="eyebrow">Wie in der theoretischen Prüfung</div><h2>Prüfungsbogen</h2></div>
       <section class="panel" style="display:grid;gap:12px">
         <p style="margin:0;max-width:62ch">Ein Bogen mit <b>30 Fragen</b>: 7 Basisfragen und 23 spezifische See-Fragen, zufällig gezogen. Du hast <b>60 Minuten</b>. Bestanden ist der Bogen mit mindestens <b>5 von 7 Basisfragen</b> und <b>18 von 23 See-Fragen</b>. Erst nach dem Abgeben siehst du, was richtig war.</p>
-        <div class="row"><button class="btn primary" id="estart">Neuen Bogen beginnen</button><button class="btn" id="eprint">Bogen zum Ausdrucken</button></div>
+        <div class="row"><button class="btn primary" id="estart">Zufälligen Bogen beginnen</button><button class="btn" id="eprint">Zufälligen Bogen ausdrucken</button></div>
+      </section>
+      <section class="panel" style="display:grid;gap:12px">
+        <div class="eyebrow">Die 15 offiziellen Prüfungsbögen</div>
+        <p class="muted" style="margin:0">In der Prüfung bekommst du einen dieser Bögen. Grün = schon bestanden, rot = zuletzt nicht bestanden.</p>
+        <div class="bogengrid">${Object.keys(DATA.boegen).map(k => { const last = P.exams.filter(e => e.b === +k).at(-1), best = Math.max(-1, ...P.exams.filter(e => e.b === +k && e.pass).map(e => e.score));
+          return `<button class="bogenbtn ${best >= 0 ? "ok" : last ? "no" : ""}" data-bogen="${k}"><b>Bogen ${k}</b><span>${best >= 0 ? best + " / 30 ✓" : last ? last.score + " / 30" : "noch offen"}</span></button>`; }).join("")}</div>
+        <div class="row" style="align-items:end"><label class="field">Bogen ausdrucken<select id="eprintnr">${Object.keys(DATA.boegen).map(k => `<option value="${k}">Bogen ${k}</option>`).join("")}</select></label><button class="btn" id="eprintoff">Zum Drucken</button></div>
       </section>
       <section class="panel"><div class="eyebrow">Bisherige Bögen</div>
-        ${ex.length ? `<ul class="examlist">${ex.map(e => `<li><span>${fmtDate(e.t)}</span><span class="mono">${e.score} / 30 · Basis ${e.basis}/7</span><span class="pill ${e.pass ? "ok" : "no"}">${e.pass ? "bestanden" : "nicht bestanden"}</span></li>`).join("")}</ul>` : `<p class="muted" style="margin:8px 0 0">Noch keine Prüfung geschrieben.</p>`}
+        ${ex.length ? `<ul class="examlist">${ex.map(e => `<li><span>${fmtDate(e.t)}${e.b ? " · Bogen " + e.b : ""}</span><span class="mono">${e.score} / 30 · Basis ${e.basis}/7</span><span class="pill ${e.pass ? "ok" : "no"}">${e.pass ? "bestanden" : "nicht bestanden"}</span></li>`).join("")}</ul>` : `<p class="muted" style="margin:8px 0 0">Noch keine Prüfung geschrieben.</p>`}
       </section></div>`;
     $("#estart").onclick = () => { exam = { ids: newExamIds(), ans: {}, start: Date.now(), done: false }; exam.order = Object.fromEntries(exam.ids.map(n => [n, shuffle([0, 1, 2, 3])])); confirmSubmit = false; render(); };
     $("#eprint").onclick = () => { printCfg.src = "pruefung"; printCfg.kind = "bogen"; printItems = null; go("drucken"); };
+    m.querySelectorAll("[data-bogen]").forEach(b => b.onclick = () => { const k = +b.dataset.bogen; exam = { ids: DATA.boegen[k].slice(), bogen: k, ans: {}, start: Date.now(), done: false }; exam.order = Object.fromEntries(exam.ids.map(n => [n, shuffle([0, 1, 2, 3])])); confirmSubmit = false; render(); window.scrollTo(0, 0); });
+    $("#eprintoff").onclick = () => { printCfg.src = "offiziell"; printCfg.bogen = $("#eprintnr").value; printCfg.kind = "bogen"; printItems = null; go("drucken"); };
     return;
   }
   const e = exam;
@@ -762,14 +791,14 @@ function vPruefung(m) {
         <span class="muted">Basis ${basisOk} von 7 (nötig 5) · See ${correct - basisOk} von 23 (nötig 18) · ${Math.round((e.end - e.start) / 60000)} Minuten</span></div>
         <div class="row" style="margin-left:auto"><button class="btn" id="eclose">Schließen</button>${correct < 30 ? `<button class="btn" id="ewrong">${30 - correct} falsche in den Lernstapel</button>` : ""}<button class="btn primary" id="eagain">Neuer Bogen</button></div>
       </section>`
-      : `<div class="stickyexam"><b class="mono">${answered} / 30 beantwortet</b><span class="muted mono" id="clock"></span><span style="margin-left:auto"></span><button class="btn small" id="ecancel">Abbrechen</button><button class="btn primary small" id="esubmit">Abgeben</button></div>
+      : `<div class="stickyexam">${e.bogen ? `<span class="pill n">Bogen ${e.bogen}</span>` : ""}<b class="mono">${answered} / 30 beantwortet</b><span class="muted mono" id="clock"></span><span style="margin-left:auto"></span><button class="btn small" id="ecancel">Abbrechen</button><button class="btn primary small" id="esubmit">Abgeben</button></div>
          ${confirmSubmit ? `<section class="panel confirm row" style="justify-content:space-between"><span>${answered < 30 ? `<b>${30 - answered} Fragen</b> sind noch offen. ` : ""}Bogen jetzt abgeben?</span><span class="row"><button class="btn small" id="cno">Weiter bearbeiten</button><button class="btn primary small" id="cyes">Ja, abgeben</button></span></section>` : ""}`}
     <section class="panel" style="display:grid;gap:22px">
       ${e.ids.map((n, idx) => { const q = byN.get(n); return `<div class="examq" id="eq${n}">
         <div class="qmeta"><span class="mono">Frage ${idx + 1}</span><span>·</span><span>${idx < 7 ? "Basisfrage" : "See-Frage"}</span><span>·</span><span class="mono">Nr. ${n}</span>${e.done ? `<span class="pill ${e.ans[n] === 0 ? "ok" : "no"}">${e.ans[n] === 0 ? "richtig" : e.ans[n] === undefined ? "offen" : "falsch"}</span>` : ""}</div>
         <p class="qtext">${esc(q.q)}</p>${imgTag(q)}
         <div class="opts">${e.order[n].map((o, i) => { let c = ""; if (e.done) { if (o === 0) c = "right"; else if (e.ans[n] === o) c = "wrong"; } else if (e.ans[n] === o) c = "sel";
-          return `<button class="opt ${c}" data-n="${n}" data-o="${o}" ${e.done ? "disabled" : ""}><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`; }).join("")}</div>${e.done ? `<div style="margin-top:6px">${markBar(n)}</div>` : ""}</div>`; }).join("")}
+          return `<button class="opt ${c}" data-n="${n}" data-o="${o}" ${e.done ? "disabled" : ""}><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`; }).join("")}</div>${e.done ? `<div style="margin-top:6px">${markBar(n)}</div>${noteBox(n)}` : ""}</div>`; }).join("")}
     </section>
     ${e.done ? "" : `<div class="row" style="justify-content:flex-end"><button class="btn primary" id="esubmit2">Abgeben</button></div>`}
   </div>`;
@@ -799,7 +828,7 @@ function vPruefung(m) {
       const basis = e.ids.slice(0, 7).filter(n => e.ans[n] === 0).length, see = sc - basis;
       e.pass = basis >= 5 && see >= 18;
       for (const n of e.ids) record(n, e.ans[n] === 0);
-      P.exams = P.exams.concat([{ t: e.end, score: sc, basis, see, pass: e.pass }]).slice(-30);
+      P.exams = P.exams.concat([{ t: e.end, score: sc, basis, see, pass: e.pass, b: e.bogen || 0 }]).slice(-30);
       save(); confirmSubmit = false; render(); window.scrollTo(0, 0);
     };
   }
@@ -820,21 +849,22 @@ function buildPrintItems() {
   const c = printCfg; let ids;
   if (c.src === "tag") ids = ensureDaily().ids.slice();
   else if (c.src === "pruefung") ids = newExamIds();
+  else if (c.src === "offiziell") ids = DATA.boegen[c.bogen || 1].slice();
   else {
     ids = poolFor(c.src, c.nums);
     if (c.count !== "alle" && ids.length > +c.count) ids = shuffle(ids).slice(0, +c.count);
   }
-  if (c.src !== "pruefung") ids.sort((a, b) => a - b);
+  if (c.src !== "pruefung" && c.src !== "offiziell") ids.sort((a, b) => a - b);
   printItems = ids.map(n => ({ q: byN.get(n), order: shuffle([0, 1, 2, 3]) }));
 }
-const SRC = [["tag", "Mein Lernstapel (Tagesfragen)"], ["pruefung", "Prüfungsbogen (7 Basis + 23 See)"]].concat(POOLS);
+const SRC = [["tag", "Mein Lernstapel (Tagesfragen)"], ["pruefung", "Zufälliger Prüfungsbogen (7 Basis + 23 See)"], ["offiziell", "Offizieller Prüfungsbogen 1–15"]].concat(POOLS);
 function printTitle() {
-  return printCfg.kind === "bogen" ? (printCfg.src === "pruefung" ? "Prüfungsbogen SBF-See" : "Übungsbogen SBF-See") : "Lernblatt SBF-See";
+  return printCfg.kind === "bogen" ? (printCfg.src === "offiziell" ? "Prüfungsbogen " + (printCfg.bogen || 1) + " von 15 · SBF-See" : printCfg.src === "pruefung" ? "Prüfungsbogen SBF-See" : "Übungsbogen SBF-See") : "Lernblatt SBF-See";
 }
 function vDrucken(m) {
   if (!printItems) buildPrintItems();
   const c = printCfg;
-  const needCount = !["tag", "pruefung"].includes(c.src);
+  const needCount = !["tag", "pruefung", "offiziell"].includes(c.src);
   const poolSize = needCount ? poolFor(c.src, c.nums).length : 0;
   m.innerHTML = `<div class="view">
     <div class="noprint"><div class="eyebrow">DIN A4 zum schriftlichen Üben</div><h2>Bögen drucken</h2></div>
@@ -842,6 +872,7 @@ function vDrucken(m) {
       <div class="row" style="gap:16px;align-items:end">
         <label class="field">Fragen
           <select id="psrc">${SRC.map(([k, l]) => `<option value="${k}" ${c.src === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        ${c.src === "offiziell" ? `<label class="field">Bogen<select id="pbogen">${Object.keys(DATA.boegen).map(k => `<option value="${k}" ${String(c.bogen || 1) === k ? "selected" : ""}>Bogen ${k}</option>`).join("")}</select></label>` : ""}
         ${c.src === "marks" ? `<div style="flex:1 1 100%">${markChips()}</div>` : ""}
         ${c.src === "nummern" ? `<label class="field" style="flex:1 1 220px">Nummern<input type="text" id="pnums" inputmode="numeric" value="${esc(c.nums)}" placeholder="z. B. 1-10, 22, 30, 32"></label>` : ""}
         ${needCount ? `<label class="field">Anzahl<select id="pcount">${["alle", "5", "10", "15", "20", "30", "40"].map(n => `<option value="${n}" ${n === c.count ? "selected" : ""}>${n === "alle" ? "alle (" + poolSize + ")" : n + " zufällig"}</option>`).join("")}</select></label>` : ""}
@@ -855,6 +886,7 @@ function vDrucken(m) {
     <div class="printarea">${printItems.length ? sheetHTML(printItems, c.kind, printTitle(), false) : `<div class="panel empty">Für diese Auswahl gibt es noch keine Fragen.</div>`}</div>
   </div>`;
   $("#psrc").onchange = e => { c.src = e.target.value; c.count = e.target.value === "marks" || e.target.value === "nummern" ? "alle" : "10"; buildPrintItems(); render(); };
+  if ($("#pbogen")) $("#pbogen").onchange = e => { c.bogen = e.target.value; buildPrintItems(); render(); };
   if ($("#pcount")) $("#pcount").onchange = e => { c.count = e.target.value; buildPrintItems(); render(); };
   if ($("#pnums")) $("#pnums").onchange = e => { c.nums = e.target.value; buildPrintItems(); render(); };
   m.querySelectorAll("[data-kind]").forEach(b => b.onclick = () => { c.kind = b.dataset.kind; render(); });
@@ -931,7 +963,7 @@ async function makePdf(items, kind, title, fname) {
     const cols = 5, cw = W / cols;
     items.forEach((it, i) => { const r = Math.floor(i / cols), c = i % cols; doc.text(`${i + 1}.  ${"ABCD"[it.order.indexOf(0)]}   (Nr. ${it.q.n})`, M + c * cw, y + r * 6.5); });
     y += Math.ceil(items.length / cols) * 6.5 + 4;
-    if (items.length === 30) { doc.setFontSize(9); doc.setTextColor(90); doc.text(printCfg.src === "pruefung" && kind === "bogen" ? "Bestanden mit mindestens 5 von 7 Basisfragen (Nr. 1-7) und 18 von 23 See-Fragen (Nr. 8-30)." : "", M, y); doc.setTextColor(0); }
+    if (items.length === 30) { doc.setFontSize(9); doc.setTextColor(90); doc.text((printCfg.src === "pruefung" || printCfg.src === "offiziell") && kind === "bogen" ? "Bestanden mit mindestens 5 von 7 Basisfragen (Nr. 1-7) und 18 von 23 See-Fragen (Nr. 8-30)." : "", M, y); doc.setTextColor(0); }
   }
   const n = doc.getNumberOfPages();
   for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(120); doc.text(`Seite ${p} von ${n}`, PW / 2, PH - 8, { align: "center" }); doc.setTextColor(0); }
@@ -983,7 +1015,7 @@ function vKatalog(m) {
     $("#clist").innerHTML = (shown.length ? shown.map(q => `<article class="panel catitem"><div style="min-width:0">
         <div class="qmeta"><span class="mono">Nr. ${q.n}</span><span>·</span><span>${esc(q.section)}</span></div>
         <div style="font-weight:700;margin-top:4px">${esc(q.q)}</div><div class="a">${esc(q.a[0])}</div>
-        <div style="margin-top:10px">${markBar(q.n)}</div></div>${imgTag(q, "")}</article>`).join("") : `<div class="panel empty">Keine Frage gefunden.</div>`)
+        <div style="margin-top:10px">${markBar(q.n)}</div>${noteBox(q.n)}</div>${imgTag(q, "")}</article>`).join("") : `<div class="panel empty">Keine Frage gefunden.</div>`)
       + (r.length > shown.length ? `<div class="row" style="justify-content:center"><button class="btn" id="cmore">Weitere ${Math.min(40, r.length - shown.length)} von ${r.length - shown.length} anzeigen</button></div>` : "");
     if ($("#cmore")) $("#cmore").onclick = () => { catCfg.limit += 40; list(); };
   };
@@ -994,6 +1026,355 @@ function vKatalog(m) {
   list();
 }
 
+/* ---------- Eselsbrücken: eigene Notiz je Frage ---------- */
+const note = n => (P.notes && P.notes[n] && P.notes[n].s) || "";
+function setNote(n, s) { const notes = Object.assign({}, P.notes); notes[n] = { s: s.slice(0, 300), t: Date.now() }; P.notes = notes; save(); }
+const noteBox = n => `<div class="notebox" data-notebox="${n}">${noteInner(n)}</div>`;
+function noteInner(n) {
+  const s = note(n);
+  return s ? `<div class="note"><span class="note-l">Eselsbrücke</span><span class="note-t">${esc(s)}</span><button class="linkbtn" data-note="edit" data-n="${n}">ändern</button></div>`
+    : `<button class="linkbtn" data-note="edit" data-n="${n}">✎ Eselsbrücke notieren</button>`;
+}
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-note]"); if (!b) return;
+  e.stopPropagation(); e.preventDefault();
+  const n = +b.dataset.n, box = b.closest("[data-notebox]");
+  if (b.dataset.note === "edit") {
+    box.innerHTML = `<div class="noteedit"><textarea maxlength="300" rows="2" placeholder="z. B. Rot = Backbord = links, wie Rotwein links">${esc(note(n))}</textarea>
+      <span class="row"><button class="btn small" data-note="cancel" data-n="${n}">Abbrechen</button><button class="btn small primary" data-note="save" data-n="${n}">Speichern</button></span></div>`;
+    box.querySelector("textarea").focus(); return;
+  }
+  if (b.dataset.note === "save") { setNote(n, box.querySelector("textarea").value.trim()); toast("Eselsbrücke gespeichert"); }
+  document.querySelectorAll(`[data-notebox="${n}"]`).forEach(x => x.innerHTML = noteInner(n));
+}, true);
+// Klicks und Tasten in einer Notiz sollen keine Karte umdrehen
+document.addEventListener("click", e => { if (e.target.closest(".noteedit")) e.stopPropagation(); }, true);
+
+/* ---------- Schwierigste Fragen ---------- */
+function hardest() {
+  const rate = n => { const s = stat(n); return s.w / Math.max(1, s.r + s.w); };
+  return Q.map(q => q.n).filter(n => stat(n).w > 0).sort((a, b) => stat(b).w - stat(a).w || rate(b) - rate(a)).slice(0, 10);
+}
+function hardestPanel() {
+  const h = hardest();
+  return `<section class="panel" style="display:grid;gap:10px">
+    <div class="row" style="justify-content:space-between"><div class="eyebrow">Deine schwierigsten Fragen</div>
+      ${h.some(n => !inStack(n)) ? `<button class="btn small" id="hardall">Alle in den Lernstapel</button>` : ""}</div>
+    ${h.length ? `<ul class="hardlist">${h.map(n => { const s = stat(n), q = byN.get(n); return `<li>
+        <span class="mono">Nr. ${n}</span><span class="ht">${esc(q.q.length > 90 ? q.q.slice(0, 88) + " …" : q.q)}</span>
+        <span class="muted mono" style="white-space:nowrap">${s.w}× falsch · ${s.r}× richtig</span>
+        ${inStack(n) ? `<span class="pill n">im Stapel</span>` : `<button class="btn small" data-hardadd="${n}">+ Stapel</button>`}</li>`; }).join("")}</ul>`
+      : `<p class="muted" style="margin:0">Noch keine Frage falsch beantwortet. Sobald du übst, siehst du hier, was dir am schwersten fällt.</p>`}
+  </section>`;
+}
+function wireHardest(m) {
+  m.querySelectorAll("[data-hardadd]").forEach(b => b.onclick = () => { addToStack([+b.dataset.hardadd]); render(); });
+  if ($("#hardall")) $("#hardall").onclick = () => { addToStack(hardest()); render(); };
+}
+
+/* ---------- Verwechslungsgefahr: Fragen mit gleichen Antworten ---------- */
+const normA = s => s.toLowerCase().replace(/[^a-zäöüß0-9]+/g, " ").trim();
+const SIMILAR_GROUPS = (() => {
+  const sets = Q.map(q => new Set(q.a.map(normA))), parent = new Map(Q.map(q => [q.n, q.n]));
+  const find = x => parent.get(x) === x ? x : (parent.set(x, find(parent.get(x))), parent.get(x));
+  for (let i = 0; i < Q.length; i++) for (let j = i + 1; j < Q.length; j++) {
+    let c = 0; for (const a of sets[i]) if (sets[j].has(a)) c++;
+    if (c >= 2) parent.set(find(Q[i].n), find(Q[j].n));
+  }
+  const groups = new Map();
+  for (const q of Q) { const r = find(q.n); if (!groups.has(r)) groups.set(r, []); groups.get(r).push(q.n); }
+  return [...groups.values()].filter(g => g.length > 1).sort((a, b) => a[0] - b[0]);
+})();
+let similar = null; // { i }
+function vSimilar(m) {
+  const g = SIMILAR_GROUPS[similar.i];
+  const all = g.flatMap(n => byN.get(n).a.map(normA));
+  const shared = a => all.filter(x => x === normA(a)).length > 1;
+  m.innerHTML = `<div class="view">
+    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Verwechslungsgefahr · Gruppe ${similar.i + 1} von ${SIMILAR_GROUPS.length}</div><h2>Ähnliche Fragen im Vergleich</h2></div>
+      <button class="btn small" id="simclose">Schließen</button></div>
+    <p class="muted" style="margin:0;max-width:70ch">Diese Fragen haben gleiche oder fast gleiche Antworten. Grün ist jeweils die richtige. Mit ↔ markierte Antworten kommen auch bei einer anderen Frage dieser Gruppe vor.</p>
+    <div class="simgrid">${g.map(n => { const q = byN.get(n); return `<article class="panel" style="display:grid;gap:8px;align-content:start">
+        <div class="qmeta"><span class="mono">Nr. ${n}</span>${markPill(n)}</div>
+        <b>${esc(q.q)}</b>${imgTag(q)}
+        <ul class="simans">${q.a.map((a, k) => `<li class="${k === 0 ? "ok" : ""}">${k === 0 ? "✓" : "·"} ${esc(a)}${shared(a) ? ` <span class="muted">↔</span>` : ""}</li>`).join("")}</ul>
+        ${noteBox(n)}</article>`; }).join("")}</div>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn" id="simprev" ${similar.i ? "" : "disabled"}>‹ Vorige Gruppe</button>
+      <button class="btn" id="simadd">${g.every(inStack) ? "Alle im Stapel" : "Gruppe in den Lernstapel"}</button>
+      <button class="btn primary" id="simnext" ${similar.i < SIMILAR_GROUPS.length - 1 ? "" : "disabled"}>Nächste Gruppe ›</button></div>
+  </div>`;
+  $("#simclose").onclick = () => { similar = null; render(); };
+  $("#simprev").onclick = () => { similar.i--; render(); window.scrollTo(0, 0); };
+  $("#simnext").onclick = () => { similar.i++; render(); window.scrollTo(0, 0); };
+  $("#simadd").onclick = () => { if (!g.every(inStack)) { addToStack(g); render(); } };
+}
+
+/* ---------- Bilder-Training: schnell hintereinander nur Fragen mit Bild ---------- */
+let pics = null; // { ids, i, ok, streak, best, answered }
+function startPics() { pics = { ids: pickLearn(Q.filter(q => q.img.length).map(q => q.n), 20), i: 0, ok: 0, streak: 0, best: 0, answered: false }; pics.ids = shuffle(pics.ids); render(); }
+function vPics(m) {
+  const p = pics;
+  if (p.i >= p.ids.length) {
+    m.innerHTML = `<div class="view"><section class="panel" style="display:grid;gap:12px;text-align:center;justify-items:center;padding:36px">
+      <div class="eyebrow">Bilder-Training beendet</div><div class="big mono">${p.ok} / ${p.ids.length}</div>
+      <p class="muted" style="margin:0">Längste Serie: ${p.best} richtig hintereinander.</p>
+      <div class="row"><button class="btn" id="picend">Zurück</button><button class="btn primary" id="picagain">Nochmal 20 Bilder</button></div></section></div>`;
+    $("#picend").onclick = () => { pics = null; render(); };
+    $("#picagain").onclick = startPics;
+    return;
+  }
+  const q = byN.get(p.ids[p.i]), order = shuffle([0, 1, 2, 3]);
+  m.innerHTML = `<div class="view">
+    <div class="row" style="justify-content:space-between"><div class="eyebrow">Bild ${p.i + 1} von ${p.ids.length} · ${p.ok} richtig · Serie ${p.streak}</div><button class="btn small" id="picstop">Beenden</button></div>
+    <div class="progress"><i style="width:${p.i / p.ids.length * 100}%"></i></div>
+    <section class="panel picq">
+      ${imgTag(q, "qimg big")}
+      <div><div class="qmeta"><span class="mono">Nr. ${q.n}</span>${markPill(q.n)}</div><p class="qtext" style="font-size:1rem">${esc(q.q)}</p>
+      <div class="opts">${order.map((o, i) => `<button class="opt" data-po="${o}"><span class="k">${"ABCD"[i]}</span><span>${esc(q.a[o])}</span></button>`).join("")}</div>
+      <div class="row" style="justify-content:space-between;margin-top:12px" id="picnext" hidden><span id="picnote"></span><button class="btn primary" id="picgo">Weiter</button></div></div>
+    </section></div>`;
+  $("#picstop").onclick = () => { p.i = p.ids.length; render(); };
+  const next = () => { p.i++; render(); };
+  m.querySelectorAll("[data-po]").forEach(b => b.onclick = () => {
+    const ok = b.dataset.po === "0";
+    m.querySelectorAll("[data-po]").forEach(x => { x.disabled = true; if (x.dataset.po === "0") x.classList.add("right"); });
+    if (!ok) b.classList.add("wrong");
+    record(q.n, ok);
+    if (ok) { p.ok++; p.streak++; p.best = Math.max(p.best, p.streak); setTimeout(() => { if (pics === p && byN.get(p.ids[p.i]) === q) next(); }, 900); }
+    else { p.streak = 0; $("#picnote").innerHTML = noteBox(q.n); $("#picnext").hidden = false; $("#picgo").onclick = next; $("#picgo").focus(); }
+  });
+}
+
+/* ---------- Navigation (Kartenaufgabe) ---------- */
+const NAV = DATA.navigation;
+let navTask = null, navShown = {}, navTrainer = null;
+const navRes = k => (P.nav && P.nav[k] && P.nav[k].r) || {};
+function setNavRes(k, part, ok) {
+  const nav = Object.assign({}, P.nav), r = Object.assign({}, navRes(k));
+  if (ok === null) delete r[part]; else r[part] = ok;
+  nav[k] = { r, t: Date.now() }; P.nav = nav; logDay(); save();
+}
+const LOES_PDF = "bootspruefung_de_sbfs_navigationsaufgaben_alle.pdf";
+
+/* Seekarten: aus der eigenen PDF geladen, nur auf diesem Gerät gespeichert (IndexedDB) */
+let kartenUrls = {}, kartenStatus = "";
+function kartenDb() { return new Promise((res, rej) => { const r = indexedDB.open("sbfsee-karten", 1); r.onupgradeneeded = () => r.result.createObjectStore("k"); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); }
+async function kartenOp(mode, fn) { const db = await kartenDb(); return new Promise((res, rej) => { const tx = db.transaction("k", mode), st = tx.objectStore("k"); const out = fn(st); tx.oncomplete = () => res(out && out.result); tx.onerror = () => rej(tx.error); }); }
+async function loadKartenFromDb() {
+  try {
+    for (let k = 1; k <= 15; k++) { const blob = await kartenOp("readonly", st => st.get(k)); if (blob) kartenUrls[k] = URL.createObjectURL(blob); }
+    if (Object.keys(kartenUrls).length && view === "nav") render();
+  } catch (e) {}
+}
+function loadPdfJs() {
+  if (window.pdfjsLib) return Promise.resolve();
+  const base = IN_ARTIFACT ? "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/" : "pdfjs/";
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = base + "pdf.min.js";
+    s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = base + "pdf.worker.min.js"; res(); }; s.onerror = () => rej(new Error("pdfjs")); document.head.appendChild(s); });
+}
+async function importKarten(file) {
+  const status = t => { kartenStatus = t; const el = $("#kstatus"); if (el) el.textContent = t; };
+  try {
+    status("PDF wird geöffnet …");
+    await loadPdfJs();
+    const pdf = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer(), isEvalSupported: false }).promise;
+    if (pdf.numPages < 15) throw new Error("zu wenige Seiten");
+    // Die Karten-PDF hat vorne eine Erklärungsseite, danach Karte 1 bis 15 (Überschrift ist Grafik, kein Text)
+    const first = pdf.numPages - 14, found = {};
+    for (let p = first; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const text = (await page.getTextContent()).items.map(i => i.str).join(" ");
+      const m = text.match(/Navigationsaufgabe\s+(\d+)/) || [null, String(p - first + 1)];
+      if (found[m[1]]) continue;
+      status(`Seekarte ${m[1]} wird gespeichert …`);
+      const vp0 = page.getViewport({ scale: 1 }), vp = page.getViewport({ scale: 2200 / vp0.width });
+      const c = document.createElement("canvas"); c.width = vp.width; c.height = vp.height;
+      await page.render({ canvasContext: c.getContext("2d"), viewport: vp }).promise;
+      const blob = await new Promise(r => c.toBlob(r, "image/jpeg", 0.85));
+      await kartenOp("readwrite", st => st.put(blob, +m[1]));
+      if (kartenUrls[m[1]]) URL.revokeObjectURL(kartenUrls[m[1]]);
+      kartenUrls[m[1]] = URL.createObjectURL(blob); found[m[1]] = true;
+    }
+    const n = Object.keys(found).length;
+    kartenStatus = "";
+    toast(n ? `${n} Seekarten geladen` : "In dieser PDF wurden keine Seekarten gefunden.");
+  } catch (e) { kartenStatus = ""; toast("Die PDF konnte nicht gelesen werden."); }
+  render();
+}
+async function removeKarten() {
+  try { await kartenOp("readwrite", st => st.clear()); } catch (e) {}
+  Object.values(kartenUrls).forEach(u => URL.revokeObjectURL(u)); kartenUrls = {}; render();
+}
+function openMap(k) {
+  const o = document.createElement("div"); o.className = "mapview";
+  o.innerHTML = `<div class="mapbar"><b>Seekarte zu Navigationsaufgabe ${k}</b><span class="row"><button class="btn small" data-mz>Zoom</button><button class="btn small primary" data-mc>Schließen</button></span></div><div class="mapscroll"><img src="${kartenUrls[k]}" alt="Seekarte ${k}"></div>`;
+  document.body.appendChild(o);
+  o.querySelector("[data-mc]").onclick = () => o.remove();
+  o.querySelector("[data-mz]").onclick = () => o.classList.toggle("zoom");
+  o.querySelector("img").ondblclick = () => o.classList.toggle("zoom");
+}
+
+const GRUNDLAGEN = `
+  <h4>Kurse und Peilungen umrechnen</h4>
+  <p><b>rwK = MgK + Abl + Mw</b> und zurück <b>MgK = rwK − Mw − Abl</b>. Für Peilungen gilt dasselbe: rwP = MgP + Abl + Mw.
+  Östliche Werte (E) sind plus, westliche (W) minus. Kurse und Peilungen immer dreistellig schreiben: 079°, 003°.</p>
+  <h4>Missweisung aus der Karte</h4>
+  <p>Beispiel „0°50'E 2010 (5'E)“: 2010 waren es 50' Ost, jedes Jahr kommen 5' Ost dazu. Im Jahr der Aufgabe also 50' + Jahre × 5'.
+  60' sind 1°. Gerundet auf ganze Grad.</p>
+  <h4>Zeit, Distanz, Fahrt</h4>
+  <p><b>Zeit (min) = Distanz (sm) ÷ Fahrt (kn) × 60</b> und <b>Distanz = Fahrt × Zeit (min) ÷ 60</b>.
+  Distanzen immer am <b>seitlichen</b> Kartenrand abgreifen (Breitenskala, 1' = 1 sm), nie oben oder unten.</p>
+  <h4>Koppelort und Besteckversetzung</h4>
+  <p>Koppelort: vom Ausgangsort den rwK einzeichnen und die gefahrene Distanz abtragen.
+  Der beobachtete Ort ergibt sich aus dem Schnitt der Peilungen. Die <b>Besteckversetzung</b> ist Richtung und Abstand vom Koppelort zum beobachteten Ort, z. B. „BV = 103° – 0,8 sm“.</p>
+  <h4>Position angeben</h4>
+  <p>Erst die Breite, dann die Länge: 54° 03,5' N, 008° 06,9' E. Die Länge wird mit drei Stellen geschrieben.</p>
+  <h4>In der Prüfung</h4>
+  <p>9 Teilaufgaben, mindestens 7 müssen stimmen. Folgefehler werden als richtig gewertet, wenn der Lösungsweg stimmt. Deshalb immer den Rechenweg hinschreiben.
+  Mitbringen: Kursdreieck, Anlegedreieck oder zweites Dreieck, Zirkel, Bleistift, Radiergummi.</p>`;
+
+/* Rechentrainer mit zufälligen Werten */
+const deg3 = d => String(((Math.round(d) % 360) + 360) % 360).padStart(3, "0") + "°";
+const sgn = (v, u) => (v >= 0 ? "+" : "−") + Math.abs(v) + u;
+const rint = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+function newTrainer(kind) {
+  if (kind === "mgk") { const mgk = rint(0, 359), abl = rint(-6, 6), mw = rint(-3, 3), rwk = mgk + abl + mw;
+    return { kind, frage: `MgK = ${deg3(mgk)}, Ablenkung ${sgn(abl, "°")}, Missweisung ${sgn(mw, "°")}. Wie lautet der rwK?`, soll: ((rwk % 360) + 360) % 360, tol: 0, einheit: "°",
+      weg: `rwK = MgK + Abl + Mw = ${mgk}° ${sgn(abl, "°")} ${sgn(mw, "°")} = ${deg3(rwk)}` }; }
+  if (kind === "rwk") { const rwk = rint(0, 359), abl = rint(-6, 6), mw = rint(-3, 3), mgk = rwk - mw - abl;
+    return { kind, frage: `rwK = ${deg3(rwk)}, Ablenkung ${sgn(abl, "°")}, Missweisung ${sgn(mw, "°")}. Wie lautet der MgK?`, soll: ((mgk % 360) + 360) % 360, tol: 0, einheit: "°",
+      weg: `MgK = rwK − Mw − Abl = ${rwk}° − (${sgn(mw, "°")}) − (${sgn(abl, "°")}) = ${deg3(mgk)}` }; }
+  if (kind === "zeit") { const d = rint(20, 150) / 10, v = rint(4, 14), t = d / v * 60;
+    return { kind, frage: `Distanz ${String(d).replace(".", ",")} sm, Fahrt über Grund ${v} kn. Wie viele Minuten dauert die Fahrt?`, soll: Math.round(t), tol: 1, einheit: "min",
+      weg: `Zeit = Distanz ÷ Fahrt × 60 = ${String(d).replace(".", ",")} ÷ ${v} × 60 = ${t.toFixed(1).replace(".", ",")} min, also rund ${Math.round(t)} min` }; }
+  if (kind === "dist") { const v = rint(4, 14), t = rint(10, 90), d = v * t / 60;
+    return { kind, frage: `Fahrt über Grund ${v} kn, Fahrzeit ${t} min. Wie weit kommt das Boot (in sm)?`, soll: Math.round(d * 10) / 10, tol: 0.1, einheit: "sm",
+      weg: `Distanz = Fahrt × Zeit ÷ 60 = ${v} × ${t} ÷ 60 = ${d.toFixed(2).replace(".", ",")} sm, also ${String(Math.round(d * 10) / 10).replace(".", ",")} sm` }; }
+  const base = rint(0, 2), bmin = rint(0, 11) * 5, jahr0 = rint(2005, 2012), delta = rint(3, 9), jahr = jahr0 + rint(1, 12), ew = Math.random() < 0.7 ? "E" : "W";
+  const total = base * 60 + bmin + (jahr - jahr0) * delta;
+  return { kind: "mw", frage: `In der Karte steht „${base}°${String(bmin).padStart(2, "0")}'${ew} ${jahr0} (${delta}'${ew})“. Wie groß ist die Missweisung im Jahr ${jahr} in ganzen Grad?`,
+    soll: Math.round(total / 60) * (ew === "E" ? 1 : -1), tol: 0, einheit: "°", signed: true,
+    weg: `${base * 60 + bmin}' + ${jahr - jahr0} Jahre × ${delta}' = ${total}' = ${(total / 60).toFixed(2).replace(".", ",")}°, gerundet ${Math.round(total / 60)}° ${ew === "E" ? "Ost (+)" : "West (−)"}` };
+}
+const TRAINER_KINDS = [["mgk", "MgK → rwK"], ["rwk", "rwK → MgK"], ["mw", "Missweisung"], ["zeit", "Zeit"], ["dist", "Distanz"]];
+function trainerHTML() {
+  const t = navTrainer;
+  return `<section class="panel" style="display:grid;gap:12px" id="trainer">
+    <div class="row" style="justify-content:space-between"><div class="eyebrow">Rechentrainer</div><span class="muted mono" style="font-size:.85rem">${t.ok} von ${t.n} richtig</span></div>
+    <div class="seg" role="group" aria-label="Aufgabenart" style="flex-wrap:wrap">${TRAINER_KINDS.map(([k, l]) => `<button data-tk="${k}" aria-pressed="${t.cur.kind === k}">${l}</button>`).join("")}</div>
+    <b>${esc(t.cur.frage)}</b>
+    <div class="row" style="align-items:end"><label class="field">Deine Lösung (${t.cur.einheit})<input type="text" id="tans" inputmode="decimal" autocomplete="off" style="width:140px" ${t.done ? "disabled" : ""}></label>
+      ${t.done ? `<button class="btn primary" id="tnext">Nächste Aufgabe</button>` : `<button class="btn primary" id="tcheck">Prüfen</button>`}</div>
+    ${t.done ? `<div class="trainres ${t.right ? "ok" : "no"}"><b>${t.right ? "Richtig!" : "Leider falsch."}</b> Lösung: ${t.cur.kind === "mgk" || t.cur.kind === "rwk" ? deg3(t.cur.soll) : String(t.cur.soll).replace(".", ",") + " " + t.cur.einheit}<br><span>${esc(t.cur.weg)}</span></div>` : ""}
+  </section>`;
+}
+function wireTrainer(m) {
+  const t = navTrainer;
+  m.querySelectorAll("[data-tk]").forEach(b => b.onclick = () => { navTrainer.cur = newTrainer(b.dataset.tk); navTrainer.done = false; rerenderTrainer(); });
+  if ($("#tcheck")) {
+    const check = () => {
+      const v = parseFloat($("#tans").value.replace(",", ".").replace(/[^\d.+-]/g, ""));
+      if (isNaN(v)) { toast("Bitte eine Zahl eingeben."); return; }
+      let diff = Math.abs(v - t.cur.soll);
+      if (t.cur.einheit === "°" && !t.cur.signed) diff = Math.min(diff, 360 - diff);
+      t.right = diff <= t.cur.tol + 1e-9; t.n++; if (t.right) t.ok++; t.done = true; logDay(); save(); rerenderTrainer();
+    };
+    $("#tcheck").onclick = check; $("#tans").onkeydown = e => { if (e.key === "Enter") check(); }; $("#tans").focus({ preventScroll: true });
+  }
+  if ($("#tnext")) { $("#tnext").onclick = () => { t.cur = newTrainer(t.cur.kind); t.done = false; rerenderTrainer(); }; $("#tnext").focus({ preventScroll: true }); }
+}
+function rerenderTrainer() { const el = $("#trainer"); if (!el) return; el.outerHTML = trainerHTML(); wireTrainer($("#main")); }
+
+function vNav(m) {
+  if (!navTrainer) navTrainer = { cur: newTrainer("mgk"), done: false, n: 0, ok: 0 };
+  if (navTask) return vNavTask(m);
+  const nk = Object.keys(kartenUrls).length;
+  m.innerHTML = `<div class="view">
+    <div><div class="eyebrow">Kartenaufgabe der Theorieprüfung</div><h2>Navigation</h2></div>
+    <section class="panel" style="display:grid;gap:10px">
+      <p style="margin:0;max-width:70ch">In der Prüfung bekommst du eine der <b>15 Navigationsaufgaben</b> mit einem Seekartenausschnitt. Von den <b>9 Teilaufgaben</b> müssen <b>7</b> stimmen.
+      Löse die Aufgaben auf der ausgedruckten Karte mit Kursdreieck und Zirkel, dann vergleiche hier mit der Lösung.</p>
+      <div class="row" style="gap:12px">
+        ${nk ? `<span class="pill ok">${nk} Seekarten auf diesem Gerät</span><button class="btn small" id="kdel">Seekarten entfernen</button>`
+          : `<button class="btn primary" id="kload">Seekarten aus PDF laden</button><span class="muted" style="font-size:.85rem">Deine Datei „bootspruefung_de_sbfs_karten.pdf“. Die Karten bleiben nur auf diesem Gerät.</span>`}
+        <input type="file" id="kfile" accept="application/pdf,.pdf" hidden>
+        <span class="muted" id="kstatus">${esc(kartenStatus)}</span>
+      </div>
+    </section>
+    <div class="navgrid">${NAV.map(t => { const r = navRes(t.nr), done = Object.keys(r).length, ok = Object.values(r).filter(Boolean).length;
+      return `<button class="panel navcard" data-navtask="${t.nr}">
+        <span class="row" style="justify-content:space-between;width:100%"><b>Aufgabe ${t.nr}</b>${done ? `<span class="pill ${ok >= 7 ? "ok" : done === 9 ? "no" : "n"}">${ok} / 9</span>` : `<span class="pill n">offen</span>`}</span>
+        <span class="muted">${esc(t.lage[0].slice(0, 110))}${t.lage[0].length > 110 ? " …" : ""}</span>
+        ${kartenUrls[t.nr] ? `<span class="muted" style="font-size:.78rem">Seekarte vorhanden</span>` : ""}</button>`; }).join("")}</div>
+    <details class="panel grundlagen"><summary><b>Grundlagen und Formeln</b></summary>${GRUNDLAGEN}</details>
+    ${trainerHTML()}
+  </div>`;
+  m.querySelectorAll("[data-navtask]").forEach(b => b.onclick = () => { navTask = +b.dataset.navtask; navShown = {}; render(); window.scrollTo(0, 0); });
+  if ($("#kload")) $("#kload").onclick = () => $("#kfile").click();
+  $("#kfile").onchange = e => { const f = e.target.files[0]; if (f) importKarten(f); e.target.value = ""; };
+  if ($("#kdel")) $("#kdel").onclick = removeKarten;
+  wireTrainer(m);
+}
+function vNavTask(m) {
+  const t = NAV.find(x => x.nr === navTask), r = navRes(t.nr);
+  const ok = Object.values(r).filter(Boolean).length, done = Object.keys(r).length;
+  m.innerHTML = `<div class="view">
+    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Navigationsaufgabe ${t.nr} von 15</div><h2>Ausgangslage</h2></div>
+      <span class="row"><button class="btn small" id="navpdf">Aufgabenblatt als PDF</button><button class="btn small" id="navback">Alle Aufgaben</button></span></div>
+    <section class="panel navlage">
+      <div style="display:grid;gap:8px;min-width:0">${t.lage.map(p => `<p style="margin:0">${esc(p)}</p>`).join("")}</div>
+      ${kartenUrls[t.nr] ? `<button class="mapthumb" id="navmap"><img src="${kartenUrls[t.nr]}" alt="Seekarte ${t.nr}"><span>Seekarte groß öffnen</span></button>`
+        : `<p class="muted" style="margin:0;font-size:.85rem">Nimm die ausgedruckte Seekarte ${t.nr}. Unter „Alle Aufgaben“ kannst du die Karten aus deiner PDF in die App laden.</p>`}
+    </section>
+    ${t.teile.map(te => { const shown = navShown[te.nr] || r[te.nr] !== undefined; return `<section class="panel navpart" style="display:grid;gap:10px">
+      <div class="row" style="justify-content:space-between"><b>Teilaufgabe ${te.nr}</b>${r[te.nr] !== undefined ? `<span class="pill ${r[te.nr] ? "ok" : "no"}">${r[te.nr] ? "richtig" : "falsch"}</span>` : ""}</div>
+      <p style="margin:0">${esc(te.frage)}</p>
+      ${shown ? `<div class="navans"><span class="note-l">Lösung</span>${te.antwort.map(a => `<div>${esc(a)}</div>`).join("")}
+          ${te.seite ? `<div class="muted" style="font-size:.82rem;margin-top:6px">Ausführlicher Lösungsweg: Seite ${te.seite} in deiner PDF „${LOES_PDF}“</div>` : ""}</div>
+        <div class="row"><span class="muted" style="font-size:.85rem">Hattest du es richtig?</span>
+          <button class="btn small ${r[te.nr] === true ? "good" : ""}" data-navok="${te.nr}">✓ Richtig</button>
+          <button class="btn small ${r[te.nr] === false ? "bad" : ""}" data-navno="${te.nr}">✗ Falsch</button></div>`
+        : `<div class="row"><button class="btn" data-navshow="${te.nr}">Lösung zeigen</button></div>`}
+    </section>`; }).join("")}
+    <section class="panel row" style="justify-content:space-between">
+      <div><span class="big mono" style="font-size:2rem">${ok} / 9</span> <span class="muted">${done < 9 ? `richtig · noch ${9 - done} offen` : ok >= 7 ? "bestanden (ab 7)" : "nicht bestanden (ab 7)"}</span></div>
+      <span class="row"><button class="btn" id="navreset">Neu beginnen</button>${t.nr < 15 ? `<button class="btn primary" id="navnext">Aufgabe ${t.nr + 1} ›</button>` : ""}</span>
+    </section>
+  </div>`;
+  $("#navback").onclick = () => { navTask = null; render(); };
+  if ($("#navmap")) $("#navmap").onclick = () => openMap(t.nr);
+  $("#navpdf").onclick = () => navPdf(t);
+  m.querySelectorAll("[data-navshow]").forEach(b => b.onclick = () => { navShown[b.dataset.navshow] = true; const y = window.scrollY; render(); window.scrollTo(0, y); });
+  m.querySelectorAll("[data-navok],[data-navno]").forEach(b => b.onclick = () => { const y = window.scrollY; setNavRes(t.nr, b.dataset.navok || b.dataset.navno, !!b.dataset.navok); render(); window.scrollTo(0, y); });
+  $("#navreset").onclick = () => { const nav = Object.assign({}, P.nav); nav[t.nr] = { r: {}, t: Date.now() }; P.nav = nav; save(); navShown = {}; render(); window.scrollTo(0, 0); };
+  if ($("#navnext")) $("#navnext").onclick = () => { navTask = t.nr + 1; navShown = {}; render(); window.scrollTo(0, 0); };
+}
+// Aufgabenblatt: Seite 1 Aufgaben mit Platz für den Lösungsweg, Seite 2 die Lösungen
+async function navPdf(t) {
+  toast("PDF wird erstellt …");
+  try { await loadJsPDF(); } catch (e) { toast("PDF-Baustein konnte nicht geladen werden. Bist du online?"); return; }
+  const doc = new window.jspdf.jsPDF({ unit: "mm", format: "a4" }), M = 15, W = 180, LH = 4.6;
+  let y = M;
+  const text = (s, size, bold, indent = 0) => { doc.setFont("helvetica", bold ? "bold" : "normal"); doc.setFontSize(size); const l = doc.splitTextToSize(s, W - indent); if (y + l.length * LH > 282) { doc.addPage(); y = M; } doc.text(l, M + indent, y + 3.5); y += l.length * LH; };
+  text(`Navigationsaufgabe ${t.nr} von 15 · SBF-See`, 14, true); y += 3;
+  t.lage.forEach(p => { text(p, 10.5, false); y += 1.5; });
+  y += 2;
+  for (const te of t.teile) {
+    if (y > 250) { doc.addPage(); y = M; }
+    text(`${te.nr}. ${te.frage}`, 10.5, true); y += 1;
+    doc.setDrawColor(190); for (let i = 0; i < 2; i++) { doc.line(M + 5, y + 5, M + W, y + 5); y += 7; } doc.setDrawColor(0); y += 2;
+  }
+  text("Mindestens 7 von 9 Teilaufgaben müssen richtig sein. Schreibe immer den Lösungsweg dazu.", 9, false);
+  doc.addPage(); y = M;
+  text(`Lösungen zu Navigationsaufgabe ${t.nr}`, 14, true); y += 3;
+  for (const te of t.teile) { text(`${te.nr}. ${te.frage}`, 9.5, false); text(te.antwort.join(" · "), 10.5, true, 5); y += 2; }
+  const blob = doc.output("blob"), filename = `Navigationsaufgabe-${t.nr}.pdf`;
+  if (IN_ARTIFACT) { const dl = await claude.use("downloads").catch(() => null); if (!dl) { toast("Speichern ist in dieser Ansicht nicht möglich."); return; } try { await dl.save({ filename, data: blob }); toast("PDF gespeichert"); } catch (e) { toast("Speichern abgebrochen"); } return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast("PDF gespeichert");
+}
+
 render();
 initSync();
+loadKartenFromDb();
 if (!IN_ARTIFACT && "serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
