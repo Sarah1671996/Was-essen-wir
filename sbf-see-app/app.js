@@ -481,7 +481,13 @@ function searchQuestions(str) {
   if (/^(nr\.?\s*)?[\d\s,;\-–]+$/.test(s) && /\d/.test(s)) return parseNums(s.replace(/^nr\.?/, "")).ids;
   return Q.filter(q => (q.q + " " + q.a.join(" ")).toLowerCase().includes(s)).map(q => q.n);
 }
-const tagOrder = (d, n) => shuffle([0, 1, 2, 3], seeded(d.date + ":" + n));
+// Reihenfolge im Stapel: gemischt (Standard) oder nach Fragennummer. „Neu mischen“ ändert Fragen- und Antwortreihenfolge.
+let tagMix = true, tagMixKey = Math.floor(Math.random() * 1e6); // bei jedem Öffnen eine neue Reihenfolge
+try { tagMix = localStorage.getItem("sbfsee-tagmix") !== "0"; } catch (e) {}
+const tagOrder = (d, n) => shuffle([0, 1, 2, 3], seeded(d.date + ":" + tagMixKey + ":" + n));
+// Jede Frage bekommt einen festen Zufallsrang, so bleibt die Reihenfolge stabil, wenn Fragen dazukommen oder rausgehen
+const tagSeq = (d, ids) => tagMix ? ids.slice().sort((a, b) => seeded(d.date + "#" + tagMixKey + "#" + a)() - seeded(d.date + "#" + tagMixKey + "#" + b)()) : ids.slice().sort((a, b) => a - b);
+function reshuffleTag() { tagMixKey++; tagSheet = null; }
 
 function vTag(m) {
   if (quiz) return vQuiz(m);
@@ -501,12 +507,14 @@ function vTag(m) {
     </section>
     ${open ? addPanelHTML() : ""}
     ${ids.length ? `<section class="panel noprint row" style="justify-content:space-between">
-        <div class="seg" role="group" aria-label="Ansicht"><button data-tview="kreuz" aria-pressed="${tagView === "kreuz"}">Ankreuzen</button><button data-tview="loes" aria-pressed="${tagView === "loes"}">Lösungen</button></div>
+        <div class="row"><div class="seg" role="group" aria-label="Ansicht"><button data-tview="kreuz" aria-pressed="${tagView === "kreuz"}">Ankreuzen</button><button data-tview="loes" aria-pressed="${tagView === "loes"}">Lösungen</button></div>
+          <div class="seg" role="group" aria-label="Reihenfolge"><button data-tmix="1" aria-pressed="${tagMix}">Gemischt</button><button data-tmix="0" aria-pressed="${!tagMix}">Nach Nummer</button></div>
+          ${tagMix ? `<button class="btn small" id="tremix">Neu mischen</button>` : ""}</div>
         <div class="row"><button class="btn" id="dpdf">Als PDF</button><button class="btn" id="dquiz">Einzeln abfragen</button></div>
       </section>
       ${tagView === "kreuz" ? tagSheetHTML(d)
         : `<div class="row noprint"><button class="btn small" id="dhide">${tagHide ? "Antworten zeigen" : "Antworten verdecken"}</button></div>
-           <div class="printarea">${sheetHTML(d.ids.map(n => ({ q: byN.get(n) })), "lern", "Lernstapel vom " + fmtDate(Date.now()), tagHide, d.res, true)}</div>`}` : ""}
+           <div class="printarea">${sheetHTML(tagSeq(d, d.ids).map(n => ({ q: byN.get(n) })), "lern", "Lernstapel vom " + fmtDate(Date.now()), tagHide, d.res, true)}</div>`}` : ""}
   </div>`;
   if ($("#tadd")) $("#tadd").onclick = () => { tagAddOpen = !tagAddOpen; render(); };
   if ($("#tclear")) $("#tclear").onclick = () => { tagConfirmClear = true; render(); };
@@ -515,9 +523,11 @@ function vTag(m) {
   if (open) wireAddPanel(m);
   if (ids.length) {
     m.querySelectorAll("[data-tview]").forEach(b => b.onclick = () => { tagView = b.dataset.tview; render(); });
+    m.querySelectorAll("[data-tmix]").forEach(b => b.onclick = () => { tagMix = b.dataset.tmix === "1"; try { localStorage.setItem("sbfsee-tagmix", tagMix ? "1" : "0"); } catch (e) {} render(); });
+    if ($("#tremix")) $("#tremix").onclick = () => { reshuffleTag(); render(); toast("Neu gemischt"); };
     if ($("#dhide")) $("#dhide").onclick = () => { tagHide = !tagHide; render(); };
     $("#dquiz").onclick = () => { quiz = { ids: shuffle(d.ids), i: 0, ok: 0, from: "tag" }; render(); };
-    $("#dpdf").onclick = () => makePdf(d.ids.map(n => ({ q: byN.get(n), order: tagOrder(d, n) })), "bogen", "Lernstapel vom " + fmtDate(Date.now()), "Lernstapel-" + d.date);
+    $("#dpdf").onclick = () => makePdf(tagSeq(d, d.ids).map(n => ({ q: byN.get(n), order: tagOrder(d, n) })), "bogen", "Lernstapel vom " + fmtDate(Date.now()), "Lernstapel-" + d.date);
     m.querySelectorAll(".ans.hidden").forEach(el => el.onclick = () => el.classList.remove("hidden"));
     if (tagView === "kreuz") wireTagSheet(m, d);
   }
@@ -594,7 +604,7 @@ document.addEventListener("click", e => {
 /* Stapel als Bogen: alle vier Antworten aus dem Katalog, gemischt, zum Ankreuzen */
 function tagState(d) { if (!tagSheet || tagSheet.key !== d.date) tagSheet = { key: d.date, ans: {}, done: false, only: null }; return tagSheet; }
 function tagSheetHTML(d) {
-  const st = tagState(d), list = (st.only || d.ids).filter(n => d.ids.includes(n));
+  const st = tagState(d), list = tagSeq(d, (st.only || d.ids).filter(n => d.ids.includes(n)));
   const right = list.filter(n => st.ans[n] === 0).length, answered = list.filter(n => st.ans[n] !== undefined).length;
   const wrongToday = d.ids.filter(n => d.res[n] === false);
   const summary = st.done
@@ -615,7 +625,7 @@ function tagSheetHTML(d) {
   </section>`;
 }
 function wireTagSheet(m, d) {
-  const st = tagState(d), list = () => (st.only || d.ids).filter(n => d.ids.includes(n));
+  const st = tagState(d), list = () => tagSeq(d, (st.only || d.ids).filter(n => d.ids.includes(n)));
   m.querySelectorAll("[data-tn]").forEach(b => b.onclick = () => {
     st.ans[b.dataset.tn] = +b.dataset.o;
     b.parentNode.querySelectorAll(".opt").forEach(x => x.classList.toggle("sel", x === b));
@@ -626,8 +636,8 @@ function wireTagSheet(m, d) {
     for (const n of list()) if (st.ans[n] !== undefined) { const ok = st.ans[n] === 0; res[n] = ok; record(n, ok); }
     setStack(d.ids, res); st.done = true; render(); window.scrollTo(0, 0);
   };
-  if ($("#tagagain")) $("#tagagain").onclick = () => { tagSheet = null; render(); window.scrollTo(0, 0); };
-  if ($("#tagwrong")) $("#tagwrong").onclick = () => { const only = d.ids.filter(n => d.res[n] === false); tagSheet = { key: d.date, ans: {}, done: false, only }; render(); window.scrollTo(0, 0); };
+  if ($("#tagagain")) $("#tagagain").onclick = () => { reshuffleTag(); render(); window.scrollTo(0, 0); };
+  if ($("#tagwrong")) $("#tagwrong").onclick = () => { const only = d.ids.filter(n => d.res[n] === false); tagMixKey++; tagSheet = { key: d.date, ans: {}, done: false, only }; render(); window.scrollTo(0, 0); };
   if ($("#tagall")) $("#tagall").onclick = () => { tagSheet = null; render(); };
 }
 
