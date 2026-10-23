@@ -314,3 +314,18 @@ dialog::backdrop { background: rgba(20, 14, 6, .45); }
 #home .moneycard { margin: 0 0 14px; }
 .moneycard.due { box-shadow: inset 0 0 0 2px var(--urgent), var(--shadow); }
 .moneycard.due strong { color: var(--urgent); font-size: 1.35rem; }
+
+/* ---------- PayPal und Listen-Import ---------- */
+.paybox { display: grid; gap: 10px; margin-bottom: 14px; }
+.paybox:empty { display: none; }
+.btn.paypal { background: #0070ba; color: #fff; min-height: 60px; font-size: 1.08rem; width: 100%; }
+.prefix { align-self: center; color: var(--muted); font-weight: 600; }
+.oftenhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.oftenhead .sectionlabel { margin-bottom: 8px; }
+.linkbtn { border: 0; background: none; color: var(--c); font-weight: 700; padding: 8px 4px; text-decoration: underline; }
+textarea {
+  width: 100%; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line);
+  background: var(--surface); resize: vertical; min-height: 140px;
+}
+.chip.static { min-height: 34px; padding: 4px 12px; font-size: .88rem; }
+#importBtn { margin-top: 20px; }

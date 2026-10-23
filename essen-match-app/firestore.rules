@@ -68,8 +68,9 @@ service cloud.firestore {
         allow read: if signedIn();
         allow delete: if signedIn() && request.auth.uid == uid;
         allow create, update: if signedIn() && request.auth.uid == uid && open()
-          && d().keys().hasOnly(["name", "seenAt", "trip"])
+          && d().keys().hasOnly(["name", "seenAt", "trip", "paypal"])
           && needStr("name", 40) && num("seenAt")
+          && (!("paypal" in d()) || (d().paypal is string && d().paypal.matches("[A-Za-z0-9_-]{0,40}")))
           && (!("trip" in d()) || d().trip == null || (d().trip is map
               && d().trip.keys().hasOnly(["storeId", "at", "state", "doneAt", "count", "msg"])
               && d().trip.get("msg", "") is string && d().trip.get("msg", "").size() <= 140));

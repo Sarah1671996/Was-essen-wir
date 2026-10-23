@@ -252,6 +252,7 @@ function renderHome() {
   const open = openList.reduce((sum, r) => sum + (r.amount || 0), 0);
   $("#moneyBtn").classList.toggle("due", open > 0);
   $("#moneyTitle").textContent = open ? `${euro(open)} noch offen` : "Ausgaben";
+  renderPay($("#payBox"));
   $("#moneySummary").textContent = open
     ? `${openList.length} ${openList.length === 1 ? "Kassenbon" : "Kassenbons"} noch nicht erstattet`
     : "Alles erstattet · Kassenbons ansehen";
@@ -759,14 +760,17 @@ $("#addInput").oninput = () => {
 function hideSuggest() { $("#suggest").hidden = true; }
 
 // "Oft gekauft": was hier schon öfter drauf stand und gerade fehlt
+let oftenAll = false;
 function renderOften() {
   const id = S.current;
   const openNow = new Set(openOf(id).map(i => norm(i.text)));
-  const list = S.known
+  const all = S.known
     .filter(k => k.stores?.[id] && !openNow.has(norm(k.text)) && (k.count || 0) >= 2)
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 10);
+    .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, "de"));
+  const list = oftenAll ? all : all.slice(0, 10);
   $("#often").hidden = !list.length;
+  $("#oftenMore").hidden = all.length <= 10;
+  $("#oftenMore").textContent = oftenAll ? "Weniger anzeigen" : `Alle ${all.length} anzeigen`;
   const box = $("#oftenChips");
   box.textContent = "";
   list.forEach(k => {
@@ -994,6 +998,7 @@ function renderMoney() {
   const sum = inMonth.reduce((t, r) => t + (r.amount || 0), 0);
   const open = S.receipts.filter(r => !r.settled).reduce((t, r) => t + (r.amount || 0), 0);
   $("#monthTotal").textContent = euro(sum);
+  renderPay($("#payBoxMoney"));
   $("#openTotal").textContent = euro(open);
 
   // Summe pro Laden als kleine Balken
@@ -1189,6 +1194,127 @@ $("#rDelete").onclick = async () => {
   catch { $("#rError").textContent = "Löschen hat nicht geklappt."; }
 };
 
+/* ---------- PayPal.Me: offene Bons mit einem Tipp bezahlen ---------- */
+// Akzeptiert "SarahK", "paypal.me/SarahK" oder "https://www.paypal.com/paypalme/SarahK/5EUR"; null = ungültig
+function paypalName(input) {
+  let s = (input || "").trim();
+  const m = s.match(/paypal(?:\.me|\.com\/paypalme)\/([A-Za-z0-9_-]+)/i);
+  if (m) s = m[1];
+  return /^[A-Za-z0-9_-]{1,40}$/.test(s) ? s : null;
+}
+const payLink = (name, cents) => `https://www.paypal.com/paypalme/${encodeURIComponent(name)}/${(cents / 100).toFixed(2)}EUR`;
+
+// Pro Person, die etwas ausgelegt hat und PayPal.Me eingetragen hat: ein großer Knopf mit der offenen Summe
+function renderPay(box) {
+  box.textContent = "";
+  const byPayer = {};
+  S.receipts.filter(r => !r.settled && r.by && r.by !== S.uid).forEach(r => { (byPayer[r.by] ||= []).push(r); });
+  for (const [uid, list] of Object.entries(byPayer)) {
+    const m = S.members.find(x => x.id === uid);
+    const name = m?.paypal ? paypalName(m.paypal) : null;
+    if (!name) continue;
+    const cents = list.reduce((t, r) => t + (r.amount || 0), 0);
+    const b = el("button", "btn paypal", `💸 ${euro(cents)} an ${m.name} mit PayPal zahlen`);
+    b.onclick = () => payNow(m, name, list, cents);
+    box.appendChild(b);
+  }
+}
+// PayPal öffnen; wenn man zurückkommt, fragen, ob bezahlt wurde
+let pendingPay = null;
+function payNow(m, name, list, cents) {
+  pendingPay = { m, ids: list.map(r => r.id), cents, at: Date.now() };
+  window.open(payLink(name, cents), "_blank", "noopener");
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible" || !pendingPay || Date.now() - pendingPay.at < 1500) return;
+  const p = pendingPay;
+  $("#paidInfo").textContent = `Hast du ${euro(p.cents)} an ${p.m.name} gesendet? Dann werden ${p.ids.length === 1 ? "der Kassenbon" : `die ${p.ids.length} Kassenbons`} als erstattet markiert.`;
+  if (!$("#paidDlg").open) $("#paidDlg").showModal();
+});
+$("#paidNo").onclick = () => { pendingPay = null; $("#paidDlg").close(); };
+$("#paidForm").onsubmit = async e => {
+  e.preventDefault();
+  const p = pendingPay;
+  pendingPay = null;
+  $("#paidDlg").close();
+  if (!p) return;
+  const now = Date.now();
+  try {
+    await house.batch(p.ids.map(id => ({ type: "update", c: "receipts", id, data: { settled: true, settledAt: now } })));
+    toast(`Danke! ${euro(p.cents)} als erstattet markiert`);
+  } catch (err) { console.error(err); fail("Speichern")(); }
+};
+
+/* ---------- Liste aus einer anderen App übernehmen ---------- */
+// Zeilen säubern: Kästchen, Haken, Aufzählungszeichen und Nummern vorne weg; Kommas nur trennen, wenn keine Zahl folgt ("1,5 l Milch")
+function parseImport(text) {
+  const seen = new Set(), out = [];
+  for (let line of text.split(/\r?\n|;|,(?!\d)/)) {
+    for (let n = 0; n < 2; n++) line = line.replace(/^\s*(?:[-•*–·▪◦]|[☐☑☒✓✔✗✘]|\[[ xX✓]?\]|\d+[.)](?!\d))\s*/u, "");
+    line = line.replace(/\s+/g, " ").trim();
+    // Überschriften wie "Einkaufsliste:" oder "Kaufland:" überspringen
+    if (!line || line.endsWith(":") || line.length > 100 || seen.has(norm(line))) continue;
+    seen.add(norm(line));
+    out.push(line);
+  }
+  return out;
+}
+function renderImportPreview() {
+  const list = parseImport($("#importText").value);
+  $("#importCount").textContent = list.length ? `${list.length} ${list.length === 1 ? "Sache" : "Sachen"} erkannt:` : "";
+  const box = $("#importPreview");
+  box.textContent = "";
+  list.slice(0, 40).forEach(t => box.appendChild(el("span", "chip static", t)));
+  if (list.length > 40) box.appendChild(el("span", "small", `… und ${list.length - 40} weitere`));
+}
+$("#importBtn").onclick = () => {
+  $("#importText").value = "";
+  $("#importError").textContent = "";
+  renderImportPreview();
+  $("#importDlg").showModal();
+};
+$("#importText").oninput = renderImportPreview;
+$("#importPaste").onclick = async () => {
+  try {
+    $("#importText").value = await navigator.clipboard.readText();
+    renderImportPreview();
+  } catch {
+    $("#importError").textContent = "Die Zwischenablage ließ sich nicht lesen. Tippe lange in das Feld und wähle „Einfügen“.";
+    $("#importText").focus();
+  }
+};
+$("#importCancel").onclick = () => $("#importDlg").close();
+$("#importToList").onclick = async () => {
+  const list = parseImport($("#importText").value);
+  if (!list.length) { $("#importError").textContent = "Füge zuerst eure Liste ein."; return; }
+  $("#importDlg").close();
+  await addItems(list);
+};
+// Als Vorschläge: landen nicht auf der Liste, sondern unter "Oft gekauft" und beim Tippen
+$("#importForm").onsubmit = async e => {
+  e.preventDefault();
+  const list = parseImport($("#importText").value);
+  if (!list.length) { $("#importError").textContent = "Füge zuerst eure Liste ein."; return; }
+  const now = Date.now(), sid = S.current, ops = new Map();
+  list.forEach((raw, n) => {
+    const { text } = splitQty(raw);
+    const id = keyOf(text), k = S.known.find(x => x.id === id);
+    if (!text || ops.has(id)) return;
+    ops.set(id, { c: "known", id, data: {
+      text: k?.text || text, cat: k?.cat || guessCat(text), count: Math.max(k?.count || 0, 2), last: k?.last || now - n,
+      stores: { ...(k?.stores || {}), [sid]: k?.stores?.[sid] || now - n }
+    } });
+  });
+  try {
+    for (const part of chunks([...ops.values()])) await house.batch(part);
+    $("#importDlg").close();
+    oftenAll = true;
+    renderOften();
+    $("#listScroll").scrollTop = 0;
+    toast(`${ops.size} Vorschläge gespeichert. Antippen setzt sie auf die Liste.`);
+  } catch (err) { console.error(err); $("#importError").textContent = "Speichern hat nicht geklappt."; }
+};
+
 /* ---------- Neuer Code (z. B. wenn der Einladungslink weitergegeben wurde) ---------- */
 const HOUSE_COLS = ["stores", "items", "known", "history", "receipts", "categories"];
 // Schreibvorgänge in Pakete teilen (Firestore: höchstens 500 pro Paket und etwa 10 MB)
@@ -1260,6 +1386,7 @@ const inviteLink = () => location.origin + location.pathname + "?join=" + S.code
 $("#settingsBtn").onclick = () => {
   $("#myName").value = S.name;
   $("#myCode").textContent = S.code;
+  $("#myPaypal").value = S.members.find(m => m.id === S.uid)?.paypal || "";
   $("#bigText").checked = ls.get("ek.bigText") === "1";
   $("#keepAwake").checked = ls.get("ek.awake") !== "0";
   $("#keepAwake").parentElement.hidden = !("wakeLock" in navigator);
@@ -1279,6 +1406,17 @@ function renderMembers() {
     box.appendChild(p);
   });
 }
+$("#savePaypal").onclick = async () => {
+  const raw = $("#myPaypal").value.trim();
+  const name = raw ? paypalName(raw) : "";
+  if (name === null) { toast("Das sieht nicht wie ein PayPal.Me-Name aus, z. B. SarahK"); return; }
+  $("#myPaypal").value = name;
+  try {
+    await house.patch("members", S.uid, { paypal: name });
+    toast(name ? `Gespeichert: paypal.me/${name}` : "PayPal.Me entfernt");
+  } catch (err) { console.error(err); fail("Speichern")(); }
+};
+$("#oftenMore").onclick = () => { oftenAll = !oftenAll; renderOften(); };
 $("#saveName").onclick = async () => {
   const n = $("#myName").value.trim();
   if (!n) return;

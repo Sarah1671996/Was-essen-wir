@@ -39,6 +39,8 @@ oder in der Firebase-Konsole unter **Firestore → Regeln** den Inhalt der Datei
 - **Einfacher Modus** (⚙, pro Handy): nur Eintragen, Abhaken und Fotos.
 - **Eigene Abteilungen** mit Stichwörtern (✎ beim Laden oder im Eintrag „Neue Abteilung …“).
 - Fotos per Kamera oder **aus der Galerie**; bei Kassenbons liest die KI (Gemini über Firebase AI Logic) Betrag und Datum automatisch ab.
+- **PayPal.Me** (⚙): Wer etwas ausgelegt hat, trägt seinen PayPal.Me-Namen ein. Die andere Person sieht dann „… € an Sarah mit PayPal zahlen“; Betrag und Empfänger sind ausgefüllt, nach der Rückkehr werden die Bons auf Wunsch als erstattet markiert.
+- **Liste aus anderer App übernehmen** (in einer Liste unten): Text einfügen, die Einträge landen als Vorschläge unter „Oft gekauft“ oder direkt auf der Liste.
 - Funktioniert auch bei schlechtem Empfang, Änderungen werden nachgeholt.
 
 ## Sicherheit

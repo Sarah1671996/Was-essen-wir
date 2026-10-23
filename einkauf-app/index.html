@@ -71,6 +71,7 @@
         <span><strong id="moneyTitle">Ausgaben</strong><span class="small" id="moneySummary">Kassenbons und was noch offen ist</span></span>
         <span aria-hidden="true">›</span>
       </button>
+      <div id="payBox" class="paybox"></div>
       <div id="trips" class="trips"></div>
       <div class="stores" id="stores"></div>
       <div id="storeSuggest" class="panel adv" hidden>
@@ -98,10 +99,14 @@
     <div class="suggest" id="suggest" hidden></div>
     <div class="scroll" id="listScroll">
       <div id="often" class="often" hidden>
-        <p class="sectionlabel">Oft gekauft</p>
+        <div class="oftenhead">
+          <p class="sectionlabel">Oft gekauft</p>
+          <button class="linkbtn" id="oftenMore" hidden></button>
+        </div>
         <div class="chips" id="oftenChips"></div>
       </div>
       <div id="items"></div>
+      <button class="btn ghost wide adv" id="importBtn">📋 Liste aus anderer App übernehmen</button>
       <p class="small hint" id="swipeHint" hidden>Tipp: Zum Abhaken kannst du einen Eintrag auch nach rechts wischen.</p>
     </div>
   </section>
@@ -122,6 +127,7 @@
         <div class="total"><span class="small">Diesen Monat</span><strong id="monthTotal"></strong></div>
         <div class="total open"><span class="small">Noch nicht erstattet</span><strong id="openTotal"></strong></div>
       </div>
+      <div id="payBoxMoney" class="paybox"></div>
       <div id="perStore" class="perstore"></div>
       <button class="btn wide adv" id="newReceiptBtn">📷 Kassenbon erfassen</button>
       <div id="receipts"></div>
@@ -295,6 +301,36 @@
   </form>
 </dialog>
 
+<!-- Liste aus einer anderen App übernehmen -->
+<dialog id="importDlg">
+  <form method="dialog" class="dlg" id="importForm">
+    <h2>Liste übernehmen</h2>
+    <p class="small">Kopiere in der alten App eure Liste (oder auch eine WhatsApp-Nachricht) und füge sie hier ein. Eine Sache pro Zeile oder mit Komma getrennt.</p>
+    <button type="button" class="btn ghost" id="importPaste">📋 Aus Zwischenablage einfügen</button>
+    <textarea id="importText" rows="7" placeholder="Milch&#10;Eier&#10;Toast&#10;…"></textarea>
+    <p class="small" id="importCount"></p>
+    <div class="chips" id="importPreview"></div>
+    <p class="error" id="importError" role="alert"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost" id="importCancel">Abbrechen</button>
+      <button type="button" class="btn ghost" id="importToList">Direkt auf die Liste</button>
+      <button class="btn" id="importSave">Als Vorschläge speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Nach PayPal: bezahlt? -->
+<dialog id="paidDlg">
+  <form method="dialog" class="dlg" id="paidForm">
+    <h2>Hat das Bezahlen geklappt?</h2>
+    <p id="paidInfo"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost" id="paidNo">Nein, noch nicht</button>
+      <button class="btn">Ja, bezahlt</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Foto groß -->
 <dialog id="photoDlg" class="photodlg">
   <img id="photoBig" alt="">
@@ -311,6 +347,16 @@
     <div class="joinrow">
       <input id="myName" maxlength="24">
       <button class="btn ghost" id="saveName">Ändern</button>
+    </div>
+
+    <div class="adv">
+      <label for="myPaypal">Dein PayPal.Me (optional)</label>
+      <div class="joinrow">
+        <span class="prefix">paypal.me/</span>
+        <input id="myPaypal" maxlength="60" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="DeinName">
+        <button class="btn ghost" id="savePaypal">Speichern</button>
+      </div>
+      <p class="small">Dann sieht die andere Person bei offenen Kassenbons einen Knopf „Mit PayPal zahlen“, Betrag und Empfänger sind schon ausgefüllt.</p>
     </div>
 
     <div class="adv">
