@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Sicherheitsrichtlinie: Code nur von dieser Seite und von Google (Firebase), Daten nur zu Google-Diensten. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Wir zwei</title>
+  <meta name="description" content="Date-Ideen für euch zwei: aussuchen, worauf ihr Lust habt, und wieder mehr Zeit füreinander.">
+  <meta name="theme-color" content="#fbf3ef" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1214" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Wir zwei">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Einrichtung: Name + Paar anlegen oder beitreten -->
+<div class="setup" id="setup" hidden>
+  <div class="setup-inner">
+    <div class="logo" aria-hidden="true">💞</div>
+    <h1>Wir zwei</h1>
+    <p class="lead">Date-Ideen für euch beide. Sucht euch aus, worauf ihr Lust habt, und was euch beiden gefällt, wird geplant.</p>
+
+    <label for="setupName">Wie heißt du?</label>
+    <input id="setupName" maxlength="24" autocomplete="given-name" placeholder="Dein Vorname">
+
+    <div id="setupInvite" hidden class="stack">
+      <p class="notice">Du wurdest eingeladen. Schön, dass du dabei bist!</p>
+      <button class="btn big" id="setupJoinInvite">Mitmachen</button>
+    </div>
+
+    <div id="setupChoice" class="stack">
+      <button class="btn big" id="setupCreate">Loslegen</button>
+      <div class="divider"><span>oder mit Code beitreten</span></div>
+      <div class="joinrow">
+        <input id="setupCode" maxlength="10" autocapitalize="off" autocomplete="off" spellcheck="false" placeholder="Code" aria-label="Einladungscode">
+        <button class="btn ghost" id="setupJoin">Beitreten</button>
+      </div>
+    </div>
+    <p class="error" id="setupError" role="alert"></p>
+    <p class="notice" id="demoNote" hidden>Demo-Modus: Alles bleibt nur auf diesem Gerät.</p>
+  </div>
+</div>
+
+<div class="app" id="app" hidden>
+  <header class="top">
+    <!-- Das Herz lange drücken öffnet den Planer (ist nirgends beschriftet) -->
+    <div class="brand" id="brand">
+      <span class="brandheart" aria-hidden="true">💞</span>
+      <div>
+        <h1>Wir zwei</h1>
+        <p class="hello" id="hello"></p>
+      </div>
+    </div>
+    <button class="secretbadge" id="secretBadge" hidden aria-label="Planer schließen">🔒 Planer · schließen</button>
+    <button class="iconbtn" id="settingsBtn" aria-label="Einstellungen und Einladen">⚙</button>
+  </header>
+
+  <!-- Ideen: aussuchen, worauf man Lust hat -->
+  <section class="scroll tab" id="tab-ideen">
+    <div class="secretpanel" id="plannerIdeas" hidden></div>
+
+    <details class="filters" id="filterBox">
+      <summary>
+        <span><strong>Worauf habt ihr Lust?</strong><span class="small" id="filterSummary"></span></span>
+        <span class="chev" aria-hidden="true">▾</span>
+      </summary>
+      <p class="grouplabel">Wo?</p>
+      <div class="chips" id="fWhere"></div>
+      <p class="grouplabel">Was darf es kosten?</p>
+      <div class="chips" id="fCost"></div>
+      <p class="grouplabel">Wie viel Zeit habt ihr?</p>
+      <div class="chips" id="fTime"></div>
+      <p class="grouplabel">Wonach ist euch?</p>
+      <div class="chips" id="fMood"></div>
+      <button class="linkbtn" id="filterReset">Alles zurücksetzen</button>
+    </details>
+
+    <div class="deck" id="deck"></div>
+    <div class="deckbtns" id="deckBtns">
+      <button class="roundbtn no" id="btnNo" aria-label="Eher nicht">✕</button>
+      <button class="roundbtn dice" id="btnSkip" aria-label="Später nochmal zeigen">↻</button>
+      <button class="roundbtn yes" id="btnYes" aria-label="Hab ich Lust drauf">♥</button>
+    </div>
+    <p class="small center" id="deckHint">Wische nach rechts, wenn du Lust drauf hast. Habt ihr beide Lust, landet es bei euren Dates.</p>
+
+    <div class="row2 gap">
+      <button class="btn ghost" id="allBtn">Alle Ideen</button>
+      <button class="btn ghost" id="newIdeaBtn">+ Eigene Idee</button>
+    </div>
+  </section>
+
+  <!-- Unsere Dates: Matches, geplant, Erinnerungen -->
+  <section class="scroll tab" id="tab-dates" hidden>
+    <div id="nextDate"></div>
+    <p class="small center" id="sinceLast"></p>
+
+    <h2 class="sectionlabel">Habt ihr beide Lust drauf</h2>
+    <div id="matches" class="cards"></div>
+
+    <h2 class="sectionlabel">Geplant</h2>
+    <div id="planned" class="cards"></div>
+    <button class="btn ghost wide" id="newDateBtn">+ Date eintragen</button>
+
+    <h2 class="sectionlabel">Erinnerungen</h2>
+    <div id="memories" class="cards"></div>
+  </section>
+
+  <!-- Fragen -->
+  <section class="scroll tab" id="tab-fragen" hidden>
+    <div class="qcard" id="qCard">
+      <p class="qlabel">Eine Frage an dich</p>
+      <p class="qtext" id="qText"></p>
+      <textarea id="qAnswer" rows="4" maxlength="1500" placeholder="Deine Antwort …" aria-label="Deine Antwort"></textarea>
+      <div class="row2 gap">
+        <button class="btn ghost" id="qSkip">Andere Frage</button>
+        <button class="btn" id="qSave">Antworten</button>
+      </div>
+    </div>
+    <p class="notice" id="qAllDone" hidden>Du hast alle Fragen beantwortet. Bald kommen neue! 💛</p>
+
+    <div class="secretpanel" id="plannerQuestions" hidden>
+      <h2 class="sectionlabel">🔒 <span class="pname"></span> hat geantwortet</h2>
+      <div id="partnerAnswers" class="answers"></div>
+
+      <h2 class="sectionlabel">🔒 Eigene Frage an <span class="pname"></span></h2>
+      <p class="small">Sieht für <span class="pname"></span> aus wie jede andere Frage der App und kommt als Nächstes dran.</p>
+      <textarea id="newQText" rows="2" maxlength="300" placeholder="z. B. Was war das schönste Geschenk, das du je bekommen hast?" aria-label="Neue Frage"></textarea>
+      <button class="btn wide" id="newQSave">Frage stellen</button>
+      <div id="myQuestions" class="answers"></div>
+    </div>
+
+    <h2 class="sectionlabel">Deine Antworten</h2>
+    <div id="myAnswers" class="answers"></div>
+  </section>
+
+  <nav class="tabs" aria-label="Bereiche">
+    <button data-tab="ideen" class="on"><span aria-hidden="true">✨</span>Ideen</button>
+    <button data-tab="dates"><span aria-hidden="true">💞</span>Unsere Dates<b class="badge" id="datesBadge" hidden></b></button>
+    <button data-tab="fragen"><span aria-hidden="true">💬</span>Fragen<b class="badge" id="fragenBadge" hidden></b></button>
+  </nav>
+</div>
+
+<!-- Idee ansehen / bearbeiten -->
+<dialog id="ideaDlg">
+  <form method="dialog" class="dlg" id="ideaForm">
+    <h2 id="ideaTitle">Idee</h2>
+    <div class="row-emoji">
+      <div>
+        <label for="iEmoji">Symbol</label>
+        <input id="iEmoji" maxlength="8" class="emojiinput">
+      </div>
+      <div class="grow">
+        <label for="iTitle">Titel</label>
+        <input id="iTitle" maxlength="80" required>
+      </div>
+    </div>
+    <label for="iText">Beschreibung</label>
+    <textarea id="iText" rows="3" maxlength="400"></textarea>
+    <label>Wo?</label>
+    <div class="chips" id="iWhere"></div>
+    <label>Kosten</label>
+    <div class="chips" id="iCost"></div>
+    <label>Dauer</label>
+    <div class="chips" id="iTime"></div>
+    <label>Stimmung</label>
+    <div class="chips" id="iMoods"></div>
+
+    <!-- Nur im Planer sichtbar -->
+    <div class="secretbox" id="iSecret" hidden>
+      <p class="secrethead">🔒 Nur für <span class="pname"></span></p>
+      <p class="small" id="iPartnerSwipe"></p>
+      <label class="check"><input type="checkbox" id="iBoost"> <span><span class="pname"></span> bevorzugt vorschlagen</span></label>
+      <label class="check"><input type="checkbox" id="iHide"> <span>Vor <span class="pname"></span> verstecken</span></label>
+      <label for="iPTitle">Titel, den <span class="pname"></span> sieht</label>
+      <input id="iPTitle" maxlength="80" placeholder="leer = wie oben">
+      <label for="iPText">Beschreibung, die <span class="pname"></span> sieht</label>
+      <textarea id="iPText" rows="2" maxlength="400" placeholder="leer = wie oben"></textarea>
+    </div>
+
+    <p class="error" id="iError" role="alert"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost danger" id="iDelete">Löschen</button>
+      <button type="button" class="btn ghost" id="iPlan">📅 Planen</button>
+      <button type="button" class="btn ghost" id="iCancel">Abbrechen</button>
+      <button class="btn">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Alle Ideen -->
+<dialog id="allDlg">
+  <div class="dlg">
+    <h2>Alle Ideen</h2>
+    <input id="allSearch" type="search" placeholder="Suchen …" aria-label="Ideen durchsuchen">
+    <div class="chips" id="allFilter"></div>
+    <div id="allList" class="ideaList"></div>
+    <div class="dlgactions">
+      <button class="btn" id="allClose">Schließen</button>
+    </div>
+  </div>
+</dialog>
+
+<!-- Date planen / abschließen -->
+<dialog id="dateDlg">
+  <form method="dialog" class="dlg" id="dateForm">
+    <h2 id="dateTitle">Date planen</h2>
+    <label for="dName">Was macht ihr?</label>
+    <input id="dName" maxlength="80" required>
+    <div class="row2">
+      <div>
+        <label for="dDay">Tag</label>
+        <input id="dDay" type="date">
+      </div>
+      <div>
+        <label for="dTime">Uhrzeit</label>
+        <input id="dTime" type="time">
+      </div>
+    </div>
+    <label for="dNote">Notiz</label>
+    <input id="dNote" maxlength="200" placeholder="z. B. Tisch reserviert, Badesachen mitnehmen">
+    <div id="dDoneBox" hidden>
+      <label>Wie war's?</label>
+      <div class="hearts" id="dRating"></div>
+      <label for="dMemo">Woran wollt ihr euch erinnern?</label>
+      <textarea id="dMemo" rows="3" maxlength="600" placeholder="Das Schönste an dem Tag war …"></textarea>
+    </div>
+    <p class="meta" id="dMeta"></p>
+    <p class="error" id="dError" role="alert"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost danger" id="dDelete" hidden>Löschen</button>
+      <button type="button" class="btn ghost" id="dDone" hidden>💛 Haben wir gemacht</button>
+      <button type="button" class="btn ghost" id="dCancel">Abbrechen</button>
+      <button class="btn">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Match -->
+<dialog id="matchDlg" class="matchdlg">
+  <form method="dialog" class="dlg center">
+    <div class="matchheart" aria-hidden="true">💞</div>
+    <h2>Ihr habt beide Lust drauf!</h2>
+    <p class="matchidea" id="matchIdea"></p>
+    <div class="dlgactions centered">
+      <button type="button" class="btn ghost" id="matchLater">Später</button>
+      <button type="button" class="btn" id="matchPlan">📅 Gleich planen</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Code für den Planer -->
+<dialog id="pinDlg">
+  <form method="dialog" class="dlg" id="pinForm">
+    <h2 id="pinTitle">🔒</h2>
+    <p class="small" id="pinInfo"></p>
+    <input id="pinInput" type="password" inputmode="numeric" autocomplete="off" maxlength="12" aria-label="Code">
+    <input id="pinInput2" type="password" inputmode="numeric" autocomplete="off" maxlength="12" placeholder="Code wiederholen" aria-label="Code wiederholen" hidden>
+    <p class="error" id="pinError" role="alert"></p>
+    <div class="dlgactions">
+      <button type="button" class="btn ghost" id="pinCancel">Abbrechen</button>
+      <button class="btn" id="pinOk">OK</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Einstellungen -->
+<dialog id="settingsDlg">
+  <div class="dlg">
+    <h2>Wir zwei</h2>
+    <div class="members" id="members"></div>
+
+    <label for="myName">Dein Name</label>
+    <div class="joinrow">
+      <input id="myName" maxlength="24">
+      <button class="btn ghost" id="saveName">Ändern</button>
+    </div>
+
+    <label>Partner einladen</label>
+    <p class="small">Schick diesen Link, z. B. per WhatsApp. Auf dem iPhone die App erst zum Home-Bildschirm hinzufügen und dort den Code eingeben.</p>
+    <div class="codebox"><span>Code</span><strong id="myCode"></strong></div>
+    <div class="joinrow">
+      <button class="btn" id="shareBtn">Einladung teilen</button>
+      <button class="btn ghost" id="copyBtn">Link kopieren</button>
+    </div>
+
+    <div class="secretbox" id="sSecret" hidden>
+      <p class="secrethead">🔒 Planer</p>
+      <p class="small">Öffnen: das Herz oben links lange gedrückt halten. Der Planer schließt sich von selbst, wenn die App eine Weile im Hintergrund ist.</p>
+      <button class="btn ghost" id="pinChange">Planer-Code ändern</button>
+    </div>
+
+    <p class="small" id="modeNote"></p>
+    <div class="dlgactions">
+      <button class="btn ghost danger" id="leaveBtn">Abmelden</button>
+      <button class="btn" id="settingsClose">Fertig</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

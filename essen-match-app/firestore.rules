@@ -128,6 +128,78 @@ service cloud.firestore {
       }
     }
 
+    // Date-App "Wir zwei": ein Paar ist nur mit seinem 10-stelligen Code erreichbar.
+    // Geschrieben wird nur, was die App selbst erzeugt: feste Felder, begrenzte Längen.
+    match /couples/{couple} {
+      allow get: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(["createdAt", "createdBy"])
+        && request.resource.data.createdBy == request.auth.uid;
+      allow list, update, delete: if false;
+
+      function signedIn() { return request.auth != null; }
+      function exists_() { return exists(/databases/$(database)/documents/couples/$(couple)); }
+      function d() { return request.resource.data; }
+      function str(k, max) { return !(k in d()) || (d()[k] is string && d()[k].size() <= max); }
+      function needStr(k, max) { return k in d() && d()[k] is string && d()[k].size() > 0 && d()[k].size() <= max; }
+      function num(k) { return !(k in d()) || d()[k] == null || d()[k] is number; }
+      function flag(k) { return !(k in d()) || d()[k] is bool; }
+      function idOrNull(k) { return !(k in d()) || d()[k] == null || (d()[k] is string && d()[k].size() <= 64); }
+
+      // Jede Person schreibt nur ihre eigenen Daten, lesen dürfen beide.
+      match /members/{uid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == uid && exists_()
+          && d().keys().hasOnly(["name", "seenAt"]) && needStr("name", 40) && num("seenAt");
+      }
+      match /swipes/{uid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == uid && exists_()
+          && d().keys().hasOnly(["likes", "at"]) && d().likes is map && d().likes.size() <= 3000 && num("at");
+      }
+      match /answers/{uid} {
+        allow read: if signedIn();
+        allow write: if signedIn() && request.auth.uid == uid && exists_()
+          && d().keys().hasOnly(["a", "at"]) && d().a is map && d().a.size() <= 3000 && num("at");
+      }
+
+      match /ideas/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && exists_() && id.size() <= 64
+          && d().keys().hasOnly(["emoji", "title", "text", "where", "cost", "time", "moods", "by", "at", "removed"])
+          && str("emoji", 16) && str("title", 100) && str("text", 500) && str("where", 20) && str("time", 20)
+          && num("cost") && num("at") && flag("removed") && idOrNull("by")
+          && (!("moods" in d()) || (d().moods is list && d().moods.size() <= 10));
+      }
+      // Anpassungen aus dem Planer (verstecken, bevorzugen, eigener Text)
+      match /tweaks/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && exists_() && id.size() <= 64
+          && d().keys().hasOnly(["boost", "hide", "title", "text", "at"])
+          && flag("boost") && flag("hide") && str("title", 100) && str("text", 500) && num("at");
+      }
+      match /dates/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && exists_()
+          && d().keys().hasOnly(["title", "note", "when", "allDay", "ideaId", "emoji", "done", "doneAt", "rating", "memo", "by", "at"])
+          && needStr("title", 100) && str("note", 300) && str("memo", 800) && str("emoji", 16)
+          && num("when") && num("doneAt") && num("rating") && num("at")
+          && flag("allDay") && flag("done") && idOrNull("ideaId") && idOrNull("by");
+      }
+      match /questions/{id} {
+        allow read, delete: if signedIn();
+        allow create, update: if signedIn() && exists_()
+          && d().keys().hasOnly(["text", "by", "forUid", "at"])
+          && needStr("text", 400) && idOrNull("by") && idOrNull("forUid") && num("at");
+      }
+      match /planner/{id} {
+        allow read: if signedIn();
+        allow write: if signedIn() && exists_() && id == "config"
+          && d().keys().hasOnly(["salt", "hash", "owners", "at"])
+          && needStr("salt", 40) && needStr("hash", 80) && d().owners is list && d().owners.size() <= 10 && num("at");
+      }
+    }
+
     // SBF-See-Lernapp: ein Lernstand pro Lerncode, damit Handy und PC denselben Stand haben.
     // Nur mit dem 10-stelligen Code erreichbar; Auflisten und Löschen sind verboten.
     match /lernstand/{code} {
