@@ -797,11 +797,10 @@ function openPin(mode) {
   pinMode = mode;
   const two = mode !== "unlock";
   $("#pinTitle").textContent = mode === "setup" ? "🔒 Planer einrichten" : mode === "change" ? "🔒 Neuer Code" : "🔒";
-  $("#pinInfo").textContent = mode === "setup"
-    ? "Im Planer siehst du, worauf dein Partner Lust hat, liest seine Antworten, stellst eigene Fragen und passt Vorschläge für ihn an. Für ihn sieht die App ganz normal aus. Wähle einen Code mit mindestens 4 Ziffern."
-    : mode === "change" ? "Wähle einen neuen Code mit mindestens 4 Ziffern." : "";
+  // Beim Einrichten bewusst keine Erklärung, damit niemand erfährt, was der Planer kann
+  $("#pinInfo").textContent = mode === "change" ? "Wähle einen neuen Code mit mindestens 4 Ziffern." : "";
   $("#pinInput").value = ""; $("#pinInput2").value = "";
-  $("#pinInput").placeholder = two ? "Neuer Code" : "Code";
+  $("#pinInput").placeholder = two ? "Neuer Code (mind. 4 Ziffern)" : "Code";
   $("#pinInput2").hidden = !two;
   $("#pinError").textContent = "";
   $("#pinDlg").showModal();
