@@ -577,6 +577,7 @@ function wishRow(s, w, dayOpts) {
         ${[0.5, 1, 1.5, 2, 2.5, 3, 4, 5, 6, 8].concat([p.dur]).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b).map(v => `<option value="${v}" ${v === p.dur ? "selected" : ""}>${v < 1 ? v * 60 + " min" : String(v).replace(".", ",") + " h"}</option>`).join("")}
       </select>
       <select data-change="wish-day" data-id="${w.id}" aria-label="An welchem Tag?"><option value="">Tag: automatisch</option>${dayOpts.replace(`value="${w.day}"`, `value="${w.day}" selected`)}</select>
+      <label class="inline small attime">um <input type="time" data-change="wish-at" data-id="${w.id}" value="${esc(w.at || "")}" aria-label="Feste Uhrzeit (optional)"></label>
       <button class="iconbtn sm" data-act="wish-del" data-id="${w.id}" aria-label="${esc(p.name)} entfernen">✕</button>
     </div>
   </li>`;
@@ -589,8 +590,9 @@ function dayCard(s, d, i) {
   for (const x of d.steps) {
     if (x.type === "fahrt") rows.push(`<li class="st drive"><span class="time"></span><span>🚗 ${x.real ? "" : "≈ "}${P.dur(x.min)} · ${Math.round(x.km)} km</span></li>`);
     if (x.type === "zeit") rows.push(`<li class="st drive tz"><span class="time"></span><span>🕐 Uhr ${x.shift > 0 ? "vorstellen" : "zurückstellen"}: ${x.shift > 0 ? "+" : "−"}${Math.abs(x.shift) / 60} h – jetzt ${TZ_LABEL[x.tz] || ""}</span></li>`);
+    if (x.type === "warten") rows.push(`<li class="st drive"><span class="time"></span><span>☕ ${P.dur(x.min)} Zeit bis zum festen Termin</span></li>`);
     if (x.type === "pause") rows.push(`<li class="st lunch"><span class="time">${P.hhmm(x.start)}</span><span>🍽️ Mittagspause</span></li>`);
-    if (x.type === "besuch") rows.push(`<li class="st visit"><span class="time">${P.hhmm(x.start)}</span><span><a href="${mapsPlace(x.w)}" target="_blank" rel="noopener"><strong>${esc(x.w.name)}</strong></a>
+    if (x.type === "besuch") rows.push(`<li class="st visit"><span class="time">${P.hhmm(x.start)}</span><span><a href="${mapsPlace(x.w)}" target="_blank" rel="noopener"><strong>${esc(x.w.name)}</strong></a>${x.w.fixDay ? ` <span title="Fest auf diesen Tag gelegt">📌</span>` : ""}${x.w.at ? ` <span class="tag">um ${esc(x.w.at)}</span>` : ""}
       <span class="small">bis ${P.hhmm(x.start + x.min)}${costLabel(x.w.c) ? " · " + costLabel(x.w.c) : ""}${x.w.res ? " · 🎟️ reservieren" : ""}${x.w.tip ? ` · ${esc(x.w.tip)}` : ""}</span></span></li>`);
   }
   const cost = costLine(costSum(d.items));
@@ -2106,7 +2108,8 @@ const CHANGE = {
   dayStart(el) { if (el.value) { T.dayStart = el.value; commit(); } },
   dayEnd(el) { if (el.value) { T.dayEnd = el.value; commit(); } },
   "wish-dur"(el) { const w = findWish(el.dataset.id); if (w) { w.dur = Number(el.value); commit(); } },
-  "wish-day"(el) { const w = findWish(el.dataset.id); if (w) { w.day = el.value; commit(); } },
+  "wish-day"(el) { const w = findWish(el.dataset.id); if (w) { w.day = el.value; commit(); toast(el.value ? `Fest auf ${el.selectedOptions[0].textContent} gelegt` : "Tag wieder automatisch"); } },
+  "wish-at"(el) { const w = findWish(el.dataset.id); if (w) { if (el.value) w.at = el.value; else delete w.at; commit(); } },
   "wish-cost"(el) { const w = findWish(el.dataset.id); if (w) { if (el.value.trim() === "") delete w.c; else w.c = num(el.value); commit(); } },
   checkEvery(el) { T.checkEvery = Number(el.value); commit(false); },
   "fuel-l100"(el) { const v = num(el.value); if (v > 0) { (T.fuel ||= {}).l100 = v; commit(); } },

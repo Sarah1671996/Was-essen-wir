@@ -178,7 +178,7 @@ export function wishPoint(w) {
     wid: w.id, sid: w.sid || null, name: w.name || base?.name || "Ort", lat: src.lat, lng: src.lng,
     dur: Number(w.dur) || base?.dur || 1.5, prio: w.prio ?? 1, when: w.when || base?.w || "",
     res: base?.r || "", months: base?.m || null, tip: base?.t || "", tags: base?.tags || w.tags || [],
-    fixDay: w.day || "", c: w.c != null ? w.c : base?.c, cOwn: w.c != null && !!base, cn: base?.cn || "", place: w.place || "", meal: !!w.meal, close: base?.close || ""
+    fixDay: w.day || "", c: w.c != null ? w.c : base?.c, cOwn: w.c != null && !!base, cn: base?.cn || "", place: w.place || "", meal: !!w.meal, close: base?.close || "", at: w.at || ""
   };
 }
 
@@ -208,10 +208,15 @@ export function planStop(stop, ctx) {
 
   const visitMin = w => w.dur * 60 * pace.buf;
   // Gerechnet in Ortszeit: über eine Zeitzonengrenze nach Osten springt die Uhr vor (die Stunde fehlt), nach Westen zurück
+  // Mit fester Uhrzeit („ab 14:00“) wird bis dahin gewartet
   const routeMin = (d, list) => {
-    let t = 0, p = d.startPt;
-    for (const w of list) { t += travel(p, w).min + tzShift(p, w, d.date) + visitMin(w); p = w; }
-    return t + travel(p, d.endPt).min + tzShift(p, d.endPt, d.date);
+    let t = d.start, p = d.startPt;
+    for (const w of list) {
+      t += travel(p, w).min + tzShift(p, w, d.date);
+      if (w.at) t = Math.max(t, toMin(w.at));
+      t += visitMin(w); p = w;
+    }
+    return t + travel(p, d.endPt).min + tzShift(p, d.endPt, d.date) - d.start;
   };
   // Ist ein Restaurant eingeplant, ersetzt es die Mittagspause
   const lunchOf = (d, t, list = d.items) => (d.end - d.start > 300 && t > 240 && !list.some(w => w.meal) ? pace.lunch : 0);
@@ -223,11 +228,13 @@ export function planStop(stop, ctx) {
       if (w.when === "früh" && (k > 0 || d.kind === "reise" || d.kind === "ankunft")) p += 75;
       if (w.when === "abends" && k < list.length - 1) p += 60;
     });
-    // Nach Schließzeit ankommen oder noch drin sein ist schlecht (grob, ohne Mittagspause)
-    if (list.some(w => w.close)) {
+    // Nach Schließzeit ankommen oder noch drin sein ist schlecht (grob, ohne Mittagspause);
+    // eine feste Uhrzeit zu verpassen noch schlechter
+    if (list.some(w => w.close || w.at)) {
       let t = d.start, q = d.startPt;
       for (const w of list) {
         t += travel(q, w).min + tzShift(q, w, d.date);
+        if (w.at) { const at = toMin(w.at); if (t > at + 10) p += 300 + (t - at); t = Math.max(t, at); }
         const end = t + visitMin(w);
         if (w.close && end > toMin(w.close)) p += t >= toMin(w.close) ? 400 : 120;
         t = end; q = w;
@@ -239,14 +246,15 @@ export function planStop(stop, ctx) {
   const score = d => load(d) + penalty(d, d.items);
   const fits = (d, list) => load(d, list) <= budget(d) + 5;
 
-  function bestInsert(w, onlyDay) {
+  // force: auf diesem Tag einplanen, auch wenn er dann zu voll wird (vom Nutzer festgelegt)
+  function bestInsert(w, onlyDay, force = false) {
     let best = null;
     for (const d of days) {
       if (onlyDay != null && d.i !== onlyDay) continue;
       const before = score(d);
       for (let k = 0; k <= d.items.length; k++) {
         const list = [...d.items.slice(0, k), w, ...d.items.slice(k)];
-        if (!fits(d, list)) continue;
+        if (!force && !fits(d, list)) continue;
         const delta = load(d, list) + penalty(d, list) - before;
         if (!best || delta < best.delta) best = { d, k, delta };
       }
@@ -255,11 +263,13 @@ export function planStop(stop, ctx) {
   }
 
   // Erst Muss, dann Gern, dann Optional; innerhalb davon weit entfernte zuerst
-  const order = [...wishes].sort((a, b) => b.prio - a.prio || travel(base, b).min - travel(base, a).min || b.dur - a.dur);
+  // Auf einen Tag festgelegte Wünsche zuerst – sie bleiben auf jeden Fall dort
+  const order = [...wishes].sort((a, b) => (!!b.fixDay - !!a.fixDay) || b.prio - a.prio || travel(base, b).min - travel(base, a).min || b.dur - a.dur);
   const unplaced = [];
   for (const w of order) {
     const fixed = w.fixDay ? days.find(d => d.date === w.fixDay) : null;
-    const b = bestInsert(w, fixed ? fixed.i : null) || (fixed ? bestInsert(w) : null);
+    if (w.fixDay && !fixed) w.fixDay = ""; // Tag liegt nicht mehr in diesem Aufenthalt (Daten geändert)
+    const b = fixed ? bestInsert(w, fixed.i, true) : bestInsert(w);
     if (b) b.d.items.splice(b.k, 0, w); else unplaced.push(w);
   }
 
@@ -290,11 +300,13 @@ export function planStop(stop, ctx) {
   for (const d of days) {
     // Steht als Erstes etwas an, das früh am schönsten ist: um 7 Uhr los
     if (d.items[0]?.when === "früh" && d.kind !== "reise" && d.kind !== "ankunft" && d.start > 7 * 60) { d.early = true; d.start = 7 * 60; }
+    // Erster Termin mit fester Uhrzeit: erst so losfahren, dass man pünktlich da ist (statt stundenlang zu warten)
+    if (d.items[0]?.at && d.kind !== "reise") { const leave = toMin(d.items[0].at) - travel(d.startPt, d.items[0]).min - 10; if (leave > d.start) d.start = leave; }
     const steps = [];
     let t = d.start, p = d.startPt, lunchDone = false, driveSum = 0, visitSum = 0, kmSum = 0;
     const longDay = d.end - d.start > 300;
     const lunch = from => {
-      if (lunchDone || !longDay || t < from || d.items.some(w => w.meal)) return;
+      if (lunchDone || !longDay || t < from || t > 14.5 * 60 || d.items.some(w => w.meal)) return;
       steps.push({ type: "pause", start: t, min: pace.lunch }); t += pace.lunch; lunchDone = true;
     };
     const drive = to => {
@@ -307,6 +319,7 @@ export function planStop(stop, ctx) {
     for (const w of d.items) {
       drive(w);
       lunch(11.75 * 60);
+      if (w.at && t < toMin(w.at)) { steps.push({ type: "warten", start: t, min: toMin(w.at) - t }); t = toMin(w.at); }
       const m = visitMin(w);
       steps.push({ type: "besuch", start: t, min: m, w });
       t += m; visitSum += m;
@@ -380,6 +393,11 @@ function stopHints(stop, ctx, days, unplaced, wishes, budget, pace, base) {
     if (best && here > 60) H.push({ kind: "move", icon: "📍", text: `${w.name} liegt von ${best.o.name} aus näher (${dur(best.t)} statt ${dur(here)}).`, action: { type: "move", wid: w.wid, to: best.o.id } });
   }
   days.forEach((d, n) => {
+    for (const x of d.steps) if (x.type === "besuch" && x.w.at && x.start > toMin(x.w.at) + 10)
+      H.push({ kind: "warn", icon: "⏰", text: `Tag ${n + 1}: ${x.w.name} ist für ${x.w.at} festgelegt, du schaffst es aber erst gegen ${hhmm(x.start)}. Früher losfahren oder vorher etwas weglassen.` });
+    const fixedHere = d.items.filter(w => w.fixDay);
+    if (fixedHere.length && d.busy > budget(d) + 5)
+      H.push({ kind: "warn", icon: "📌", text: `Tag ${n + 1} ist zu voll (${dur(d.busy)} statt ${dur(budget(d))}), weil du dort ${fixedHere.map(w => w.name).join(", ")} festgelegt hast. Die App lässt es trotzdem dort – nimm etwas raus oder leg es auf einen anderen Tag.` });
     for (const x of d.steps) if (x.type === "besuch" && x.w.close && x.start + x.min > toMin(x.w.close))
       H.push({ kind: "warn", icon: "🔒", text: `Tag ${n + 1}: ${x.w.name} schließt meist schon gegen ${x.w.close} – im Plan bis ${hhmm(x.start + x.min)}. Lieber früher hin oder an einen anderen Tag (Wunsch auf einen Tag festlegen).` });
     if (d.tzChange) H.push({ kind: "info", icon: "🕐", text: `Tag ${n + 1}: Zeitzonenwechsel zur ${TZ_LABEL[d.tzChange.tz] || d.tzChange.tz} – die Uhr geht ${Math.abs(d.tzChange.shift) / 60} h ${d.tzChange.shift > 0 ? "vor (die Stunde fehlt dir)" : "zurück (du gewinnst eine Stunde)"}. Shuttle- und Tourzeiten gelten in Ortszeit.` });
