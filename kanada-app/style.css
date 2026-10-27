@@ -279,3 +279,7 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
   .pace label:first-child { grid-column: 1 / -1; }
   .quick { grid-template-columns: repeat(2, 1fr); }
 }
+.importlist { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 6px; max-height: 55vh; overflow-y: auto; }
+.importlist li { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.importlist select { width: auto; max-width: 150px; min-height: 36px; padding: 3px 8px; font-size: .86rem; }
+.importlist .check { padding: 2px 0; }

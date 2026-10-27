@@ -230,6 +230,7 @@ function viewRoute() {
         ${list.map((s, i) => `${i ? legRow(L[i - 1]) : ""}${stopCard(s, i)}`).join("")}
       </div>
       <button class="btn wide" data-act="stop-add">+ Ort hinzufügen</button>
+      ${list.length ? `<button class="btn ghost wide" data-act="list-import">📋 Liste mit Wünschen hochladen</button>` : ""}
       ${hints.length ? `<h2 class="sec">Verbesserungen</h2>${hintList(hints)}` : ""}
     </div>
   </div>`;
@@ -299,6 +300,7 @@ function viewTage() {
     ${s.wishes.map(w => wishRow(s, w, dayOpts)).join("") || `<li class="small pad">Noch nichts ausgewählt. Füge Orte hinzu – oder schau unten in die Vorschläge.</li>`}
   </ul>
   <button class="btn wide" data-act="wish-add">+ Sehenswürdigkeit oder eigenen Ort hinzufügen</button>
+  <button class="btn ghost wide" data-act="list-import">📋 Ganze Liste hochladen und automatisch zuordnen</button>
 
   ${plan.hints.length ? `<h2 class="sec">Tipps & Verbesserungen</h2>${hintList(plan.hints)}` : ""}
 
@@ -867,6 +869,128 @@ function lodgeSheet(l, stopId) {
   });
 }
 
+/* ---------- Liste hochladen: Wünsche automatisch dem passenden Ort zuordnen ---------- */
+const norm = s => String(s).toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+const FILL = new Set(["the", "lake", "see", "der", "die", "das", "und", "and", "am", "im", "in", "zum", "zur", "von", "national", "park", "provincial", "np", "trail"]);
+const words = s => norm(s).split(" ").filter(x => x.length > 1 && !FILL.has(x));
+function splitCsv(line) {
+  const out = []; let cur = "", q = false;
+  for (const ch of line) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; }
+  out.push(cur);
+  return out.map(x => x.trim());
+}
+// Eine Zeile pro Ort; Aufzählungszeichen und Nummern fallen weg. CSV mit Kopfzeile (z. B. Google-Maps-Export) geht auch.
+function parseList(text) {
+  let lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+  const head = lines[0] ? splitCsv(lines[0]).map(h => norm(h)) : [];
+  const col = head.findIndex(h => ["title", "name", "titel", "ort", "place"].includes(h));
+  if (col >= 0 && head.length > 1) lines = lines.slice(1).map(l => splitCsv(l)[col] || "");
+  else lines = lines.map(l => /[;\t]/.test(l) ? l.split(/[;\t]/)[0] : l);
+  const clean = lines.map(l => l.replace(/^\s*([-*•–]|\d+[.)])\s*/, "").replace(/^"|"$/g, "").trim()).filter(l => l.length > 1);
+  return [...new Map(clean.map(l => [norm(l), l])).values()].slice(0, 150);
+}
+// Bekannte Sehenswürdigkeit finden; bei mehreren Treffern die nächste zur Route
+function matchSight(q) {
+  const qn = norm(q), qw = words(q);
+  let best = null;
+  for (const x of SIGHTS) {
+    const sn = norm(x.name), sw = words(x.name);
+    let sc = 0;
+    if (sn === qn) sc = 3;
+    else if (qn.length >= 4 && (sn.includes(qn) || qn.includes(sn))) sc = 2;
+    else if (qw.length && sw.length) {
+      const common = qw.filter(w => sw.includes(w)).length;
+      const r = common / Math.max(qw.length, 1);
+      if (r >= 0.5 && qw.some(w => w.length >= 5 && sw.includes(w))) sc = 1 + r * 0.5;
+    }
+    if (!sc) continue;
+    const near = Math.min(...stops().map(s => P.km(s, x)));
+    if (!best || sc > best.sc || (sc === best.sc && near < best.near)) best = { x, sc, near };
+  }
+  return best?.x || null;
+}
+// Wohin passt ein Ort am besten: als Ausflug von einem Ort aus oder als Stopp auf der Fahrt dorthin?
+function bestStop(p) {
+  const list = stops();
+  let best = null;
+  list.forEach((s, i) => {
+    const t = P.estimate(s, p).min;
+    if (!best || 2 * t < best.cost) best = { id: s.id, cost: 2 * t, t, how: "ausflug" };
+    if (i > 0 && (s.mode || "auto") === "auto") {
+      const a = list[i - 1];
+      const det = P.estimate(a, p).min + P.estimate(p, s).min - P.estimate(a, s).min;
+      // Nur wenn der Ausflug von einem Standort aus deutlich mehr Fahrt kostet (sonst ist es ein normaler Tagesausflug)
+      if (best.cost > 120 && det < best.cost * 0.5 && det < 60) best = { id: s.id, cost: det, t, how: "unterwegs", from: a.name };
+    }
+  });
+  return best;
+}
+function importSheet() {
+  if (!stops().length) { toast("Lege zuerst in der Route deine Orte mit Datum an."); return; }
+  openSheet("Liste mit Wünschen hochladen", `
+    <p class="small">Ein Ort pro Zeile – z. B. aus deinen Notizen kopiert. Die App erkennt bekannte Sehenswürdigkeiten, sucht den Rest auf der Karte
+      und ordnet alles dem Ort deiner Route zu, von dem es am wenigsten Fahrzeit kostet (oder plant es auf der Fahrt dorthin ein).</p>
+    <form class="form">
+      <label>Deine Liste<textarea name="text" rows="8" placeholder="Moraine Lake&#10;Johnston Canyon&#10;Spirit Island&#10;Kayak fahren auf dem Emerald Lake&#10;…"></textarea></label>
+      <label class="btn ghost small">📄 Datei wählen (.txt oder .csv)<input type="file" name="file" accept=".txt,.csv,text/plain,text/csv" hidden></label>
+      <p class="small" id="fileName"></p>
+      <button class="btn big">Zuordnen</button>
+    </form>`, null, body => {
+    const f = body.querySelector("form");
+    f.elements.file.onchange = async () => {
+      const file = f.elements.file.files[0]; if (!file) return;
+      f.elements.text.value = await file.text();
+      body.querySelector("#fileName").textContent = `✓ ${file.name}`;
+    };
+    f.onsubmit = e => { e.preventDefault(); resolveList(parseList(f.elements.text.value)); };
+  });
+}
+async function resolveList(names) {
+  if (!names.length) { toast("Die Liste ist leer."); return; }
+  const body = $("#sheetBody");
+  const taken = new Set(stops().flatMap(s => s.wishes.map(w => w.sid).filter(Boolean)));
+  const rows = [], missing = [];
+  let webCalls = 0;
+  for (const [i, name] of names.entries()) {
+    body.innerHTML = `<p>Ordne zu … ${i + 1} von ${names.length}</p><p class="small">${esc(name)}</p>`;
+    const x = matchSight(name);
+    if (x) { rows.push({ name: x.name, given: name, sid: x.id, lat: x.lat, lng: x.lng, dur: x.dur, known: true, dup: taken.has(x.id) }); continue; }
+    // Ortssuche erlaubt höchstens eine Anfrage pro Sekunde
+    if (webCalls++) await new Promise(r => setTimeout(r, 1100));
+    try {
+      const hit = (await geocode(name))[0];
+      if (hit) rows.push({ name, given: name, lat: hit.lat, lng: hit.lng, dur: 1.5, full: hit.full });
+      else missing.push(name);
+    } catch { missing.push(name); }
+  }
+  rows.forEach(r => { r.best = bestStop(r); r.stop = r.best.id; r.on = !r.dup; });
+  const opts = sel => stops().map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
+  body.innerHTML = `
+    <p class="small">${plural(rows.length, "Ort", "Orte")} erkannt${missing.length ? `, ${missing.length} nicht gefunden` : ""}. Prüf die Zuordnung und ändere sie bei Bedarf.</p>
+    <ul class="importlist">${rows.map((r, i) => `<li>
+      <label class="check"><input type="checkbox" data-i="${i}" ${r.on ? "checked" : ""}>
+        <span><strong>${esc(r.name)}</strong>${r.known ? "" : ` <span class="small">(${esc(r.full.split(",").slice(0, 3).join(","))})</span>`}
+        <span class="small block">${r.dup ? "schon eingeplant · " : ""}${r.best.how === "unterwegs" ? `auf der Fahrt von ${esc(r.best.from)}` : `≈ ${P.dur(r.best.t)} entfernt`}${r.best.t > 180 && r.best.how !== "unterwegs" ? " · ⚠️ weit weg von deiner Route" : ""}</span></span></label>
+      <select data-i="${i}" aria-label="Zu welchem Ort?">${opts(r.stop)}</select></li>`).join("")}</ul>
+    ${missing.length ? `<p class="small warntext">Nicht gefunden: ${missing.map(esc).join(", ")} – füge sie im Tagesplan über „Eigener Ort“ hinzu.</p>` : ""}
+    <button class="btn big" id="importGo">Übernehmen</button>`;
+  body.querySelector(".importlist").onchange = e => {
+    const r = rows[e.target.dataset.i]; if (!r) return;
+    if (e.target.type === "checkbox") r.on = e.target.checked; else r.stop = e.target.value;
+  };
+  body.querySelector("#importGo").onclick = () => {
+    let n = 0;
+    for (const r of rows.filter(x => x.on)) {
+      const s = stopById(r.stop); if (!s) continue;
+      const day = r.best.how === "unterwegs" && r.stop === r.best.id ? s.from : "";
+      s.wishes.push(r.sid ? { id: St.newId(), sid: r.sid, prio: 1, day } : { id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, dur: r.dur, prio: 1, day });
+      n++;
+    }
+    closeSheet(); commit();
+    toast(`${plural(n, "Wunsch", "Wünsche")} eingeplant`);
+  };
+}
+
 function offerSheet(l) {
   openSheet("Angebot vergleichen", `
     <p class="small">Du hast etwas Günstigeres gesehen? Trag es ein – die App rechnet den Unterschied aus (gleiche Daten: ${fmtShort(l.checkIn)} – ${fmtShort(l.checkOut)}).</p>
@@ -902,6 +1026,7 @@ const ACT = {
   tab(d) { if (d.tab) { UI.tab = d.tab; ls.set("ka.tab", d.tab); render(); } },
   "setup-demo"() { T = demoTrip(); UI.tab = "start"; commit(); toast("Beispielreise geladen – schau dich um!"); },
   "stop-add"() { stopSheet(null); },
+  "list-import"() { importSheet(); },
   "stop-edit"(d) { stopSheet(stopById(d.id)); },
   "stop-del"(d) {
     const s = stopById(d.id);
