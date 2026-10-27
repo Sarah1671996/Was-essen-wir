@@ -113,7 +113,7 @@ function mergeTrip(L, R) {
   out.expenses = mergeList(L.expenses, R.expenses, preferR, gone);
   out.people = mergeList(L.people, R.people, preferR, gone);
   if (L.car || R.car) out.car = newer.car === null && older.car ? null : { ...(older.car || {}), ...(newer.car || {}), offers: mergeList(L.car?.offers, R.car?.offers, preferR, gone) };
-  for (const k of ["checks", "packed"]) out[k] = { ...(older[k] || {}), ...(newer[k] || {}) };
+  for (const k of ["checks", "packed", "dayTimes"]) out[k] = { ...(older[k] || {}), ...(newer[k] || {}) };
   return out;
 }
 // Stand vom anderen Gerät kommt an
@@ -150,7 +150,7 @@ function ctxFor(stop) {
   return {
     prev: prev ? { lat: prev.lat, lng: prev.lng, name: prev.lodging || prev.name } : null,
     prevMode: stop.mode || "auto", next,
-    pace: T.pace, dayStart: T.dayStart, dayEnd: T.dayEnd,
+    pace: T.pace, dayStart: T.dayStart, dayEnd: T.dayEnd, dayTimes: T.dayTimes || {},
     others: list.filter(s => s !== stop).map(s => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng }))
   };
 }
@@ -435,8 +435,8 @@ function viewTage() {
     ${plan.wishes.length ? `<p class="small">Kosten laut Plan: ${costLine(costSum(plan.days.flatMap(d => d.items))) || "–"}</p>` : ""}
     <div class="pace">
       <label>Tempo<select data-change="pace">${Object.entries(P.PACE).map(([k, v]) => `<option value="${k}" ${k === T.pace ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
-      <label>Los um<input type="time" data-change="dayStart" value="${T.dayStart}"></label>
-      <label>Zurück bis<input type="time" data-change="dayEnd" value="${T.dayEnd}"></label>
+      <label>Standard: los um<input type="time" data-change="dayStart" value="${T.dayStart}"></label>
+      <label>zurück bis<input type="time" data-change="dayEnd" value="${T.dayEnd}"></label>
     </div>
   </section>
 
@@ -614,6 +614,11 @@ function dayCard(s, d, i) {
   rows.push(`<li class="st end"><span class="time">${P.hhmm(d.finish)}</span><span>🏡 ${d.kind === "abreise" && !d.items.length ? "Abreise" : "Zurück in der Unterkunft"}${d.free >= 30 ? ` · noch ${P.dur(d.free)} frei` : ""}</span></li>`);
   return `<article class="day" style="--c:${dayColor(i)}">
     <header><h3>Tag ${i + 1} · ${fmtD(d.date)}</h3>${label ? `<span class="tag">${label}</span>` : ""}</header>
+    ${d.kind === "abreise" ? "" : `<div class="daytimes small">
+      <label>Los <input type="time" data-change="day-start" data-date="${d.date}" value="${esc(T.dayTimes?.[d.date]?.start || "")}" placeholder="${T.dayStart}" aria-label="Startzeit an diesem Tag"></label>
+      <label>zurück bis <input type="time" data-change="day-end" data-date="${d.date}" value="${esc(T.dayTimes?.[d.date]?.end || "")}" placeholder="${T.dayEnd}" aria-label="Ende an diesem Tag"></label>
+      ${d.ownStart || d.ownEnd ? `<button class="linkbtn" data-act="day-times-reset" data-date="${d.date}">↺ Standard</button>` : `<span class="muted">leer = ${T.dayStart}–${T.dayEnd}</span>`}
+    </div>`}
     ${(() => { const out = d.steps.filter(x => x.type === "besuch" && x.w.tags?.some(t => ["wandern", "natur", "aussicht", "wasser"].includes(t))).at(-1); return `<p class="wx small" data-wx="${d.date}"${out ? ` data-out="${Math.round(out.start + out.min)}" data-outname="${esc(out.w.name)}"` : ""}></p>`; })()}
     ${cost ? `<p class="small costline">${cost}</p>` : ""}
     ${d.items.length || d.kind === "reise" ? `<ol class="timeline">${rows.join("")}</ol>
@@ -1970,6 +1975,7 @@ const ACT = {
   },
   "car-edit"() { carSheet(); },
   "car-ai"() { aiCarSheet("car"); },
+  "day-times-reset"(d) { if (T.dayTimes) { delete T.dayTimes[d.date]; commit(); } },
   "wish-auto-del"() {
     const s = stopById(UI.stop); if (!s) return;
     s.wishes = s.wishes.filter(w => !w.auto);
@@ -2109,6 +2115,13 @@ const ACT = {
     T = null; render();
   }
 };
+// Eigene Start-/Endzeit für einen Tag (leer = Standardzeit)
+function setDayTime(date, key, value) {
+  const all = T.dayTimes ||= {}, day = all[date] ||= {};
+  if (value) day[key] = value; else delete day[key];
+  if (!day.start && !day.end) delete all[date];
+  commit();
+}
 const findWish = id => { for (const s of stops()) { const w = s.wishes.find(x => x.id === id); if (w) return w; } return null; };
 
 async function joinCode(code, fromUser) {
@@ -2124,6 +2137,8 @@ const CHANGE = {
   dayEnd(el) { if (el.value) { T.dayEnd = el.value; commit(); } },
   "wish-dur"(el) { const w = findWish(el.dataset.id); if (w) { w.dur = Number(el.value); commit(); } },
   "wish-day"(el) { const w = findWish(el.dataset.id); if (w) { w.day = el.value; commit(); toast(el.value ? `Fest auf ${el.selectedOptions[0].textContent} gelegt` : "Tag wieder automatisch"); } },
+  "day-start"(el) { setDayTime(el.dataset.date, "start", el.value); },
+  "day-end"(el) { setDayTime(el.dataset.date, "end", el.value); },
   "wish-at"(el) { const w = findWish(el.dataset.id); if (w) { if (el.value) w.at = el.value; else delete w.at; commit(); } },
   "wish-cost"(el) { const w = findWish(el.dataset.id); if (w) { if (el.value.trim() === "") delete w.c; else w.c = num(el.value); commit(); } },
   checkEvery(el) { T.checkEvery = Number(el.value); commit(false); },

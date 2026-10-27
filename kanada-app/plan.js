@@ -197,13 +197,16 @@ export function planStop(stop, ctx) {
   const count = Math.max(1, nights + (ctx.next ? 0 : 1));
   for (let i = 0; i < count; i++) {
     const date = addDays(stop.from, i);
-    let start = dayStart, end = dayEnd, startPt = base, kind = "";
+    // Eigene Zeiten für diesen Tag (z. B. an dem Tag erst um 11 Uhr los), sonst die Standardzeiten
+    const own = ctx.dayTimes?.[date] || {};
+    const s0 = own.start ? toMin(own.start) : dayStart, e0 = own.end ? toMin(own.end) : dayEnd;
+    let start = s0, end = e0, startPt = base, kind = "";
     if (i === 0) {
       if (ctx.prev && ctx.prevMode === "auto") { startPt = ctx.prev; kind = "reise"; }
-      else { start = Math.max(dayStart, toMin(stop.arrive || (ctx.prev ? "13:00" : "16:00"))); kind = "ankunft"; }
+      else { start = Math.max(s0, toMin(stop.arrive || (ctx.prev ? "13:00" : "16:00"))); kind = "ankunft"; }
     }
-    if (!ctx.next && i === count - 1 && i > 0) { end = Math.min(dayEnd, toMin(stop.depart || "12:00")); kind = "abreise"; }
-    days.push({ i, date, start, end, startPt, endPt: base, kind, items: [] });
+    if (!ctx.next && i === count - 1 && i > 0) { end = Math.min(e0, toMin(stop.depart || "12:00")); kind = "abreise"; }
+    days.push({ i, date, start, end, startPt, endPt: base, kind, items: [], ownStart: !!own.start, ownEnd: !!own.end });
   }
 
   const visitMin = w => w.dur * 60 * pace.buf;
@@ -299,9 +302,10 @@ export function planStop(stop, ctx) {
   // Zeitplan mit Uhrzeiten
   for (const d of days) {
     // Steht als Erstes etwas an, das früh am schönsten ist: um 7 Uhr los
-    if (d.items[0]?.when === "früh" && d.kind !== "reise" && d.kind !== "ankunft" && d.start > 7 * 60) { d.early = true; d.start = 7 * 60; }
+    // (nicht, wenn für den Tag eine eigene Startzeit festgelegt ist)
+    if (!d.ownStart && d.items[0]?.when === "früh" && d.kind !== "reise" && d.kind !== "ankunft" && d.start > 7 * 60) { d.early = true; d.start = 7 * 60; }
     // Erster Termin mit fester Uhrzeit: erst so losfahren, dass man pünktlich da ist (statt stundenlang zu warten)
-    if (d.items[0]?.at && d.kind !== "reise") { const leave = toMin(d.items[0].at) - travel(d.startPt, d.items[0]).min - 10; if (leave > d.start) d.start = leave; }
+    if (!d.ownStart && d.items[0]?.at && d.kind !== "reise") { const leave = toMin(d.items[0].at) - travel(d.startPt, d.items[0]).min - 10; if (leave > d.start) d.start = leave; }
     const steps = [];
     let t = d.start, p = d.startPt, lunchDone = false, driveSum = 0, visitSum = 0, kmSum = 0;
     const longDay = d.end - d.start > 300;

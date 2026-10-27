@@ -372,3 +372,6 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .daygroup { margin: 16px 0 6px; padding-left: 10px; border-left: 5px solid var(--c, var(--line)); font-size: 1rem; }
 .daygroup.rest { border-left-color: var(--warn); color: var(--warn); }
 .wtime { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; margin-right: 2px; }
+.daytimes { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 4px 0 2px; }
+.daytimes label { display: inline-flex; align-items: center; gap: 4px; font-weight: 500; color: var(--muted); }
+.daytimes input { width: auto; min-height: 30px; padding: 2px 6px; margin: 0; }
