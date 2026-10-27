@@ -85,8 +85,12 @@ async function runQueue() {
       pts.forEach((a, i) => pts.forEach((b, k) => {
         if (i === k) return;
         const t = j.durations?.[i]?.[k], d = j.distances?.[i]?.[k];
-        // OSRM rechnet mit Tempolimit; mit Fotostopps und Baustellen dauert es real etwas länger
-        if (t != null && d != null) routeCache.set(pairKey(a, b), [Math.round(d / 100) / 10, Math.round(t / 60 * 1.1)]);
+        // OSRM rechnet mit Tempolimit; mit Fotostopps und Baustellen dauert es real etwas länger.
+        // Unter 25 km/h über mehr als 5 km ist meist ein falsch eingerasteter Punkt (Forstweg, Bergstation) – dann mit 50 km/h rechnen.
+        if (t != null && d != null) {
+          const slow = d > 5000 && d / t < 25 / 3.6;
+          routeCache.set(pairKey(a, b), [Math.round(d / 100) / 10, Math.round((slow ? d / (50 / 3.6) : t) / 60 * 1.1)]);
+        }
       }));
       changed = true;
     } catch (e) {
@@ -137,7 +141,7 @@ export function wishPoint(w) {
     wid: w.id, sid: w.sid || null, name: w.name || base?.name || "Ort", lat: src.lat, lng: src.lng,
     dur: Number(w.dur) || base?.dur || 1.5, prio: w.prio ?? 1, when: w.when || base?.w || "",
     res: base?.r || "", months: base?.m || null, tip: base?.t || "", tags: base?.tags || w.tags || [],
-    fixDay: w.day || "", c: base ? base.c : w.c, cn: base?.cn || "", place: w.place || ""
+    fixDay: w.day || "", c: base ? base.c : w.c, cn: base?.cn || "", place: w.place || "", meal: !!w.meal
   };
 }
 
@@ -171,8 +175,9 @@ export function planStop(stop, ctx) {
     for (const w of list) { t += travel(p, w).min + visitMin(w); p = w; }
     return t + travel(p, d.endPt).min;
   };
-  const lunchOf = (d, t) => (d.end - d.start > 300 && t > 240 ? pace.lunch : 0);
-  const load = (d, list = d.items) => { const t = routeMin(d, list); return t + lunchOf(d, t); };
+  // Ist ein Restaurant eingeplant, ersetzt es die Mittagspause
+  const lunchOf = (d, t, list = d.items) => (d.end - d.start > 300 && t > 240 && !list.some(w => w.meal) ? pace.lunch : 0);
+  const load = (d, list = d.items) => { const t = routeMin(d, list); return t + lunchOf(d, t, list); };
   const budget = d => d.end - d.start;
   const penalty = (d, list) => {
     let p = 0;
@@ -241,7 +246,7 @@ export function planStop(stop, ctx) {
     let t = d.start, p = d.startPt, lunchDone = false, driveSum = 0, visitSum = 0, kmSum = 0;
     const longDay = d.end - d.start > 300;
     const lunch = from => {
-      if (lunchDone || !longDay || t < from) return;
+      if (lunchDone || !longDay || t < from || d.items.some(w => w.meal)) return;
       steps.push({ type: "pause", start: t, min: pace.lunch }); t += pace.lunch; lunchDone = true;
     };
     const drive = to => {

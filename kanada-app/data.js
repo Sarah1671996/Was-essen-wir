@@ -74,7 +74,7 @@ export const SIGHTS = [
   s("granville", "vancouver", "Granville Island Public Market", 49.2712, -123.1340, 2, "stadt kultur", { t: "Mit dem kleinen Aquabus-Boot hinfahren." }),
   s("capilano", "vancouver", "Capilano Suspension Bridge", 49.3429, -123.1149, 2, "sight familie natur voll", { r: "Eintritt ca. 70 CAD, online günstiger.", t: "Gratis-Alternative mit weniger Andrang: Lynn Canyon." }),
   s("lynn", "vancouver", "Lynn Canyon Hängebrücke", 49.3437, -123.0193, 1.5, "natur ruhe wandern geheim", { t: "Kostenlos, kurze Runde zum Twin Falls." }),
-  s("grouse", "vancouver", "Grouse Mountain", 49.3800, -123.0815, 3, "aussicht tiere familie", { t: "Oben leben zwei gerettete Grizzlys im Gehege." }),
+  s("grouse", "vancouver", "Grouse Mountain", 49.3714, -123.0985, 3, "aussicht tiere familie", { t: "Oben leben zwei gerettete Grizzlys im Gehege." }),
   s("gastown", "vancouver", "Gastown & Chinatown", 49.2840, -123.1090, 1.5, "stadt kultur" ),
   s("moa", "vancouver", "Museum of Anthropology", 49.2694, -123.2593, 2, "kultur", { t: "Beeindruckende Totempfähle der First Nations." }),
   s("englishbay", "vancouver", "Sonnenuntergang an der English Bay", 49.2867, -123.1430, 1, "wasser ruhe", { w: "abends" }),
@@ -134,7 +134,7 @@ export const SIGHTS = [
   s("maligne", "jasper", "Maligne Canyon", 52.9200, -117.9950, 1.5, "natur wandern familie"),
   s("spirit", "jasper", "Maligne Lake & Spirit Island", 52.7250, -117.6400, 3.5, "wasser sight voll", { r: "Bootstour vorab buchen.", m: [6, 10] }),
   s("medicine", "jasper", "Medicine Lake", 52.8400, -117.7800, 0.5, "tiere natur", { t: "Auf der Maligne Road oft Elche, Bären und Bergschafe – langsam fahren." }),
-  s("skytram", "jasper", "Jasper SkyTram", 52.8450, -118.0900, 2, "aussicht", { m: [4, 10] }),
+  s("skytram", "jasper", "Jasper SkyTram", 52.8486, -118.0827, 2, "aussicht", { m: [4, 10] }),
   s("athabasca", "jasper", "Athabasca Falls", 52.6640, -117.8840, 0.75, "natur sight"),
   s("sunwapta", "jasper", "Sunwapta Falls", 52.5320, -117.6450, 0.5, "natur"),
   s("icefield", "jasper", "Columbia Icefield & Athabasca-Gletscher", 52.2170, -117.2240, 3, "sight natur voll", { t: "Liegt mitten auf dem Icefields Parkway – am besten auf der Fahrt Jasper ↔ Lake Louise." }),
@@ -165,7 +165,7 @@ export const SIGHTS = [
 
   // Banff
   s("banfftown", "banff", "Banff Avenue & Ort", 51.1760, -115.5700, 1.5, "stadt"),
-  s("banffgondola", "banff", "Banff Gondola", 51.1440, -115.5730, 2, "aussicht voll"),
+  s("banffgondola", "banff", "Banff Gondola", 51.1488, -115.5597, 2, "aussicht voll"),
   s("johnston", "banff", "Johnston Canyon", 51.2450, -115.8390, 2.5, "wandern natur voll", { w: "früh" }),
   s("minnewanka", "banff", "Lake Minnewanka (Bootstour)", 51.2513, -115.4993, 2, "wasser", { m: [5, 10] }),
   s("twojack", "banff", "Two Jack Lake", 51.2350, -115.4950, 0.5, "ruhe wasser", { w: "früh" }),
@@ -348,7 +348,7 @@ export const SIGHTS = [
   s("parker", "jasper", "Parker Ridge", 52.1813, -117.0923, 2, "wandern aussicht", { m: [7, 9], t: "Kurze Wanderung mit Blick auf den Saskatchewan-Gletscher." }),
   s("wilcox", "jasper", "Wilcox Pass", 52.2542, -117.2312, 3, "wandern aussicht tiere", { m: [7, 9], t: "Oft Bergschafe, Blick auf den Athabasca-Gletscher." }),
   s("skywalk", "jasper", "Columbia Icefield Skywalk", 52.2587, -117.2770, 1, "aussicht sight", { m: [5, 10], r: "Ticket vorab buchen." }),
-  s("sunshine", "banff", "Sunshine Meadows", 51.0895, -115.7622, 5, "wandern natur aussicht", { m: [7, 9], r: "Gondel/Bus nach oben vorab buchen.", t: "Wildblumen im Juli und August." }),
+  s("sunshine", "banff", "Sunshine Meadows", 51.1146, -115.7632, 5, "wandern natur aussicht", { m: [7, 9], r: "Gondel/Bus nach oben vorab buchen.", t: "Wildblumen im Juli und August." }),
   s("annette", "jasper", "Lake Annette", 52.8920, -118.0560, 1, "ruhe wasser familie")
 ];
 
@@ -487,6 +487,62 @@ export const HOME_AIRPORTS = {
   CGN: "Köln/Bonn", STR: "Stuttgart", HAJ: "Hannover", NUE: "Nürnberg", LEJ: "Leipzig",
   ZRH: "Zürich", VIE: "Wien", AMS: "Amsterdam"
 };
+// Lage der Abflughäfen (für die Anreise mit Zug oder Auto)
+export const HOME_AP_POS = {
+  FRA: [50.0379, 8.5622], MUC: [48.3538, 11.7861], DUS: [51.2895, 6.7668], HAM: [53.6304, 9.9882], BER: [52.3667, 13.5033],
+  CGN: [50.8659, 7.1427], STR: [48.6899, 9.2220], HAJ: [52.4611, 9.6851], NUE: [49.4987, 11.0669], LEJ: [51.4324, 12.2416],
+  ZRH: [47.4582, 8.5555], VIE: [48.1103, 16.5697], AMS: [52.3105, 4.7683]
+};
+
+// Fluggesellschaften nach Kanada. from = Abflughäfen mit (meist saisonalem) Direktflug, to = Ziele in Kanada.
+// via = Umsteigeflughafen, wenn es keinen Direktflug gibt. Flugpläne ändern sich – immer auf der Airline-Seite prüfen.
+export const AIRLINES = [
+  { id: "lh", name: "Lufthansa", url: "https://www.lufthansa.com/de/de/homepage", from: ["FRA", "MUC"], to: ["YVR", "YYC", "YYZ", "YUL"],
+    gabel: "„Gabelflug / Mehrere Strecken“ in der Suche wählen", rail: "Lufthansa Express Rail: Zug zum Flughafen Frankfurt direkt mitbuchen" },
+  { id: "ac", name: "Air Canada", url: "https://www.aircanada.com/de/de/aco/home.html", from: ["FRA", "MUC", "ZRH"], to: ["YVR", "YYC", "YYZ", "YUL", "YOW", "YHZ"],
+    gabel: "„Mehrere Städte“ wählen", rail: "Zug zum Flughafen bei Abflug Frankfurt teils über Lufthansa Express Rail buchbar" },
+  { id: "de", name: "Condor", url: "https://www.condor.com/de", from: ["FRA"], to: ["YVR", "YYC", "YYZ", "YHZ", "YEG", "YXY"],
+    gabel: "Gabelflug direkt in der Suche möglich", rail: "Rail&Fly zubuchbar (Zug von jedem DB-Bahnhof zum Flughafen)" },
+  { id: "4y", name: "Discover Airlines", url: "https://www.discover-airlines.com/de/de/", from: ["FRA", "MUC"], to: ["YVR", "YYC", "YEG"],
+    gabel: "„Gabelflug“ in der Suche wählen", rail: "Rail&Fly bzw. Lufthansa Express Rail je nach Tarif" },
+  { id: "wk", name: "Edelweiss", url: "https://www.flyedelweiss.com/DE", from: ["ZRH"], to: ["YVR", "YYC"],
+    gabel: "„Gabelflug“ in der Suche wählen", rail: "Zug zum Flughafen Zürich separat bei der SBB/DB" },
+  { id: "lx", name: "SWISS", url: "https://www.swiss.com/de/de/homepage", from: ["ZRH"], to: ["YUL"], via: "ZRH",
+    gabel: "„Gabelflug / mehrere Strecken“", rail: "Zug zum Flughafen Zürich separat" },
+  { id: "fi", name: "Icelandair", url: "https://www.icelandair.com/de-de/", from: [], via: "KEF", to: ["YVR", "YYZ", "YUL", "YHZ", "YEG"],
+    gabel: "„Mehrere Strecken“ wählen", rail: "Zug zum Flughafen separat", hubs: ["FRA", "MUC", "HAM", "DUS", "BER", "ZRH", "VIE", "AMS"] },
+  { id: "kl", name: "KLM", url: "https://www.klm.de/", from: ["AMS"], via: "AMS", to: ["YVR", "YYC", "YYZ", "YUL", "YEG"],
+    gabel: "„Gabelflug“ (Multi-City) wählen", rail: "Zug zum Flughafen separat", hubs: ["FRA", "MUC", "DUS", "HAM", "BER", "STR", "HAJ", "NUE", "CGN", "LEJ"] },
+  { id: "af", name: "Air France", url: "https://wwws.airfrance.de/", from: [], via: "CDG", to: ["YVR", "YYZ", "YUL", "YQB"],
+    gabel: "„Gabelflug“ wählen", rail: "Zug zum Flughafen separat", hubs: ["FRA", "MUC", "DUS", "HAM", "BER", "STR", "HAJ", "NUE", "CGN"] },
+  { id: "ba", name: "British Airways", url: "https://www.britishairways.com/de-de/home", from: [], via: "LHR", to: ["YVR", "YYC", "YYZ", "YUL", "YHZ"],
+    gabel: "„Mehrere Strecken“ wählen", rail: "Zug zum Flughafen separat", hubs: ["FRA", "MUC", "DUS", "HAM", "BER", "STR", "HAJ", "CGN"] }
+];
+
+// Mietwagen: Vermittler (oft mit Rundum-Versicherung ohne Selbstbeteiligung) und Vermieter direkt
+export const CAR_SITES = [
+  { name: "billiger-mietwagen.de", url: "https://www.billiger-mietwagen.de/", kind: "Vermittler" },
+  { name: "CHECK24 Mietwagen", url: "https://www.check24.de/mietwagen/", kind: "Vermittler" },
+  { name: "Sunny Cars", url: "https://www.sunnycars.de/", kind: "Vermittler, alles inklusive" },
+  { name: "ADAC Autovermietung", url: "https://www.adac.de/produkte/mietwagen/", kind: "Vermittler" },
+  { name: "Avis", url: "https://www.avis.de/", kind: "Vermieter" },
+  { name: "Hertz", url: "https://www.hertz.de/", kind: "Vermieter" },
+  { name: "Enterprise", url: "https://www.enterprise.de/", kind: "Vermieter" },
+  { name: "Budget", url: "https://www.budget.de/", kind: "Vermieter" },
+  { name: "National", url: "https://www.nationalcar.de/", kind: "Vermieter" },
+  { name: "Alamo", url: "https://www.alamo.de/", kind: "Vermieter" }
+];
+// Was ein Mietwagen in Kanada an Schutz haben sollte. w = Gewicht für die Bewertung.
+export const CAR_INS = [
+  { id: "cdw", label: "Vollkasko (CDW/LDW)", w: 30, why: "Ohne Vollkasko zahlst du jeden Schaden am Mietwagen selbst." },
+  { id: "sb0", label: "Keine Selbstbeteiligung (oder Erstattung)", w: 15, why: "Sonst zahlst du je Schaden oft 500–2.500 CAD selbst." },
+  { id: "sli", label: "Zusatzhaftpflicht mind. 1 Mio. € (SLI/EP)", w: 25, why: "Die Grund-Haftpflicht in Kanada ist teils nur 200.000 CAD – bei Personenschäden viel zu wenig." },
+  { id: "tp", label: "Diebstahlschutz (TP)", w: 8, why: "Deckt Diebstahl des Autos." },
+  { id: "glass", label: "Glas, Reifen & Unterboden mitversichert", w: 8, why: "Steinschlag auf Schotter und Highways (z. B. Icefields Parkway) ist häufig und sonst nicht versichert." },
+  { id: "km", label: "Unbegrenzte Kilometer", w: 8, why: "Kanada-Rundreisen haben schnell 2.000–4.000 km." },
+  { id: "driver", label: "Zusatzfahrer inklusive", w: 3, why: "Damit ihr euch abwechseln dürft." },
+  { id: "oneway", label: "Einweggebühr enthalten", w: 3, why: "Bei Abgabe an einem anderen Ort." }
+];
 
 // Vorbereitung: was vor einer Kanada-Reise zu erledigen ist
 export const CHECKLIST = [

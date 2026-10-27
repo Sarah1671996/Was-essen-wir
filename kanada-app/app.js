@@ -1,7 +1,7 @@
-import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, CHECKLIST, PACKLIST, TIPS, COST_LABEL, costLabel } from "./data.js";
+import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, HOME_AP_POS, AIRLINES, CAR_SITES, CAR_INS, CHECKLIST, PACKLIST, TIPS, COST_LABEL, costLabel } from "./data.js";
 import * as P from "./plan.js";
 import * as St from "./store.js";
-import { flightLinks, lodgingLinks, mapsPlace, mapsRoute, GOOGLE_ALERT_HELP } from "./links.js";
+import { lodgingLinks, mapsPlace, mapsRoute } from "./links.js";
 
 /* ---------- kleine Helfer ---------- */
 const $ = s => document.querySelector(s);
@@ -72,21 +72,38 @@ function blankTrip(o = {}) {
 }
 
 /* ---------- Plan je Ort ---------- */
+// Wo man wirklich schläft: gebuchte Unterkunft mit bekannter Lage, sonst der Ort selbst
+function homeOf(stop) {
+  const l = T.lodgings.find(x => x.stopId === stop.id && x.status === "gebucht" && x.lat != null);
+  return l ? { ...stop, lat: l.lat, lng: l.lng, lodging: l.name } : stop;
+}
 function ctxFor(stop) {
   const list = stops(), i = list.indexOf(stop);
-  const prev = list[i - 1], next = list[i + 1];
+  const prev = list[i - 1] && homeOf(list[i - 1]), next = list[i + 1];
   return {
-    prev: prev ? { lat: prev.lat, lng: prev.lng, name: prev.name } : null,
+    prev: prev ? { lat: prev.lat, lng: prev.lng, name: prev.lodging || prev.name } : null,
     prevMode: stop.mode || "auto", next,
     pace: T.pace, dayStart: T.dayStart, dayEnd: T.dayEnd,
     others: list.filter(s => s !== stop).map(s => ({ id: s.id, name: s.name, lat: s.lat, lng: s.lng }))
   };
 }
 function planFor(stop) {
-  const ctx = ctxFor(stop);
-  const pts = [stop, ctx.prev, ...stop.wishes.map(P.wishPoint)].filter(Boolean);
+  const ctx = ctxFor(stop), home = homeOf(stop);
+  const pts = [home, ctx.prev, ...stop.wishes.map(P.wishPoint)].filter(Boolean);
   P.prefetch(pts);
-  return P.planStop(stop, ctx);
+  return P.planStop(home, ctx);
+}
+
+/* ---------- Kilometer & Kosten der ganzen Reise ---------- */
+// Alle Fahrten: Etappen zwischen den Orten und Ausflüge zu den Sehenswürdigkeiten (aus den Tagesplänen)
+function tripTotals() {
+  const days = stops().flatMap(s => planFor(s).days);
+  const km = days.reduce((t, d) => t + d.km, 0), min = days.reduce((t, d) => t + d.drive, 0);
+  const legKm = P.legs(stops()).filter(l => l.mode === "auto").reduce((t, l) => t + l.km, 0);
+  const fuel = T.fuel || {};
+  const l100 = fuel.l100 || 10, price = fuel.price || 1.7;
+  const liters = km * l100 / 100;
+  return { days, km, min, legKm, tripKm: Math.max(0, km - legKm), liters, fuelCad: liters * price, fuelEur: liters * price * rate(), l100, price };
 }
 P.onRoutesUpdated(() => render());
 
@@ -114,41 +131,76 @@ const afterRender = {
 function viewStart() {
   if (!T) return viewSetup();
   const [a, b] = range();
-  const L = P.legs(stops());
-  const driveKm = L.filter(l => l.mode === "auto").reduce((t, l) => t + l.km, 0);
   const nights = a && b ? P.daysBetween(a, b) : 0;
+  const B = budget(), tt = B.tt;
   let hero = "";
   if (a) {
     const d = daysUntil(a), e = daysUntil(b);
-    hero = d > 0 ? `<p class="countdown"><strong>${d}</strong> ${d === 1 ? "Tag" : "Tage"} bis Kanada 🍁</p>`
+    hero = d > 0 ? `<p class="countdown"><strong>${d}</strong> ${d === 1 ? "Tag" : "Tage"} bis Kanada 🍁</p>${d > 13 ? `<p class="small">Das sind ${Math.floor(d / 7)} Wochen${d % 7 ? ` und ${plural(d % 7, "Tag", "Tage")}` : ""}.</p>` : ""}`
       : e >= 0 ? `<p class="countdown">Tag <strong>${1 - d}</strong> von ${nights + 1} – gute Reise! 🍁</p>`
       : `<p class="countdown">Willkommen zurück! 🍁</p>`;
   }
   const alerts = collectAlerts();
+  // Fortschritt beim Buchen
+  const needBeds = stops().filter(s => P.daysBetween(s.from, s.to) > 0);
+  const beds = needBeds.filter(s => T.lodgings.some(l => l.stopId === s.id && l.status === "gebucht")).length;
+  const flightsBooked = T.flights.filter(f => f.booked).length;
+  const checks = CHECKLIST.filter(c => T.checks[c.id]).length;
+  const bar = (label, n, of, tab) => `<button class="prog" data-act="tab" data-tab="${tab}"><span>${label}</span><span class="small">${n} / ${of}</span><span class="track"><span style="width:${of ? Math.round(n / of * 100) : 0}%"></span></span></button>`;
+  const parts = [["✈️ Flüge", B.flights, ""], ["🏡 Unterkünfte", B.lodging, ""], ["🚗 Mietwagen", B.car, ""], ["⛽ Sprit", B.fuel, "geschätzt"], ["🎟️ Eintritte", B.entryEur, "geschätzt"], ["🧾 Sonstiges", B.extra, ""]].filter(p => p[1] > 0);
+  const maxPart = Math.max(1, ...parts.map(p => p[1]));
   return `
   <section class="hero">
     ${hero}
     <p class="small">${a ? `${fmtD(a)} – ${fmtD(b)} · ${plural(nights, "Nacht", "Nächte")}` : "Noch kein Reisedatum"} · ${plural(pax().adults, "Erwachsener", "Erwachsene")}${pax().children ? ` · ${plural(pax().children, "Kind", "Kinder")}` : ""}</p>
     <div class="stats">
       <div><strong>${stops().length}</strong><span>Orte</span></div>
-      <div><strong>${Math.round(driveKm).toLocaleString("de-DE")}</strong><span>km Auto</span></div>
-      <div><strong>${stops().reduce((t, s) => t + s.wishes.length, 0)}</strong><span>Wünsche</span></div>
+      <div><strong>${Math.round(tt.km).toLocaleString("de-DE")}</strong><span>km insgesamt</span></div>
+      <div><strong>${Math.round(tt.min / 60)} h</strong><span>im Auto</span></div>
     </div>
   </section>
   ${todayCard()}
+
+  <div class="dash">
+    <section class="card tile"><span class="small">Bisher gebucht</span><strong>${money(B.total)}</strong><span class="small">${B.perPerson ? `${money(B.total / (pax().adults + pax().children))} pro Person` : "&nbsp;"}</span></section>
+    <section class="card tile"><span class="small">Voraussichtlich gesamt</span><strong>${money(B.expected)}</strong><span class="small">${B.perDay ? `≈ ${money(B.perDay)} pro Tag` : "&nbsp;"}</span></section>
+    <section class="card tile"><span class="small">Kilometer</span><strong>${Math.round(tt.km).toLocaleString("de-DE")} km</strong><span class="small">${Math.round(tt.legKm).toLocaleString("de-DE")} Etappen · ${Math.round(tt.tripKm).toLocaleString("de-DE")} Ausflüge</span></section>
+    <section class="card tile"><span class="small">Sprit (geschätzt)</span><strong>${money(B.fuel)}</strong><span class="small">${Math.round(tt.liters).toLocaleString("de-DE")} l · ${money(tt.fuelCad, "CAD")}</span></section>
+  </div>
+
+  <section class="card">
+    <h2>Wohin geht das Geld?</h2>
+    ${parts.length ? `<ul class="costbars">${parts.map(p => `<li><span>${p[0]}${p[2] ? ` <span class="small">${p[2]}</span>` : ""}</span><span class="track"><span style="width:${Math.round(p[1] / maxPart * 100)}%"></span></span><strong>${money(p[1])}</strong></li>`).join("")}</ul>` : `<p class="small">Noch nichts gebucht.</p>`}
+    <details class="fuelset"><summary class="small">⛽ Spritrechnung anpassen</summary>
+      <div class="row2">
+        <label>Verbrauch (l/100 km)<input inputmode="decimal" data-change="fuel-l100" value="${numIn(tt.l100)}"></label>
+        <label>Spritpreis (CAD/l)<input inputmode="decimal" data-change="fuel-price" value="${numIn(tt.price)}"></label>
+      </div>
+      <p class="small">Kompaktwagen ca. 7–8, SUV ca. 9–11, Camper ca. 16–20 l/100 km. Benzin kostet in Kanada meist 1,50–1,95 CAD/l (in BC am teuersten).</p>
+    </details>
+  </section>
+
+  <section class="card">
+    <h2>Stand der Planung</h2>
+    <div class="progs">
+      ${bar("✈️ Flüge gebucht", flightsBooked, Math.max(1, T.flights.length), "fluege")}
+      ${bar("🏡 Unterkünfte gebucht", beds, needBeds.length, "unterkunft")}
+      ${bar("🚗 Mietwagen", T.car?.status === "gebucht" ? 1 : 0, 1, "fluege")}
+      ${bar("✅ Vorbereitung", checks, CHECKLIST.length, "mehr")}
+    </div>
+  </section>
   ${alerts.length ? `<h2 class="sec">Wichtig gerade</h2><div class="alerts">${alerts.map(x => `
-    <button class="alert ${x.tone || ""}" data-act="${x.act || "tab"}" data-tab="${x.tab || ""}" data-id="${esc(x.id || "")}">
+    <button class="alert ${x.tone || ""}" data-act="${x.act || "tab"}" data-tab="${x.tab || ""}" data-sub="${x.sub || ""}" data-id="${esc(x.id || "")}">
       <span class="ai">${x.icon}</span><span>${x.html}</span><span class="chev">›</span></button>`).join("")}</div>` : ""}
   ${!stops().length ? `<div class="card empty"><p><strong>Los geht's:</strong> Lege fest, wann du wo bist. Die App rechnet dann Fahrzeiten, plant die Tage und schlägt dir schöne Orte vor.</p>
     <button class="btn" data-act="stop-add">+ Ersten Ort hinzufügen</button></div>` : ""}
   <div class="quick">
     <button data-act="tab" data-tab="route"><span>🗺️</span>Route</button>
     <button data-act="tab" data-tab="tage"><span>🗓️</span>Tagesplan</button>
-    <button data-act="tab" data-tab="fluege"><span>✈️</span>Flüge</button>
+    <button data-act="tab" data-tab="fluege"><span>✈️</span>Flug &amp; Auto</button>
     <button data-act="tab" data-tab="unterkunft"><span>🏡</span>Unterkünfte</button>
   </div>
-  <div id="wxStart"></div>
-  ${budgetMini()}`;
+  <div id="wxStart"></div>`;
 }
 
 function collectAlerts() {
@@ -169,6 +221,15 @@ function collectAlerts() {
       if (d >= 0 && d <= 10) out.push({ icon: "⏰", tone: d <= 3 ? "warn" : "", tab: "unterkunft", html: `Kostenlos stornieren bei <strong>${esc(l.name)}</strong> nur noch ${d === 0 ? "heute" : `${plural(d, "Tag", "Tage")}`}. Letzte Chance, günstiger zu finden.` });
     }
   }
+  const c = T.car;
+  if (c) {
+    const mine = toEur(num(c.total), c.cur), ic = insCheck(c.ins, c);
+    const better = (c.offers || []).filter(o => toEur(num(o.total), o.cur) < mine - 1 && insCheck(o.ins, c).score >= ic.score).sort((x, y) => toEur(num(x.total), x.cur) - toEur(num(y.total), y.cur))[0];
+    if (better) out.push({ icon: "🚗", tone: "good", tab: "fluege", sub: "auto", html: `Mietwagen: <strong>${esc(better.name)}</strong> ist ${money(mine - toEur(num(better.total), better.cur))} günstiger und mindestens gleich gut versichert.` });
+    if (ic.score < 70) out.push({ icon: "🛡️", tone: "warn", tab: "fluege", sub: "auto", html: `Mietwagen ist ${ic.label} – es fehlt: ${ic.missing.slice(0, 2).map(x => esc(x.label)).join(", ")}` });
+    const dl = c.cancelUntil ? daysUntil(c.cancelUntil) : null;
+    if (dl != null && dl >= 0 && dl <= 10) out.push({ icon: "⏰", tone: dl <= 3 ? "warn" : "", tab: "fluege", sub: "auto", html: `Mietwagen kostenlos stornieren nur noch ${dl === 0 ? "heute" : plural(dl, "Tag", "Tage")}.` });
+  } else if (stops().length) out.push({ icon: "🚗", tab: "fluege", sub: "auto", html: "Noch kein Mietwagen eingetragen" });
   const open = stops().filter(s => P.daysBetween(s.from, s.to) > 0 && !T.lodgings.some(l => l.stopId === s.id && l.status === "gebucht"));
   if (open.length) out.push({ icon: "🛏️", tab: "unterkunft", html: `Noch keine Unterkunft gebucht in <strong>${open.map(s => esc(s.name)).join(", ")}</strong>` });
   const [a] = range();
@@ -195,11 +256,6 @@ function todayCard() {
   </section>`;
 }
 
-function budgetMini() {
-  const b = budget();
-  if (!b.total) return "";
-  return `<section class="card"><h2>Budget</h2><p class="big">${money(b.total)}</p><p class="small">${b.perDay ? `≈ ${money(b.perDay)} pro Tag` : ""}${b.perPerson ? ` · ${money(b.perPerson)} pro Person` : ""}</p></section>`;
-}
 
 /* ---------- Einrichtung ---------- */
 function viewSetup() {
@@ -332,10 +388,60 @@ function viewTage() {
   <div class="chips">${Object.entries(TAGS).map(([k, t]) => `<button class="chip" aria-pressed="${T.criteria.includes(k)}" data-act="crit" data-tag="${k}">${t.icon} ${t.label}</button>`).join("")}</div>
   <div class="sugs">${sug.map(r => sugCard(r, plan)).join("") || `<p class="small">Hier in der Nähe kennt die App nichts Passendes mehr. Probier andere Vorlieben.</p>`}</div>`;
 }
+/* ---------- Restaurants unterwegs (OpenStreetMap über Overpass) ---------- */
+const CUISINE = { italian: "Italienisch", pizza: "Pizza", burger: "Burger", american: "Amerikanisch", canadian: "Kanadisch", regional: "Regional",
+  seafood: "Fisch & Meeresfrüchte", fish_and_chips: "Fish & Chips", steak_house: "Steakhaus", sushi: "Sushi", japanese: "Japanisch",
+  chinese: "Chinesisch", indian: "Indisch", mexican: "Mexikanisch", thai: "Thai", french: "Französisch", greek: "Griechisch",
+  vietnamese: "Vietnamesisch", korean: "Koreanisch", coffee_shop: "Café", breakfast: "Frühstück", vegan: "Vegan", vegetarian: "Vegetarisch",
+  sandwich: "Sandwiches", bakery: "Bäckerei", crepe: "Crêpes", poutine: "Poutine", diner: "Diner", pub: "Pub", bbq: "Barbecue" };
+const restMem = new Map();
+async function restaurantsNear(p, radius = 2500) {
+  const key = `${p.lat.toFixed(3)},${p.lng.toFixed(3)},${radius}`;
+  if (restMem.has(key)) return restMem.get(key);
+  const q = `[out:json][timeout:20];nwr["amenity"~"^(restaurant|cafe|pub)$"]["name"](around:${radius},${p.lat},${p.lng});out center tags 80;`;
+  // Der Hauptserver ist oft überlastet, dann die öffentlichen Spiegel versuchen
+  const servers = ["https://overpass-api.de", "https://overpass.kumi.systems", "https://overpass.private.coffee"];
+  const ask = async () => {
+    for (const s of servers) {
+      try {
+        const r = await fetch(`${s}/api/interpreter?data=${encodeURIComponent(q)}`, { signal: AbortSignal.timeout(12000) });
+        if (r.ok) return await r.json();
+      } catch {}
+    }
+    throw new Error("kein Overpass-Server erreichbar");
+  };
+  const job = ask()
+    .then(j => j.elements.map(e => {
+      const t = e.tags || {}, lat = e.lat ?? e.center?.lat, lng = e.lon ?? e.center?.lon;
+      const d = P.km(p, { lat, lng });
+      // Ohne Bewertungen: gepflegte Einträge (Küche, Webseite, Öffnungszeiten) sind meist etablierte Lokale
+      const sc = (t.cuisine ? 1 : 0) + (t.website || t["contact:website"] ? 1 : 0) + (t.opening_hours ? 0.7 : 0) + (t.amenity === "restaurant" ? 0.5 : 0) - d / 1.5;
+      return { name: t.name, lat, lng, d, sc, amenity: t.amenity, web: safeUrl(t.website || t["contact:website"]),
+        cuisine: (t.cuisine || "").split(";").map(c => CUISINE[c.trim()] || "").filter(Boolean).slice(0, 2).join(", ") };
+    }).filter(r => r.lat != null && !/tim hortons|mcdonald|subway|a&w|starbucks|wendy|burger king|dairy queen|kfc|domino/i.test(r.name))
+      .sort((a, b) => b.sc - a.sc).slice(0, 6));
+  restMem.set(key, job);
+  job.catch(() => restMem.delete(key));
+  return job;
+}
+async function showRestaurants(btn) {
+  const box = btn.nextElementSibling, p = { lat: +btn.dataset.lat, lng: +btn.dataset.lng };
+  box.innerHTML = `<p class="small">Suche Restaurants …</p>`;
+  try {
+    const list = await restaurantsNear(p);
+    box.innerHTML = list.length ? `<ul class="rests">${list.map(r => `<li>
+      <div><strong>${esc(r.name)}</strong><span class="small block">${r.amenity === "cafe" ? "☕ Café" : r.amenity === "pub" ? "🍺 Pub" : "🍽️ Restaurant"}${r.cuisine ? ` · ${esc(r.cuisine)}` : ""} · ${r.d < 1 ? Math.round(r.d * 1000) + " m" : r.d.toFixed(1).replace(".", ",") + " km"}</span>
+        <span class="small block"><a href="https://www.google.com/maps/search/${encodeURIComponent(r.name)}/@${r.lat},${r.lng},17z" target="_blank" rel="noopener">⭐ Bewertungen ↗</a>${r.web ? ` · <a href="${esc(r.web)}" target="_blank" rel="noopener noreferrer">Webseite ↗</a>` : ""}</span></div>
+      <button class="btn small ghost" data-act="rest-add" data-r="${esc(JSON.stringify({ name: r.name, lat: r.lat, lng: r.lng }))}" data-date="${btn.dataset.date}">+ Einplanen</button></li>`).join("")}</ul>`
+      : `<p class="small">In der Nähe kennt OpenStreetMap kein Restaurant – unterwegs ist Picknick angesagt.</p>`;
+  } catch { box.innerHTML = `<p class="small warntext">Die freie Restaurant-Datenbank (OpenStreetMap) ist gerade überlastet oder du bist offline. Probier es gleich nochmal – oder nimm den Google-Maps-Link darunter.</p>`; }
+}
+
 /* ---------- Kosten ---------- */
 const costChip = c => { const l = costLabel(c); return l ? `<span class="cost ${c === 0 ? "free" : ""}">${l}</span>` : ""; };
 // Was kostet eine Liste von Punkten: Eintritte (bekannte Beträge), Pässe, offene Preise
 function costSum(items) {
+  items = items.filter(w => !w.meal); // Essen ist kein Eintritt
   const r = { cad: 0, park: false, passes: new Set(), open: 0, free: 0, unknown: 0, n: items.length };
   for (const w of items) {
     if (typeof w.c === "number" && w.c > 0) r.cad += w.c;
@@ -399,7 +505,23 @@ function dayCard(s, d, i) {
     ${cost ? `<p class="small costline">${cost}</p>` : ""}
     ${d.items.length ? `<ol class="timeline">${rows.join("")}</ol>
       <a class="small" href="${esc(mapsRoute(pts))}" target="_blank" rel="noopener">Route in Google Maps ↗</a>` : `<p class="small">${d.kind === "abreise" ? "Abreisetag." : "Noch frei – Zeit zum Treibenlassen oder für einen Vorschlag unten."}</p>`}
+    ${restBlock(d)}
   </article>`;
+}
+// Wo isst man an diesem Tag: mittags am Programmpunkt rund um die Mittagszeit, abends bei der Unterkunft
+function restBlock(d) {
+  const spots = [];
+  const visits = d.steps.filter(x => x.type === "besuch" && !x.w.meal);
+  const pause = d.steps.findIndex(x => x.type === "pause");
+  const lunchAt = pause > 0 ? d.steps.slice(0, pause).reverse().find(x => x.type === "besuch") : visits.find(x => x.start + x.min >= 11.5 * 60);
+  if (lunchAt && !d.items.some(w => w.meal)) spots.push({ label: `Mittags bei ${lunchAt.w.name}`, p: lunchAt.w });
+  if (d.kind !== "abreise") spots.push({ label: `Abends bei der Unterkunft`, p: d.endPt });
+  if (!spots.length) return "";
+  return `<details class="restwrap"><summary class="small">🍽️ Restaurants für diesen Tag</summary>
+    ${spots.map(s => `<div class="restspot"><button class="btn small ghost" data-act="rest" data-lat="${s.p.lat}" data-lng="${s.p.lng}" data-date="${d.date}">${esc(s.label)} suchen</button><div></div>
+      <a class="small" href="https://www.google.com/maps/search/restaurants/@${s.p.lat},${s.p.lng},15z" target="_blank" rel="noopener">oder bei Google Maps mit Bewertungen ↗</a></div>`).join("")}
+    <p class="small">Aus OpenStreetMap, ohne Ketten. Bewertungen findest du über „⭐ Bewertungen“ bei Google Maps.</p>
+  </details>`;
 }
 function sugCard(r, plan) {
   const x = r.x, need = x.dur * 60 * plan.pace.buf + 2 * r.t;
@@ -417,53 +539,241 @@ const DAY_COLORS = ["#c0392b", "#1f6f8b", "#7a8b1f", "#8e44ad", "#d35400", "#16a
 const dayColor = i => DAY_COLORS[i % DAY_COLORS.length];
 
 /* ---------- Flüge ---------- */
+// Flugplanung: Wohnort, Abflughafen, Zug zum Flughafen, Ziel- und Rückflughafen (Gabelflug)
+function flyPlan() {
+  const list = stops();
+  const f = T.fly ||= {};
+  const inAp = f.inAp || (list.length ? P.nearestAirport(homeOf(list[0])).code : "YVR");
+  const outAp = f.gabel === false ? inAp : f.outAp || (list.length ? P.nearestAirport(homeOf(list.at(-1))).code : inAp);
+  return { place: f.place || null, ap: T.home || "FRA", rail: f.rail !== false, gabel: inAp !== outAp, inAp, outAp };
+}
+// Fliegt die Airline diese Strecke – direkt, mit Umstieg oder gar nicht?
+function airlineFit(al, from, to) {
+  if (!al.to.includes(to)) return null;
+  if (al.from.includes(from)) return { direct: true, text: `${from} → ${to} direkt` };
+  if (al.hubs?.includes(from)) return { direct: false, text: `${from} → ${to} mit Umstieg in ${al.via}` };
+  // Lufthansa-Gruppe bringt einen mit Zubringerflug nach Frankfurt/München
+  if (["lh", "4y", "ac"].includes(al.id) && HOME_AP_POS[from] && from !== "ZRH" && from !== "AMS") return { direct: false, text: `${from} → ${to} mit Umstieg in ${al.from[0]}` };
+  return null;
+}
+const trainTime = km => km * 1.3 / 95 * 60 + 25;
+
 function viewFlights() {
-  const list = stops(), [a, b] = range();
-  const home = T.home || "FRA";
-  const sugg = [];
-  if (list.length && a) {
-    const inAp = P.nearestAirport(list[0]).code, outAp = P.nearestAirport(list.at(-1)).code;
-    if (inAp === outAp) sugg.push({ title: `Hin & zurück ${home} ⇄ ${inAp}`, f: { from: home, to: inAp, date: a, ret: b } });
-    else {
-      sugg.push({ title: `Gabelflug: rein in ${AIRPORTS[inAp].name}, raus aus ${AIRPORTS[outAp].name}`, note: `Du fliegst nach ${AIRPORTS[inAp].name} und von ${AIRPORTS[outAp].name} zurück und sparst dir die lange Rückfahrt. Die Einweggebühr beim Mietwagen ist meist günstiger als zwei verlorene Urlaubstage.`, f: { from: home, to: inAp, date: a, ret: b, retFrom: outAp, retTo: home } });
-      sugg.push({ title: `Nur Hinflug ${home} → ${inAp}`, f: { from: home, to: inAp, date: a } });
-      sugg.push({ title: `Nur Rückflug ${outAp} → ${home}`, f: { from: outAp, to: home, date: b } });
-    }
-    P.legs(list).filter(l => l.mode === "flug").forEach(l => {
-      const x = P.nearestAirport(l.a).code, y = P.nearestAirport(l.b).code;
-      if (x !== y) sugg.push({ title: `Inlandsflug ${AIRPORTS[x].name} → ${AIRPORTS[y].name}`, f: { from: x, to: y, date: l.b.from } });
-    });
-  } else if (a) sugg.push({ title: `Hin & zurück ${home} ⇄ YVR`, f: { from: home, to: "YVR", date: a, ret: b } });
+  const [a, b] = range();
+  const fp = flyPlan();
+  const people = pax().adults + pax().children;
+  const route = fp.gabel ? `Gabelflug ${fp.ap} → ${fp.inAp} am ${fmtShort(a)}, zurück ${fp.outAp} → ${fp.ap} am ${fmtShort(b)}` : `${fp.ap} → ${fp.inAp} am ${fmtShort(a)}, zurück ${fp.inAp} → ${fp.ap} am ${fmtShort(b)}`;
+  const bookText = `${route}, ${plural(pax().adults, "Erwachsener", "Erwachsene")}${pax().children ? `, ${plural(pax().children, "Kind", "Kinder")}` : ""}`;
+  // Abflughäfen nach Entfernung vom Wohnort
+  const aps = fp.place ? Object.entries(HOME_AP_POS).map(([code, [lat, lng]]) => {
+    const km = P.km(fp.place, { lat, lng }) * 1.25;
+    const direct = AIRLINES.filter(al => airlineFit(al, code, fp.inAp)?.direct).length;
+    return { code, km, train: trainTime(km), direct };
+  }).sort((x, y) => x.km - y.km).slice(0, 6) : [];
+  const fits = AIRLINES.map(al => ({ al, hin: airlineFit(al, fp.ap, fp.inAp), rueck: airlineFit(al, fp.ap, fp.outAp) }))
+    .filter(x => x.hin && x.rueck)
+    .sort((x, y) => (y.hin.direct + y.rueck.direct) - (x.hin.direct + x.rueck.direct));
+  const caOpts = sel => Object.entries(AIRPORTS).map(([c, x]) => `<option value="${c}" ${c === sel ? "selected" : ""}>${x.name} (${c})</option>`).join("");
+  const apPos = HOME_AP_POS[fp.ap];
 
   return `
-  <section class="card info">
-    <h2>So funktioniert der Preiswächter</h2>
-    <p>Fluggesellschaften und Vergleichsportale geben ihre Preise nicht frei heraus, deshalb öffnet die App die fertig ausgefüllte Suche. Den gefundenen Preis trägst du mit zwei Tipps ein – die App merkt sich den Verlauf, erinnert dich alle <select data-change="checkEvery" class="inline">${[1, 2, 3, 5, 7].map(n => `<option value="${n}" ${n === (T.checkEvery || 3) ? "selected" : ""}>${n}</option>`).join("")}</select> Tage ans Nachsehen und schlägt Alarm, sobald dein Zielpreis erreicht ist.</p>
-    <p class="small">Tipp: Bei <strong>Google Flights</strong> „Preise beobachten“ einschalten – dann kommt zusätzlich automatisch eine E-Mail, wenn der Preis fällt. <a href="${GOOGLE_ALERT_HELP}" target="_blank" rel="noopener">So geht's ↗</a></p>
+  <div class="seg tabs2" role="tablist">
+    <button role="tab" aria-pressed="${UI.sub !== "auto"}" data-act="sub" data-v="flug">✈️ Flüge</button>
+    <button role="tab" aria-pressed="${UI.sub === "auto"}" data-act="sub" data-v="auto">🚗 Mietwagen</button>
+  </div>
+  ${UI.sub === "auto" ? viewCar() : `
+  <section class="card">
+    <h2>Deine Anreise</h2>
+    <form class="form" data-form="fly-place">
+      <label>Von wo fährst du los? (Wohnort)<input name="q" value="${esc(fp.place?.name || "")}" placeholder="z. B. Köln, Kassel, Freiburg" autocomplete="address-level2"></label>
+      <button class="btn small ghost">📍 Übernehmen</button>
+    </form>
+    ${aps.length ? `<p class="small"><strong>Abflughafen wählen</strong> – nach Entfernung von ${esc(fp.place.name)}:</p>
+      <div class="aplist">${aps.map(x => `<button class="placebtn ${x.code === fp.ap ? "on" : ""}" data-act="fly-ap" data-v="${x.code}">
+        <strong>${x.code === fp.ap ? "✓ " : ""}${esc(HOME_AIRPORTS[x.code])} (${x.code})</strong>
+        <span class="small">≈ ${Math.round(x.km)} km · mit dem Zug ca. ${P.dur(x.train)} · ${x.direct ? `${plural(x.direct, "Airline", "Airlines")} direkt nach ${AIRPORTS[fp.inAp].name}` : "kein Direktflug, mit Umstieg"}</span></button>`).join("")}</div>`
+      : `<label>Abflughafen<select data-change="fly-ap">${Object.entries(HOME_AIRPORTS).map(([c, n]) => `<option value="${c}" ${c === fp.ap ? "selected" : ""}>${n} (${c})</option>`).join("")}</select></label>`}
+    <label class="check"><input type="checkbox" data-change="fly-rail" ${fp.rail ? "checked" : ""}><span>Mit dem Zug zum Flughafen</span></label>
+    ${fp.rail ? `<p class="small">🚆 ${fp.place && apPos ? `Von ${esc(fp.place.name)} nach ${esc(HOME_AIRPORTS[fp.ap])} ca. ${P.dur(trainTime(P.km(fp.place, { lat: apPos[0], lng: apPos[1] }) * 1.25))} – ` : ""}plane mindestens 3 Stunden vor Abflug am Flughafen ein.
+      Viele Airlines verkaufen das Zugticket gleich mit (<strong>Rail&Fly</strong> bzw. <strong>Lufthansa Express Rail</strong>) – dann bist du abgesichert, wenn der Zug Verspätung hat.
+      <a href="https://www.bahn.de/" target="_blank" rel="noopener">Fahrplan bei bahn.de ↗</a></p>` : ""}
+    <div class="row2">
+      <label>Hinflug nach<select data-change="fly-in">${caOpts(fp.inAp)}</select></label>
+      <label>Rückflug ab<select data-change="fly-out" ${fp.gabel ? "" : "disabled"}>${caOpts(fp.outAp)}</select></label>
+    </div>
+    <label class="check"><input type="checkbox" data-change="fly-gabel" ${fp.gabel ? "checked" : ""}><span><strong>Gabelflug</strong> – an einem Ort ankommen, von einem anderen zurückfliegen</span></label>
+    ${fp.gabel ? `<p class="small">Passt zu deiner Route: Ankunft in ${AIRPORTS[fp.inAp].name} (erster Ort), Rückflug ab ${AIRPORTS[fp.outAp].name} (letzter Ort). Das spart die Rückfahrt quer durchs Land.</p>` : ""}
+    <p class="small">${a ? `${fmtD(a)} – ${fmtD(b)} · ${plural(people, "Person", "Personen")}` : "Lege zuerst die Reisedaten fest."}</p>
   </section>
 
-  <h2 class="sec">Passende Flugsuchen</h2>
-  ${sugg.map((x, i) => `<article class="card flight">
-    <h3>${esc(x.title)}</h3>
-    <p class="small">${fmtD(x.f.date)}${x.f.ret ? ` – ${fmtD(x.f.ret)}` : ""} · ${pax().adults + pax().children} ${pax().adults + pax().children === 1 ? "Person" : "Personen"}</p>
-    ${x.note ? `<p class="small">${esc(x.note)}</p>` : ""}
-    ${linkBtns(flightLinks(x.f, pax()))}
-    <button class="btn small ghost" data-act="flight-watch" data-f="${esc(JSON.stringify(x.f))}">🔔 Preis beobachten</button>
-  </article>`).join("") || `<p class="small">Lege zuerst deine Reisedaten fest.</p>`}
-  <button class="btn ghost wide" data-act="flight-watch">+ Eigene Flugsuche beobachten</button>
+  <h2 class="sec">Direkt bei der Fluggesellschaft buchen</h2>
+  <p class="small pad">Für ${esc(bookText)}. Die Airlines lassen sich nicht vorausfüllen – tippe auf „Daten kopieren“ und füge sie dort ein. Flugpläne sind saisonal, bitte auf der Airline-Seite prüfen.</p>
+  ${fits.map(({ al, hin, rueck }) => `<article class="card airline">
+    <div class="sechead"><h3>${esc(al.name)}</h3>${hin.direct && rueck.direct ? `<span class="tag good">Direkt</span>` : `<span class="tag">mit Umstieg</span>`}</div>
+    <p class="small">✈️ ${esc(hin.text)}${fp.gabel ? ` · zurück ${esc(rueck.text.replace(`${fp.ap} → ${fp.outAp}`, `${fp.outAp} → ${fp.ap}`))}` : " · und zurück"}</p>
+    ${fp.gabel ? `<p class="small">🔀 Gabelflug: ${esc(al.gabel)}</p>` : ""}
+    ${fp.rail ? `<p class="small">🚆 ${esc(al.rail)}</p>` : ""}
+    <div class="btnrow">
+      <a class="btn small" href="${esc(al.url)}" target="_blank" rel="noopener noreferrer">Zu ${esc(al.name)} ↗</a>
+      <button class="btn small ghost" data-act="copy" data-text="${esc(bookText)}">📋 Daten kopieren</button>
+      <button class="btn small ghost" data-act="flight-watch" data-f="${esc(JSON.stringify({ airline: al.id, from: fp.ap, to: fp.inAp, date: a, ret: b, ...(fp.gabel ? { retFrom: fp.outAp, retTo: fp.ap } : {}) }))}">🔔 Preis beobachten</button>
+    </div>
+  </article>`).join("") || `<p class="small pad">Für diese Kombination kennt die App keine Airline. Probier einen anderen Abflughafen oder Zielflughafen.</p>`}
 
-  <h2 class="sec">Preiswächter</h2>
+  <section class="card info">
+    <h2>Preiswächter</h2>
+    <p class="small">Die Airlines geben ihre Preise nicht frei heraus. Trag den Preis ein, den du auf der Airline-Seite siehst – die App merkt sich den Verlauf, erinnert dich alle <select data-change="checkEvery" class="inline">${[1, 2, 3, 5, 7].map(n => `<option value="${n}" ${n === (T.checkEvery || 3) ? "selected" : ""}>${n}</option>`).join("")}</select> Tage ans Nachsehen und meldet sich, sobald dein Zielpreis erreicht ist.</p>
+  </section>
   ${T.flights.map(flightCard).join("") || `<p class="small pad">Noch keine Flüge unter Beobachtung.</p>`}
+  <button class="btn ghost wide" data-act="flight-watch">+ Anderen Flug beobachten</button>
 
   <section class="card">
     <h2>Gut zu wissen</h2>
     <ul class="plain small">
       <li>Für Juli/August am besten 4–8 Monate vorher buchen, für Juni/September reicht oft weniger.</li>
-      <li>Direktflüge nach Kanada gibt es vor allem ab Frankfurt und München (z. B. nach Vancouver, Calgary, Toronto, Montréal, Halifax) – im Sommer auch von anderen Flughäfen.</li>
-      <li>Dienstag- und Mittwochflüge sind oft günstiger. Mit „± 3 Tage“ in der Suche siehst du das sofort.</li>
-      <li>Ein Gabelflug kostet meist kaum mehr als hin und zurück, spart aber einen ganzen Fahrtag.</li>
+      <li>Ein Gabelflug kostet bei den Airlines meist kaum mehr als hin und zurück, spart aber einen ganzen Fahrtag.</li>
+      <li>Direkt bei der Airline gebucht, ist Umbuchen und Hilfe bei Verspätung meist einfacher als über Portale.</li>
     </ul>
-  </section>`;
+  </section>`}`;
+}
+
+/* ---------- Mietwagen ---------- */
+function insCheck(ins = {}, car = {}) {
+  const sameplace = norm(car.pickPlace || "") && norm(car.pickPlace || "") === norm(car.dropPlace || "");
+  let score = 0; const missing = [];
+  for (const x of CAR_INS) {
+    const ok = ins[x.id] || (x.id === "oneway" && sameplace) || (x.id === "driver" && pax().adults < 2);
+    if (ok) score += x.w; else missing.push(x);
+  }
+  return { score, missing, label: score >= 90 ? "sehr gut versichert" : score >= 70 ? "gut versichert" : score >= 45 ? "lückenhaft" : "schlecht versichert" };
+}
+function carDefaults() {
+  const fp = flyPlan(), [a, b] = range();
+  return {
+    pickPlace: `Flughafen ${AIRPORTS[fp.inAp]?.name || ""} (${fp.inAp})`, pickDate: a || "", pickTime: "15:00",
+    dropPlace: `Flughafen ${AIRPORTS[fp.outAp]?.name || ""} (${fp.outAp})`, dropDate: b || "", dropTime: "10:00"
+  };
+}
+function viewCar() {
+  const c = T.car, tt = tripTotals();
+  const d = { ...carDefaults(), ...(c || {}) };
+  const info = `Mietwagen ab ${d.pickPlace} am ${fmtShort(d.pickDate)} ${d.pickTime}, Rückgabe ${d.dropPlace} am ${fmtShort(d.dropDate)} ${d.dropTime}${c?.cls ? `, ${c.cls}` : ""}`;
+  const oneWay = norm(d.pickPlace) !== norm(d.dropPlace);
+  const sites = linkBtns(CAR_SITES.map(s => ({ name: `${s.name} · ${s.kind}`, url: s.url })));
+  if (!c) return `
+  <section class="card">
+    <h2>Mietwagen</h2>
+    <p class="small">Passend zu deiner Reise: ${esc(info)}. Ihr fahrt laut Plan ca. <strong>${Math.round(tt.km).toLocaleString("de-DE")} km</strong>${oneWay ? " – Abgabe an einem anderen Ort, also auf die Einweggebühr achten" : ""}.</p>
+    <button class="btn small ghost" data-act="copy" data-text="${esc(info)}">📋 Daten kopieren</button>
+    <p class="small"><strong>Vergleichen</strong> – deutsche Vermittler haben oft Pakete ohne Selbstbeteiligung und mit hoher Zusatzhaftpflicht:</p>
+    ${sites}
+    <button class="btn wide" data-act="car-edit">+ Mietwagen eintragen</button>
+  </section>
+  ${insHelp()}`;
+  const total = toEur(num(c.total), c.cur), ic = insCheck(c.ins, c);
+  const offers = (c.offers || []).map(o => ({ ...o, eur: toEur(num(o.total), o.cur), ic: insCheck(o.ins, c) })).sort((x, y) => x.eur - y.eur);
+  const dl = c.cancelUntil ? daysUntil(c.cancelUntil) : null;
+  return `
+  <section class="card">
+    <div class="sechead"><h2>🚗 ${safeUrl(c.url) ? `<a href="${esc(safeUrl(c.url))}" target="_blank" rel="noopener noreferrer">${esc(c.provider || "Mietwagen")} ↗</a>` : esc(c.provider || "Mietwagen")}</h2>
+      ${c.status === "gebucht" ? `<span class="tag good">Gebucht</span>` : `<span class="tag">Angebot</span>`}</div>
+    <p class="small">${c.via ? `über ${esc(c.via)} · ` : ""}${esc(c.cls || "")}${c.cls ? " · " : ""}${total ? `${money(total)}${c.cur === "CAD" ? ` (${money(num(c.total), "CAD")})` : ""} · ${money(total / Math.max(1, P.daysBetween(d.pickDate, d.dropDate)))}/Tag` : "Preis fehlt"}</p>
+    <p class="small">📍 ${esc(d.pickPlace)}, ${fmtD(d.pickDate)} ${esc(d.pickTime)} → ${esc(d.dropPlace)}, ${fmtD(d.dropDate)} ${esc(d.dropTime)}</p>
+    ${c.cancelUntil ? `<p class="small ${dl != null && dl >= 0 && dl <= 7 ? "warntext" : ""}">${dl < 0 ? "Kostenlose Stornierung abgelaufen" : `Kostenlos stornierbar bis ${fmtD(c.cancelUntil)} (noch ${plural(dl, "Tag", "Tage")})`}</p>` : ""}
+    <div class="inscheck">
+      <div class="sechead"><strong>Versicherung: ${ic.label}</strong><span class="small">${ic.score} / 100</span></div>
+      <span class="track"><span style="width:${ic.score}%" class="${ic.score >= 70 ? "ok" : "bad"}"></span></span>
+      <ul class="plain small">${CAR_INS.map(x => { const ok = !ic.missing.includes(x); return `<li class="${ok ? "goodtext" : "warntext"}">${ok ? "✓" : "✗"} ${esc(x.label)}${ok ? "" : ` – ${esc(x.why)}`}</li>`; }).join("")}</ul>
+      ${c.deductible ? `<p class="small">Selbstbeteiligung: ${money(num(c.deductible), c.cur || "EUR")}</p>` : ""}
+      ${!c.ins?.km && tt.km > 1500 ? `<p class="small warntext">Ihr fahrt ca. ${Math.round(tt.km).toLocaleString("de-DE")} km – ohne unbegrenzte Kilometer kann das teuer werden.</p>` : ""}
+    </div>
+    <div class="btnrow"><button class="btn small ghost" data-act="car-edit">Bearbeiten</button>${c.status !== "gebucht" ? `<button class="btn small" data-act="car-book">✓ Gebucht</button>` : ""}</div>
+  </section>
+
+  <section class="card">
+    <h2>💸 Günstiger oder besser versichert?</h2>
+    <p class="small">Such mit denselben Daten bei anderen Anbietern und trag gefundene Angebote samt Versicherung ein – die App vergleicht Preis <em>und</em> Schutz.</p>
+    <button class="btn small ghost" data-act="copy" data-text="${esc(info)}">📋 Daten kopieren</button>
+    ${sites}
+    ${offers.length ? `<ul class="offers">${offers.map(o => {
+      const diff = total - o.eur, better = o.ic.score - ic.score;
+      const verdict = diff > 0 && better >= 0 ? `<span class="goodtext">−${money(diff)} und ${better > 0 ? "besser" : "gleich gut"} versichert 👍</span>`
+        : diff > 0 ? `<span class="warntext">−${money(diff)}, aber schlechter versichert (fehlt: ${o.ic.missing.filter(x => !ic.missing.includes(x)).map(x => x.label).join(", ") || "–"})</span>`
+        : better > 0 ? `<span class="small">+${money(-diff)}, dafür besser versichert</span>` : `<span class="small">teurer, nicht besser</span>`;
+      return `<li><span>${safeUrl(o.url) ? `<a href="${esc(safeUrl(o.url))}" target="_blank" rel="noopener noreferrer">${esc(o.name || "Angebot")}</a>` : esc(o.name || "Angebot")} · ${money(num(o.total), o.cur || "EUR")} · ${o.ic.score}/100<br>${verdict}</span>
+        <button class="iconbtn sm" data-act="car-offer-del" data-o="${o.id}" aria-label="Angebot entfernen">✕</button></li>`;
+    }).join("")}</ul>` : ""}
+    <button class="btn small ghost" data-act="car-offer">+ Angebot vergleichen</button>
+  </section>
+  ${insHelp()}`;
+}
+function insHelp() {
+  return `<details class="card more"><summary><h2>🛡️ Worauf bei der Versicherung achten?</h2></summary>
+    <ul class="plain small">${CAR_INS.map(x => `<li><strong>${esc(x.label)}:</strong> ${esc(x.why)}</li>`).join("")}
+    <li>Bei Buchung über deutsche Vermittler gilt oft deutsches Recht und die Selbstbeteiligung wird erstattet – am Schalter dann keine zweite Versicherung abschließen.</li>
+    <li>Kreditkarte für die Kaution mitnehmen (meist 250–500 CAD, nicht Debitkarte).</li></ul>
+  </details>`;
+}
+function carSheet() {
+  const c = T.car, v = { status: "gebucht", ins: {}, ...carDefaults(), ...(c || {}) };
+  openSheet(c ? "Mietwagen bearbeiten" : "Mietwagen eintragen", `
+    <form class="form">
+      <div class="row2">
+        <label>Vermieter<input name="provider" value="${esc(v.provider || "")}" maxlength="60" placeholder="z. B. Avis, Hertz" required></label>
+        <label>Gebucht über<input name="via" value="${esc(v.via || "")}" maxlength="60" placeholder="z. B. billiger-mietwagen.de"></label>
+      </div>
+      <div class="row2">
+        <label>Status<select name="status"><option value="gebucht" ${v.status === "gebucht" ? "selected" : ""}>Gebucht</option><option value="angebot" ${v.status !== "gebucht" ? "selected" : ""}>Nur Angebot</option></select></label>
+        <label>Fahrzeugklasse<input name="cls" value="${esc(v.cls || "")}" maxlength="60" placeholder="z. B. SUV (Ford Escape)"></label>
+      </div>
+      <label>Link<input name="url" type="url" value="${esc(v.url || "")}" placeholder="https://…"></label>
+      <label>Abholung<input name="pickPlace" value="${esc(v.pickPlace)}" maxlength="80"></label>
+      <div class="row2"><label>Datum<input type="date" name="pickDate" value="${v.pickDate}"></label><label>Uhrzeit<input type="time" name="pickTime" value="${v.pickTime}"></label></div>
+      <label>Rückgabe<input name="dropPlace" value="${esc(v.dropPlace)}" maxlength="80"></label>
+      <div class="row2"><label>Datum<input type="date" name="dropDate" value="${v.dropDate}"></label><label>Uhrzeit<input type="time" name="dropTime" value="${v.dropTime}"></label></div>
+      <div class="row2">
+        <label>Preis gesamt<input name="total" inputmode="decimal" value="${numIn(num(v.total))}"></label>
+        <label>Währung<select name="cur"><option ${v.cur !== "CAD" ? "selected" : ""}>EUR</option><option ${v.cur === "CAD" ? "selected" : ""}>CAD</option></select></label>
+      </div>
+      <div class="row2">
+        <label>Selbstbeteiligung<input name="deductible" inputmode="decimal" value="${numIn(num(v.deductible))}" placeholder="0"></label>
+        <label>Kostenlos stornierbar bis<input type="date" name="cancelUntil" value="${v.cancelUntil || ""}"></label>
+      </div>
+      <p class="grouplabel">Was ist enthalten?</p>
+      ${CAR_INS.map(x => `<label class="check"><input type="checkbox" name="ins_${x.id}" ${v.ins?.[x.id] ? "checked" : ""}><span>${esc(x.label)}</span></label>`).join("")}
+      <label>Notiz<textarea name="note" rows="2" maxlength="300">${esc(v.note || "")}</textarea></label>
+      <button class="btn big">Speichern</button>
+      ${c ? `<button type="button" class="btn ghost danger wide" data-act="car-del">Mietwagen entfernen</button>` : ""}
+    </form>`, fd => {
+    const s = k => String(fd.get(k) || "").trim();
+    T.car = {
+      ...(T.car || {}), provider: s("provider").slice(0, 60), via: s("via").slice(0, 60), status: s("status"), cls: s("cls").slice(0, 60),
+      url: safeUrl(s("url")), pickPlace: s("pickPlace").slice(0, 80), pickDate: s("pickDate"), pickTime: s("pickTime"),
+      dropPlace: s("dropPlace").slice(0, 80), dropDate: s("dropDate"), dropTime: s("dropTime"), total: num(s("total")), cur: s("cur"),
+      deductible: num(s("deductible")), cancelUntil: s("cancelUntil"), note: s("note").slice(0, 300),
+      ins: Object.fromEntries(CAR_INS.map(x => [x.id, !!fd.get("ins_" + x.id)])), offers: T.car?.offers || []
+    };
+    commit(); toast("Gespeichert");
+  });
+}
+function carOfferSheet() {
+  openSheet("Mietwagen-Angebot vergleichen", `
+    <form class="form">
+      <label>Anbieter<input name="name" maxlength="80" placeholder="z. B. Sunny Cars – SUV" required></label>
+      <label>Link<input name="url" type="url" placeholder="https://…"></label>
+      <div class="row2">
+        <label>Preis gesamt<input name="total" inputmode="decimal" required></label>
+        <label>Währung<select name="cur"><option>EUR</option><option>CAD</option></select></label>
+      </div>
+      <p class="grouplabel">Was ist enthalten?</p>
+      ${CAR_INS.map(x => `<label class="check"><input type="checkbox" name="ins_${x.id}"><span>${esc(x.label)}</span></label>`).join("")}
+      <button class="btn big">Vergleichen</button>
+    </form>`, fd => {
+    const o = { id: St.newId(), name: String(fd.get("name")).trim().slice(0, 80), url: safeUrl(fd.get("url")), total: num(fd.get("total")), cur: fd.get("cur"),
+      ins: Object.fromEntries(CAR_INS.map(x => [x.id, !!fd.get("ins_" + x.id)])), at: Date.now() };
+    (T.car.offers ||= []).push(o);
+    commit();
+  });
 }
 function flightCard(f) {
   const last = f.prices.at(-1), min = f.prices.length ? Math.min(...f.prices.map(x => x.p)) : 0;
@@ -473,10 +783,10 @@ function flightCard(f) {
     : f.target ? `<span class="tag">noch ${money(last.p - f.target)} drüber</span>` : "";
   const due = !f.booked && (!last || Date.now() - last.at > (T.checkEvery || 3) * 864e5);
   return `<article class="card watch ${due ? "due" : ""}">
-    <div class="sechead"><h3>${esc(f.from)} → ${esc(f.to)}${f.retFrom && f.retFrom !== f.to ? ` · ${esc(f.retFrom)} → ${esc(f.retTo || f.from)}` : f.ret ? " · zurück" : ""}</h3>${status}</div>
+    <div class="sechead"><h3>${f.airline ? esc(AIRLINES.find(al => al.id === f.airline)?.name || "") + " · " : ""}${esc(f.from)} → ${esc(f.to)}${f.retFrom && f.retFrom !== f.to ? ` · ${esc(f.retFrom)} → ${esc(f.retTo || f.from)}` : f.ret ? " · zurück" : ""}</h3>${status}</div>
     <p class="small">${fmtD(f.date)}${f.ret ? ` – ${fmtD(f.ret)}` : ""}${f.flex ? ` · ± ${f.flex} Tage` : ""}${f.direct ? " · nur direkt" : ""}${f.target ? ` · Ziel: ${money(f.target)}` : ""}</p>
     ${f.prices.length ? `<div class="pricerow"><div><span class="small">Zuletzt (${ago(last.at)})</span><strong>${money(last.p)}</strong></div><div><span class="small">Bisher günstigster</span><strong>${money(min)}</strong></div>${spark(f)}</div>` : ""}
-    ${linkBtns(flightLinks(f, pax()))}
+    ${linkBtns(AIRLINES.filter(al => f.airline ? al.id === f.airline : airlineFit(al, f.from, f.to)).map(al => ({ name: al.name, url: al.url })))}
     ${f.booked ? "" : `<form class="priceform" data-form="flight-price" data-id="${f.id}">
       <input name="p" inputmode="decimal" placeholder="Heutiger Preis in € (gesamt)" aria-label="Heutiger Preis" required>
       <button class="btn small">Eintragen</button></form>`}
@@ -565,7 +875,7 @@ function lodgeCard(l, s) {
 function viewMore() {
   const [a] = range();
   const left = a ? daysUntil(a) : null;
-  const b = budget(true);
+  const b = budget();
   const code = St.syncCode();
   return `
   <details class="card more" open><summary><h2>✅ Vorbereitung</h2><span class="small">${CHECKLIST.filter(c => T.checks[c.id]).length}/${CHECKLIST.length}</span></summary>
@@ -587,9 +897,12 @@ function viewMore() {
     <table class="budget"><tbody>
       <tr><td>Flüge (gebucht)</td><td>${money(b.flights)}</td></tr>
       <tr><td>Unterkünfte (gebucht)</td><td>${money(b.lodging)}</td></tr>
-      ${b.entry.cad || b.parkDays ? `<tr><td>Eintritte laut Tagesplan <span class="small block">geschätzt, nicht in der Summe${b.parkDays ? ` · ${plural(b.parkDays, "Tag", "Tage")} im Nationalpark${b.parkDays >= 7 ? " – der Discovery Pass lohnt sich" : " – Tagespässe reichen"}` : ""}</span></td><td>${b.entry.cad ? `≈ ${money(b.entry.cad * rate() * (pax().adults + pax().children))}` : ""}</td></tr>` : ""}
+      <tr><td>Mietwagen (gebucht)</td><td>${money(b.car)}</td></tr>
       ${T.expenses.map(e => `<tr><td>${esc(e.text)} <button class="iconbtn sm" data-act="exp-del" data-id="${e.id}" aria-label="entfernen">✕</button></td><td>${money(toEur(e.amount, e.cur))}${e.cur === "CAD" ? `<span class="small block">${money(e.amount, "CAD")}</span>` : ""}</td></tr>`).join("")}
-      <tr class="sum"><td>Gesamt</td><td>${money(b.total)}</td></tr>
+      <tr class="sum"><td>Gebucht</td><td>${money(b.total)}</td></tr>
+      <tr><td>Sprit <span class="small block">geschätzt: ${Math.round(b.tt.km).toLocaleString("de-DE")} km × ${String(b.tt.l100).replace(".", ",")} l/100 km × ${String(b.tt.price).replace(".", ",")} CAD/l</span></td><td>≈ ${money(b.fuel)}</td></tr>
+      <tr><td>Eintritte laut Tagesplan <span class="small block">geschätzt${b.parkDays ? ` · ${plural(b.parkDays, "Tag", "Tage")} im Nationalpark${b.parkDays >= 7 ? " – der Discovery Pass lohnt sich" : " – Tagespässe reichen"}` : ""}</span></td><td>≈ ${money(b.entryEur)}</td></tr>
+      <tr class="sum"><td>Voraussichtlich gesamt</td><td>${money(b.expected)}</td></tr>
     </tbody></table>
     <p class="small">${b.perDay ? `≈ ${money(b.perDay)} pro Tag · ` : ""}1 CAD ≈ ${rate().toFixed(3).replace(".", ",")} €</p>
     <form class="expform" data-form="expense">
@@ -641,22 +954,23 @@ function viewMore() {
     <button class="btn small danger" data-act="reset">Reise löschen und neu anfangen</button>
   </details>`;
 }
-function budget(withPlan = false) {
-  // Eintritte aus den Tagesplänen (nur zur Info) und wie viele Tage man in Nationalparks ist
-  let entry = { cad: 0 }, parkDays = 0;
-  if (withPlan) {
-    const days = stops().flatMap(s => planFor(s).days);
-    entry = costSum(days.flatMap(d => d.items));
-    parkDays = new Set(days.filter(d => d.items.some(w => w.c === "park")).map(d => d.date)).size;
-  }
+// Gebucht = steht fest. Geschätzt = Sprit und Eintritte laut Plan.
+function budget() {
+  const tt = tripTotals();
+  const entry = costSum(tt.days.flatMap(d => d.items));
+  const parkDays = new Set(tt.days.filter(d => d.items.some(w => w.c === "park")).map(d => d.date)).size;
+  const people = pax().adults + pax().children;
   const flights = T.flights.filter(f => f.booked).reduce((t, f) => t + num(f.bookedPrice), 0);
   const lodging = T.lodgings.filter(l => l.status === "gebucht").reduce((t, l) => t + lodgeEur(l), 0);
+  const car = T.car?.status === "gebucht" ? toEur(num(T.car.total), T.car.cur) : 0;
   const extra = T.expenses.reduce((t, e) => t + toEur(e.amount, e.cur), 0);
-  const total = flights + lodging + extra;
+  const entryEur = entry.cad * rate() * people;
+  const total = flights + lodging + car + extra;
+  const expected = total + tt.fuelEur + entryEur;
   const [a, b] = range();
   const days = a && b ? P.daysBetween(a, b) + 1 : 0;
-  const people = pax().adults + pax().children;
-  return { flights, lodging, extra, total, entry, parkDays, perDay: days ? total / days : 0, perPerson: people > 1 ? total / people : 0 };
+  return { tt, flights, lodging, car, extra, total, fuel: tt.fuelEur, entryEur, entry, parkDays, expected,
+    perDay: days ? expected / days : 0, perPerson: people > 1 ? expected / people : 0 };
 }
 
 /* ---------- Fenster (Formulare) ---------- */
@@ -874,7 +1188,7 @@ function flightSheet(f, preset) {
     };
     if (data.retFrom) data.retTo = data.from;
     if (fd.has("bookedPrice")) data.bookedPrice = num(fd.get("bookedPrice"));
-    if (isNew) T.flights.push({ id: St.newId(), prices: [], booked: false, ...data });
+    if (isNew) T.flights.push({ id: St.newId(), prices: [], booked: false, ...(v.airline ? { airline: v.airline } : {}), ...data });
     else Object.assign(f, data);
     commit();
     toast(isNew ? "Wird beobachtet 🔔" : "Gespeichert");
@@ -1136,8 +1450,26 @@ function chain(fromIdx = 1) {
 }
 
 const ACT = {
-  tab(d) { if (d.tab) { UI.tab = d.tab; ls.set("ka.tab", d.tab); render(); } },
+  tab(d) { if (d.tab) { UI.tab = d.tab; UI.sub = d.sub || (d.tab === "fluege" ? UI.sub : ""); ls.set("ka.tab", d.tab); render(); } },
   "setup-demo"() { T = demoTrip(); UI.tab = "start"; commit(); toast("Beispielreise geladen – schau dich um!"); },
+  sub(d) { UI.sub = d.v; render(); },
+  "fly-ap"(d) { T.home = d.v; commit(); },
+  async copy(d) {
+    try { await navigator.clipboard.writeText(d.text); toast("Kopiert – auf der Seite einfügen"); }
+    catch { prompt("Zum Kopieren markieren:", d.text); }
+  },
+  "car-edit"() { carSheet(); },
+  "car-book"() { if (T.car) { T.car.status = "gebucht"; commit(); toast("Mietwagen gebucht – zählt jetzt zum Budget"); } },
+  "car-del"() { if (confirm("Mietwagen entfernen?")) { T.car = null; closeSheet(); commit(); } },
+  "car-offer"() { if (T.car) carOfferSheet(); },
+  "car-offer-del"(d) { if (T.car) { T.car.offers = (T.car.offers || []).filter(o => o.id !== d.o); commit(); } },
+  rest(d, el) { showRestaurants(el); },
+  "rest-add"(d) {
+    const r = JSON.parse(d.r), s = stops().find(x => x.from <= d.date && (d.date < x.to || x === stops().at(-1))) || stopById(UI.stop);
+    if (!s) return;
+    s.wishes.push({ id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, dur: 1, prio: 1, day: d.date, meal: true });
+    commit(); toast(`${r.name} eingeplant – ersetzt die Mittagspause`);
+  },
   "stop-add"() { stopSheet(null); },
   "list-import"() { importSheet(); },
   "stop-edit"(d) { stopSheet(stopById(d.id)); },
@@ -1268,6 +1600,13 @@ const CHANGE = {
   "wish-day"(el) { const w = findWish(el.dataset.id); if (w) { w.day = el.value; commit(); } },
   "wish-cost"(el) { const w = findWish(el.dataset.id); if (w) { if (el.value.trim() === "") delete w.c; else w.c = num(el.value); commit(); } },
   checkEvery(el) { T.checkEvery = Number(el.value); commit(false); },
+  "fuel-l100"(el) { const v = num(el.value); if (v > 0) { (T.fuel ||= {}).l100 = v; commit(); } },
+  "fuel-price"(el) { const v = num(el.value); if (v > 0) { (T.fuel ||= {}).price = v; commit(); } },
+  "fly-ap"(el) { T.home = el.value; commit(); },
+  "fly-rail"(el) { (T.fly ||= {}).rail = el.checked; commit(); },
+  "fly-in"(el) { (T.fly ||= {}).inAp = el.value; commit(); },
+  "fly-out"(el) { (T.fly ||= {}).outAp = el.value; commit(); },
+  "fly-gabel"(el) { const f = T.fly ||= {}; f.gabel = el.checked; if (el.checked && f.outAp === flyPlan().inAp) delete f.outAp; commit(); },
   maxNight(el) { const s = stopById(el.dataset.id); if (s) { s.maxNight = num(el.value) || 0; commit(); } },
   check(el) { T.checks[el.dataset.id] = el.checked; commit(false); },
   pack(el) { T.packed[el.dataset.k] = el.checked; commit(false); },
@@ -1283,6 +1622,23 @@ const CHANGE = {
   }
 };
 const FORMS = {
+  async "fly-place"(fd) {
+    const q = String(fd.get("q") || "").trim();
+    if (!q) return;
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=de,at,ch,nl,lu,be,dk&accept-language=de&q=${encodeURIComponent(q)}`);
+      const hit = (await r.json())[0];
+      if (!hit) { toast("Ort nicht gefunden"); return; }
+      const place = { name: hit.name || q, lat: +hit.lat, lng: +hit.lon };
+      (T.fly ||= {}).place = place;
+      // Nächsten Flughafen mit Direktflug vorschlagen
+      const fp = flyPlan();
+      const best = Object.entries(HOME_AP_POS).map(([code, [lat, lng]]) => ({ code, km: P.km(place, { lat, lng }), direct: AIRLINES.some(al => airlineFit(al, code, fp.inAp)?.direct) }))
+        .sort((a, b) => (b.direct - a.direct) || a.km - b.km)[0];
+      if (best) T.home = best.code;
+      commit(); toast(`${place.name} übernommen – Abflug ab ${HOME_AIRPORTS[T.home]} vorgeschlagen`);
+    } catch { toast("Suche geht gerade nicht. Bist du online?"); }
+  },
   "flight-price"(fd, form) {
     const f = T.flights.find(x => x.id === form.dataset.id), p = num(fd.get("p"));
     if (!f || p <= 0) return;
@@ -1528,7 +1884,12 @@ function demoTrip() {
         offers: [{ id: St.newId(), name: "Cabin am Bow River (Airbnb)", url: "", total: 1135, cur: "EUR", at: Date.now() - day }] },
       { id: St.newId(), stopId: list[3].id, name: "Blockhütte am Pyramid Lake", platform: "Airbnb", url: "", checkIn: list[3].from, checkOut: list[3].to, total: 980, cur: "EUR", status: "merken", offers: [] }
     ],
-    expenses: [{ id: St.newId(), text: "Mietwagen (Einwegmiete)", amount: 1450, cur: "EUR" }, { id: St.newId(), text: "Parks Canada Discovery Pass", amount: 151, cur: "CAD" }],
+    expenses: [{ id: St.newId(), text: "Parks Canada Discovery Pass", amount: 151, cur: "CAD" }],
+    car: { provider: "Avis", via: "billiger-mietwagen.de", status: "gebucht", cls: "SUV (Toyota RAV4)", url: "", pickPlace: "Flughafen Vancouver (YVR)", pickDate: start, pickTime: "16:00",
+      dropPlace: "Flughafen Calgary (YYC)", dropDate: end, dropTime: "10:00", total: 1450, cur: "EUR", deductible: 0, cancelUntil: P.addDays(start, -3), note: "",
+      ins: { cdw: true, sb0: true, sli: true, tp: true, glass: false, km: true, driver: true, oneway: true },
+      offers: [{ id: St.newId(), name: "Sunny Cars – SUV", url: "", total: 1390, cur: "EUR", ins: { cdw: true, sb0: true, sli: true, tp: true, glass: true, km: true, driver: true, oneway: true }, at: Date.now() }] },
+    fly: { place: { name: "Köln", lat: 50.9384, lng: 6.9599 }, rail: true },
     checks: { pass: true }
   });
 }

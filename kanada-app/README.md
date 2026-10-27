@@ -21,9 +21,19 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/kanada-a
   und wie viele Tage man im Nationalpark ist. Der Vorschlags-Filter „🆓 Kostenlos“ zeigt nur Kostenloses.
 - **Liste hochladen**: eine Liste mit Wünschen (Text, .txt, .csv) wird automatisch dem passenden Ort zugeordnet;
   bekannte Sehenswürdigkeiten werden auch unter anderen Namen erkannt (z. B. „The Beehive“, „Sulphur Mountain“).
-- **Flüge**: passende Suchen aus der Route (auch Gabelflug: rein in Vancouver, raus aus Calgary), mit einem Tipp bei
-  Google Flights, Kayak, Momondo oder Skyscanner. **Preiswächter**: Zielpreis festlegen, gefundenen Preis eintragen,
+- **Start (Dashboard)**: Countdown, bisher gebucht und voraussichtliche Gesamtkosten, alle gefahrenen Kilometer
+  (Etappen + Ausflüge zu Sehenswürdigkeiten, ab der gebuchten Unterkunft), Spritkosten (Verbrauch und Preis einstellbar),
+  wohin das Geld geht und wie weit die Buchungen sind.
+- **Flüge**: nur direkt bei den Fluggesellschaften (Lufthansa, Air Canada, Condor, Discover, Edelweiss, SWISS, Icelandair,
+  KLM, Air France, British Airways). Wohnort eingeben → Abflughäfen nach Entfernung mit Zugzeit, Rail&Fly-Hinweise,
+  Gabelflug (rein am ersten, raus am letzten Ort). Die App zeigt, welche Airline die Strecke direkt oder mit Umstieg fliegt,
+  und kopiert die Buchungsdaten zum Einfügen. **Preiswächter**: Zielpreis festlegen, gefundenen Preis eintragen,
   die App zeigt den Verlauf, erinnert alle paar Tage ans Nachsehen und schlägt Alarm, wenn der Zielpreis erreicht ist.
+- **Mietwagen**: eintragen mit Abholung/Rückgabe, Preis und was versichert ist. Versicherungs-Check (Vollkasko,
+  Selbstbeteiligung, Zusatzhaftpflicht, Glas/Reifen, Kilometer …) mit Punkten. Andere Angebote eintragen → Vergleich
+  von Preis *und* Schutz („131 € günstiger und gleich gut versichert“).
+- **Restaurants**: im Tagesplan pro Tag Restaurants mittags am Programmpunkt und abends bei der Unterkunft
+  (aus OpenStreetMap, ohne Ketten) mit Link zu den Google-Bewertungen. „+ Einplanen“ ersetzt die Mittagspause.
 - **Unterkünfte**: pro Ort Suche bei Airbnb, Booking.com, Vrbo, Expedia, Google Hotels (und Parks-Canada-Camping),
   schon mit Daten, Personen und Höchstpreis. Gebuchte Unterkunft eintragen → „Günstiger finden“ sucht mit denselben Daten
   im Umkreis von ca. 4 km unter dem eigenen Preis pro Nacht. Gefundene Angebote vergleichen, Erinnerung vor Ende der kostenlosen Stornierung.
@@ -49,7 +59,7 @@ Ohne Reisecode bleibt alles nur auf dem jeweiligen Gerät.
 
 - Fahrzeiten und Straßenverlauf: OSRM-Demoserver auf Basis von OpenStreetMap (ohne Schlüssel, für privaten Gebrauch).
   Offline oder bevor die Zeiten da sind, schätzt die App aus der Luftlinie (dann steht „≈“ davor).
-- Karte: OpenStreetMap-Kacheln mit Leaflet. Ortssuche: Nominatim. Wetter: Open-Meteo. Wechselkurs: EZB über Frankfurter.
+- Karte: OpenStreetMap-Kacheln mit Leaflet. Ortssuche: Nominatim. Restaurants: Overpass (OpenStreetMap; die öffentlichen Server sind manchmal überlastet). Wetter: Open-Meteo. Wechselkurs: EZB über Frankfurter.
 
 ## Testen
 

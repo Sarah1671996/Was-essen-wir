@@ -288,3 +288,35 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .costline { margin: 0 0 6px; }
 .importctl { display: grid; gap: 4px; justify-items: end; }
 .importctl select { max-width: 180px; }
+
+/* Dashboard */
+.dash { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 12px 0; }
+@media (min-width: 900px) { .dash { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.tile { margin: 0; display: flex; flex-direction: column; gap: 2px; padding: 14px; }
+.tile strong { font-family: var(--display); font-size: 1.35rem; line-height: 1.2; }
+.track { display: block; height: 8px; border-radius: 99px; background: var(--chip); overflow: hidden; }
+.track > span { display: block; height: 100%; border-radius: 99px; background: var(--forest); }
+.track > span.bad { background: var(--warn); }
+.costbars { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.costbars li { display: grid; grid-template-columns: 9.5em 1fr auto; gap: 10px; align-items: center; font-size: .92rem; }
+.costbars .track > span { background: var(--accent); }
+.progs { display: grid; gap: 8px; margin-top: 8px; }
+@media (min-width: 700px) { .progs { grid-template-columns: 1fr 1fr; } }
+.prog { display: grid; grid-template-columns: 1fr auto; gap: 4px 8px; text-align: left; background: none; border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.prog .track { grid-column: 1 / -1; }
+.fuelset { margin-top: 6px; }
+.fuelset summary { cursor: pointer; padding: 4px 0; }
+/* Flug & Auto */
+.tabs2 { display: flex; width: 100%; margin-bottom: 4px; }
+.tabs2 button { flex: 1; padding: 10px; font-size: .95rem; }
+.aplist { display: grid; gap: 6px; margin: 6px 0 10px; }
+.inscheck { margin-top: 10px; padding: 10px 12px; border-radius: 12px; background: var(--chip); }
+.inscheck .track { margin: 6px 0; background: var(--surface); }
+.inscheck ul { margin: 6px 0 0; padding-left: 0; list-style: none; }
+.inscheck li { padding: 2px 0; }
+/* Restaurants */
+.restwrap { margin-top: 6px; }
+.restwrap summary { cursor: pointer; padding: 4px 0; font-weight: 600; }
+.restspot { margin: 6px 0; }
+.rests { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
+.rests li { display: flex; gap: 8px; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
