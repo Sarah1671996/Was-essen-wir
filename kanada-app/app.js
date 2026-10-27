@@ -1,4 +1,4 @@
-import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, CHECKLIST, PACKLIST, TIPS } from "./data.js";
+import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, CHECKLIST, PACKLIST, TIPS, COST_LABEL, costLabel } from "./data.js";
 import * as P from "./plan.js";
 import * as St from "./store.js";
 import { flightLinks, lodgingLinks, mapsPlace, mapsRoute, GOOGLE_ALERT_HELP } from "./links.js";
@@ -303,6 +303,7 @@ function viewTage() {
   <section class="card">
     <div class="sechead"><h2>${esc(s.name)}</h2><button class="linkbtn" data-act="stop-edit" data-id="${s.id}">Daten ändern</button></div>
     <p class="small">${fmtD(s.from)} – ${fmtD(s.to)} · ${plan.nights ? plural(plan.nights, "Nacht", "Nächte") : "Durchreise"}</p>
+    ${plan.wishes.length ? `<p class="small">Kosten laut Plan: ${costLine(costSum(plan.days.flatMap(d => d.items))) || "–"}</p>` : ""}
     <div class="pace">
       <label>Tempo<select data-change="pace">${Object.entries(P.PACE).map(([k, v]) => `<option value="${k}" ${k === T.pace ? "selected" : ""}>${v.label}</option>`).join("")}</select></label>
       <label>Los um<input type="time" data-change="dayStart" value="${T.dayStart}"></label>
@@ -331,12 +332,42 @@ function viewTage() {
   <div class="chips">${Object.entries(TAGS).map(([k, t]) => `<button class="chip" aria-pressed="${T.criteria.includes(k)}" data-act="crit" data-tag="${k}">${t.icon} ${t.label}</button>`).join("")}</div>
   <div class="sugs">${sug.map(r => sugCard(r, plan)).join("") || `<p class="small">Hier in der Nähe kennt die App nichts Passendes mehr. Probier andere Vorlieben.</p>`}</div>`;
 }
+/* ---------- Kosten ---------- */
+const costChip = c => { const l = costLabel(c); return l ? `<span class="cost ${c === 0 ? "free" : ""}">${l}</span>` : ""; };
+// Was kostet eine Liste von Punkten: Eintritte (bekannte Beträge), Pässe, offene Preise
+function costSum(items) {
+  const r = { cad: 0, park: false, passes: new Set(), open: 0, free: 0, unknown: 0, n: items.length };
+  for (const w of items) {
+    if (typeof w.c === "number" && w.c > 0) r.cad += w.c;
+    else if (w.c === 0) r.free++;
+    else if (w.c === -1) r.open++;
+    else if (w.c === "park") r.park = true;
+    else if (w.c) r.passes.add(w.c);
+    else r.unknown++;
+  }
+  return r;
+}
+function costLine(r, perPerson = true) {
+  if (!r.n) return "";
+  const parts = [];
+  if (r.cad) parts.push(`💲 ca. ${r.cad} CAD ${perPerson ? "p. P." : ""} Eintritt (≈ ${money(r.cad * rate() * (pax().adults + pax().children))} für alle)`);
+  if (r.park) parts.push("🎫 Nationalpark-Pass nötig");
+  for (const p of r.passes) parts.push("🎫 " + COST_LABEL[p]);
+  if (r.open) parts.push(`${r.open}× Preis vor Ort`);
+  if (!parts.length && r.free === r.n) return "🆓 alles kostenlos";
+  if (r.free) parts.push(`🆓 ${r.free}× kostenlos`);
+  if (r.unknown) parts.push(`${r.unknown}× Preis unbekannt`);
+  return parts.join(" · ");
+}
+
 function wishRow(s, w, dayOpts) {
   const p = P.wishPoint(w);
   if (!p) return "";
   return `<li class="wish">
     <div class="wishmain"><strong>${esc(p.name)}</strong>
-      <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${P.dur(P.travel(s, p).min)} von der Unterkunft</span></div>
+      <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${P.dur(P.travel(s, p).min)} von der Unterkunft${w.sid ? "" : ` · <a href="${mapsPlace(p)}" target="_blank" rel="noopener">📍 ${esc(p.place || "auf der Karte ansehen")}</a>`}</span>
+      ${w.sid ? `<span class="small">${costChip(p.c)}${p.cn ? ` ${esc(p.cn)}` : ""}</span>`
+        : `<label class="inline small">Eintritt <input class="mini" inputmode="decimal" data-change="wish-cost" data-id="${w.id}" value="${w.c === 0 ? "0" : numIn(w.c)}" placeholder="?"> CAD p. P. <span class="small">(0 = kostenlos)</span></label>`}</div>
     <div class="wishctl">
       <div class="seg" role="group" aria-label="Wie wichtig?">
         ${[[2, "Muss"], [1, "Gern"], [0, "Optional"]].map(([v, l]) => `<button aria-pressed="${p.prio === v}" data-act="wish-prio" data-id="${w.id}" data-v="${v}">${l}</button>`).join("")}
@@ -358,12 +389,14 @@ function dayCard(s, d, i) {
     if (x.type === "fahrt") rows.push(`<li class="st drive"><span class="time"></span><span>🚗 ${x.real ? "" : "≈ "}${P.dur(x.min)} · ${Math.round(x.km)} km</span></li>`);
     if (x.type === "pause") rows.push(`<li class="st lunch"><span class="time">${P.hhmm(x.start)}</span><span>🍽️ Mittagspause</span></li>`);
     if (x.type === "besuch") rows.push(`<li class="st visit"><span class="time">${P.hhmm(x.start)}</span><span><a href="${mapsPlace(x.w)}" target="_blank" rel="noopener"><strong>${esc(x.w.name)}</strong></a>
-      <span class="small">bis ${P.hhmm(x.start + x.min)}${x.w.res ? " · 🎟️ reservieren" : ""}${x.w.tip ? ` · ${esc(x.w.tip)}` : ""}</span></span></li>`);
+      <span class="small">bis ${P.hhmm(x.start + x.min)}${costLabel(x.w.c) ? " · " + costLabel(x.w.c) : ""}${x.w.res ? " · 🎟️ reservieren" : ""}${x.w.tip ? ` · ${esc(x.w.tip)}` : ""}</span></span></li>`);
   }
+  const cost = costLine(costSum(d.items));
   rows.push(`<li class="st end"><span class="time">${P.hhmm(d.finish)}</span><span>🏡 ${d.kind === "abreise" && !d.items.length ? "Abreise" : "Zurück in der Unterkunft"}${d.free >= 30 ? ` · noch ${P.dur(d.free)} frei` : ""}</span></li>`);
   return `<article class="day" style="--c:${dayColor(i)}">
     <header><h3>Tag ${i + 1} · ${fmtD(d.date)}</h3>${label ? `<span class="tag">${label}</span>` : ""}</header>
     <p class="wx small" data-wx="${d.date}"></p>
+    ${cost ? `<p class="small costline">${cost}</p>` : ""}
     ${d.items.length ? `<ol class="timeline">${rows.join("")}</ol>
       <a class="small" href="${esc(mapsRoute(pts))}" target="_blank" rel="noopener">Route in Google Maps ↗</a>` : `<p class="small">${d.kind === "abreise" ? "Abreisetag." : "Noch frei – Zeit zum Treibenlassen oder für einen Vorschlag unten."}</p>`}
   </article>`;
@@ -375,6 +408,7 @@ function sugCard(r, plan) {
     <div><strong>${esc(x.name)}</strong>
       <p class="small">${P.dur(r.t)} entfernt · ${String(x.dur).replace(".", ",")} h vor Ort${fit >= 0 ? ` · passt an Tag ${fit + 1}` : ""}${r.offSeason ? " · nicht die beste Jahreszeit" : ""}</p>
       <p class="small">${P.matchLabels(x, T.criteria).join(" · ")}</p>
+      <p class="small">${costChip(x.c)}${x.cn ? ` ${esc(x.cn)}` : ""}</p>
       ${x.t ? `<p class="small tip">${esc(x.t)}</p>` : ""}</div>
     <button class="btn small" data-act="sug-add" data-sid="${x.id}">+ Dazu</button>
   </article>`;
@@ -531,7 +565,7 @@ function lodgeCard(l, s) {
 function viewMore() {
   const [a] = range();
   const left = a ? daysUntil(a) : null;
-  const b = budget();
+  const b = budget(true);
   const code = St.syncCode();
   return `
   <details class="card more" open><summary><h2>✅ Vorbereitung</h2><span class="small">${CHECKLIST.filter(c => T.checks[c.id]).length}/${CHECKLIST.length}</span></summary>
@@ -553,6 +587,7 @@ function viewMore() {
     <table class="budget"><tbody>
       <tr><td>Flüge (gebucht)</td><td>${money(b.flights)}</td></tr>
       <tr><td>Unterkünfte (gebucht)</td><td>${money(b.lodging)}</td></tr>
+      ${b.entry.cad || b.parkDays ? `<tr><td>Eintritte laut Tagesplan <span class="small block">geschätzt, nicht in der Summe${b.parkDays ? ` · ${plural(b.parkDays, "Tag", "Tage")} im Nationalpark${b.parkDays >= 7 ? " – der Discovery Pass lohnt sich" : " – Tagespässe reichen"}` : ""}</span></td><td>${b.entry.cad ? `≈ ${money(b.entry.cad * rate() * (pax().adults + pax().children))}` : ""}</td></tr>` : ""}
       ${T.expenses.map(e => `<tr><td>${esc(e.text)} <button class="iconbtn sm" data-act="exp-del" data-id="${e.id}" aria-label="entfernen">✕</button></td><td>${money(toEur(e.amount, e.cur))}${e.cur === "CAD" ? `<span class="small block">${money(e.amount, "CAD")}</span>` : ""}</td></tr>`).join("")}
       <tr class="sum"><td>Gesamt</td><td>${money(b.total)}</td></tr>
     </tbody></table>
@@ -606,7 +641,14 @@ function viewMore() {
     <button class="btn small danger" data-act="reset">Reise löschen und neu anfangen</button>
   </details>`;
 }
-function budget() {
+function budget(withPlan = false) {
+  // Eintritte aus den Tagesplänen (nur zur Info) und wie viele Tage man in Nationalparks ist
+  let entry = { cad: 0 }, parkDays = 0;
+  if (withPlan) {
+    const days = stops().flatMap(s => planFor(s).days);
+    entry = costSum(days.flatMap(d => d.items));
+    parkDays = new Set(days.filter(d => d.items.some(w => w.c === "park")).map(d => d.date)).size;
+  }
   const flights = T.flights.filter(f => f.booked).reduce((t, f) => t + num(f.bookedPrice), 0);
   const lodging = T.lodgings.filter(l => l.status === "gebucht").reduce((t, l) => t + lodgeEur(l), 0);
   const extra = T.expenses.reduce((t, e) => t + toEur(e.amount, e.cur), 0);
@@ -614,7 +656,7 @@ function budget() {
   const [a, b] = range();
   const days = a && b ? P.daysBetween(a, b) + 1 : 0;
   const people = pax().adults + pax().children;
-  return { flights, lodging, extra, total, perDay: days ? total / days : 0, perPerson: people > 1 ? total / people : 0 };
+  return { flights, lodging, extra, total, entry, parkDays, perDay: days ? total / days : 0, perPerson: people > 1 ? total / people : 0 };
 }
 
 /* ---------- Fenster (Formulare) ---------- */
@@ -631,10 +673,18 @@ function closeSheet() { if (sheet.open) sheet.close(); }
 $("#sheetClose").onclick = closeSheet;
 sheet.addEventListener("click", e => { if (e.target === sheet) closeSheet(); });
 
+// Ortssuche: Natur, Sehenswürdigkeiten und Orte zuerst, Geschäfte und Gebäude (z. B. eine Bar gleichen Namens) nach hinten
+const GEO_GOOD = new Set(["natural", "tourism", "leisure", "boundary", "historic", "waterway", "place", "mountain_pass"]);
+const GEO_BAD = new Set(["amenity", "shop", "office", "building", "craft", "highway", "railway", "landuse", "man_made"]);
 async function geocode(q) {
-  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=ca&accept-language=de&q=${encodeURIComponent(q)}`);
+  const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=ca&accept-language=de&q=${encodeURIComponent(q)}`);
   if (!res.ok) throw new Error(res.status);
-  return (await res.json()).map(x => ({ name: x.name || x.display_name.split(",")[0], full: x.display_name, lat: +x.lat, lng: +x.lon }));
+  return (await res.json()).map(x => {
+    const parts = x.display_name.split(", ");
+    const where = parts.slice(1).filter(p => !/\d/.test(p) && p !== "Kanada").slice(-3).join(", ");
+    const score = (x.importance || 0) + (GEO_GOOD.has(x.category) ? 0.3 : 0) - (GEO_BAD.has(x.category) ? 0.3 : 0);
+    return { name: x.name || parts[0], full: x.display_name, where, lat: +x.lat, lng: +x.lon, score };
+  }).sort((a, b) => b.score - a.score);
 }
 
 // Ort für die Route wählen (aus der Liste oder frei gesucht)
@@ -720,7 +770,8 @@ function wishSheet(s) {
     const rows = pool.filter(r => (!v || r.x.name.toLowerCase().includes(v)) && (!tag || r.x.tags.includes(tag)));
     return rows.map(r => `<button type="button" class="placebtn ${have.has(r.x.id) ? "on" : ""}" data-sid="${r.x.id}">
       <strong>${have.has(r.x.id) ? "✓ " : "+ "}${esc(r.x.name)}</strong>
-      <span class="small">${P.dur(r.t)} · ${String(r.x.dur).replace(".", ",")} h · ${r.x.tags.filter(t => TAGS[t]).map(t => TAGS[t].icon).join(" ")}${r.x.r ? " · 🎟️" : ""}</span></button>`).join("")
+      <span class="small">${P.dur(r.t)} · ${String(r.x.dur).replace(".", ",")} h · ${r.x.tags.filter(t => TAGS[t] && t !== "gratis").map(t => TAGS[t].icon).join(" ")}${r.x.r ? " · 🎟️" : ""}</span>
+      <span class="small">${costLabel(r.x.c)}</span></button>`).join("")
       || `<p class="small">Nichts in der Nähe gefunden – leg unten einen eigenen Ort an.</p>`;
   };
   openSheet(`Wünsche für ${s.name}`, `
@@ -732,7 +783,9 @@ function wishSheet(s) {
       <label>Was möchtest du sehen?<input name="q" placeholder="z. B. Restaurant, Aussichtspunkt, Adresse" required></label>
       <div id="ownList" class="placelist"></div>
       <input type="hidden" name="lat"><input type="hidden" name="lng">
-      <div class="row2"><label>Dauer (h)<input name="dur" inputmode="decimal" value="1,5"></label><button type="button" class="btn ghost" id="ownSearch">Suchen</button></div>
+      <input type="hidden" name="place">
+      <button type="button" class="btn ghost" id="ownSearch">🔎 Suchen</button>
+      <div class="row2"><label>Dauer (h)<input name="dur" inputmode="decimal" value="1,5"></label><label>Eintritt (CAD p. P.)<input name="cost" inputmode="decimal" placeholder="? · 0 = kostenlos"></label></div>
       <button class="btn">Hinzufügen</button>
     </form>`, null, body => {
     const list = body.querySelector("#wishList");
@@ -753,16 +806,24 @@ function wishSheet(s) {
     body.querySelector("#ownSearch").onclick = async () => {
       const q = f.elements.q.value.trim(); if (!q) return;
       out.innerHTML = `<p class="small">Suche …</p>`;
+      // Kennt die App den Ort schon, steht er oben (mit Dauer, Kosten und Tipps)
+      const known = matchSight(q);
+      const knownBtn = known ? `<button type="button" class="placebtn on" data-known="${known.id}"><strong>✓ ${esc(known.name)}</strong><span class="small">bekannte Sehenswürdigkeit · ${costLabel(known.c)}</span></button>` : "";
       try {
         const res = await geocode(q + " " + s.name);
         const res2 = res.length ? res : await geocode(q);
-        out.innerHTML = res2.map(x => `<button type="button" class="placebtn" data-geo="${esc(JSON.stringify(x))}"><strong>${esc(x.name)}</strong><span class="small">${esc(x.full)}</span></button>`).join("") || `<p class="small">Nichts gefunden.</p>`;
-      } catch { out.innerHTML = `<p class="small">Suche geht gerade nicht.</p>`; }
+        out.innerHTML = knownBtn + res2.map(x => `<button type="button" class="placebtn" data-geo="${esc(JSON.stringify(x))}"><strong>${esc(x.name)}</strong><span class="small">📍 ${esc(x.where)} · ${P.dur(P.estimate(s, x).min)} entfernt</span></button>`).join("") || `<p class="small">Nichts gefunden.</p>`;
+      } catch { out.innerHTML = knownBtn || `<p class="small">Suche geht gerade nicht.</p>`; }
     };
     out.onclick = e => {
+      const k = e.target.closest("[data-known]");
+      if (k) {
+        if (!s.wishes.some(w => w.sid === k.dataset.known)) s.wishes.push({ id: St.newId(), sid: k.dataset.known, prio: 1 });
+        commit(); closeSheet(); toast("Hinzugefügt"); return;
+      }
       const r = e.target.closest("[data-geo]"); if (!r) return;
       const x = JSON.parse(r.dataset.geo);
-      f.elements.lat.value = x.lat; f.elements.lng.value = x.lng;
+      f.elements.lat.value = x.lat; f.elements.lng.value = x.lng; f.elements.place.value = x.where;
       if (!f.elements.q.value.trim()) f.elements.q.value = x.name;
       out.innerHTML = `<p class="small goodtext">✓ ${esc(x.full)}</p>`;
     };
@@ -770,7 +831,8 @@ function wishSheet(s) {
       e.preventDefault();
       const lat = parseFloat(f.elements.lat.value), lng = parseFloat(f.elements.lng.value);
       if (!Number.isFinite(lat)) { toast("Bitte zuerst suchen und einen Treffer antippen."); return; }
-      s.wishes.push({ id: St.newId(), name: f.elements.q.value.trim().slice(0, 60), lat, lng, dur: Math.max(0.25, num(f.elements.dur.value) || 1.5), prio: 1 });
+      const cost = f.elements.cost.value.trim();
+      s.wishes.push({ id: St.newId(), name: f.elements.q.value.trim().slice(0, 60), lat, lng, place: f.elements.place.value.slice(0, 80), dur: Math.max(0.25, num(f.elements.dur.value) || 1.5), prio: 1, ...(cost !== "" ? { c: num(cost) } : {}) });
       commit(); closeSheet(); toast("Hinzugefügt");
     };
   });
@@ -908,16 +970,18 @@ function parseList(text) {
 function matchSight(q) {
   const qn = norm(q), qw = words(q);
   let best = null;
-  for (const x of SIGHTS) {
-    const sn = norm(x.name), sw = words(x.name);
-    let sc = 0;
-    if (sn === qn) sc = 3;
-    else if (qn.length >= 4 && (sn.includes(qn) || qn.includes(sn))) sc = 2;
-    else if (qw.length && sw.length) {
-      const common = qw.filter(w => sw.includes(w)).length;
-      const r = common / Math.max(qw.length, 1);
-      if (r >= 0.5 && qw.some(w => w.length >= 5 && sw.includes(w))) sc = 1 + r * 0.5;
+  const scoreName = name => {
+    const sn = norm(name), sw = words(name);
+    if (sn === qn) return 3;
+    if (qn.length >= 4 && (sn.includes(qn) || qn.includes(sn))) return 2;
+    if (qw.length && sw.length) {
+      const r = qw.filter(w => sw.includes(w)).length / qw.length;
+      if (r >= 0.5 && qw.some(w => w.length >= 5 && sw.includes(w))) return 1 + r * 0.5;
     }
+    return 0;
+  };
+  for (const x of SIGHTS) {
+    const sc = Math.max(...[x.name, ...(x.a || [])].map(scoreName));
     if (!sc) continue;
     const near = Math.min(...stops().map(s => P.km(s, x)));
     if (!best || sc > best.sc || (sc === best.sc && near < best.near)) best = { x, sc, near };
@@ -940,6 +1004,24 @@ function bestStop(p) {
   });
   return best;
 }
+// Selbst angelegte Orte, die eigentlich eine bekannte Sehenswürdigkeit sind (z. B. „The Beehive“, früher von der
+// Kartensuche in Vancouver gefunden), in die richtige Sehenswürdigkeit umwandeln und zum passenden Ort verschieben
+function repairWishes() {
+  if (!T || !stops().length) return [];
+  const fixed = [];
+  for (const s of stops()) for (const w of [...s.wishes]) {
+    if (w.sid || !w.name) continue;
+    const n = norm(w.name);
+    const x = SIGHTS.find(y => norm(y.name) === n || (y.a || []).some(a => norm(a) === n));
+    if (!x) continue;
+    s.wishes.splice(s.wishes.indexOf(w), 1);
+    const to = stopById(bestStop(x).id) || s;
+    if (!to.wishes.some(v => v.sid === x.id)) to.wishes.push({ id: w.id, sid: x.id, prio: w.prio ?? 1, ...(w.dur ? { dur: w.dur } : {}) });
+    fixed.push(`${w.name} → ${to.name}`);
+  }
+  return fixed;
+}
+
 function importSheet() {
   if (!stops().length) { toast("Lege zuerst in der Route deine Orte mit Datum an."); return; }
   openSheet("Liste mit Wünschen hochladen", `
@@ -969,41 +1051,57 @@ async function resolveList(names) {
   for (const [i, name] of names.entries()) {
     body.innerHTML = `<p>Ordne zu … ${i + 1} von ${names.length}</p><p class="small">${esc(name)}</p>`;
     const x = matchSight(name);
-    if (x) { rows.push({ name: x.name, given: name, sid: x.id, lat: x.lat, lng: x.lng, dur: x.dur, known: true, dup: taken.has(x.id) }); continue; }
+    if (x) { rows.push({ name: x.name, given: name, sid: x.id, lat: x.lat, lng: x.lng, dur: x.dur, c: x.c, known: true, dup: taken.has(x.id) }); continue; }
     // Ortssuche erlaubt höchstens eine Anfrage pro Sekunde
     if (webCalls++) await new Promise(r => setTimeout(r, 1100));
     try {
-      const hit = (await geocode(name))[0];
-      if (hit) rows.push({ name, given: name, lat: hit.lat, lng: hit.lng, dur: 1.5, full: hit.full });
+      const alts = (await geocode(name)).slice(0, 5);
+      if (alts.length) rows.push({ name, given: name, alts, alt: 0, dur: 1.5 });
       else missing.push(name);
     } catch { missing.push(name); }
   }
-  rows.forEach(r => { r.best = bestStop(r); r.stop = r.best.id; r.on = !r.dup; });
+  // Gefundenen Treffer übernehmen und den passenden Ort der Route neu bestimmen
+  const place = r => {
+    if (r.alts) { const a = r.alts[r.alt]; r.lat = a.lat; r.lng = a.lng; r.where = a.where; }
+    r.best = bestStop(r); r.stop = r.best.id;
+    r.far = Math.min(...stops().map(s => P.km(s, r))) > 150;
+  };
+  rows.forEach(r => { place(r); r.on = !r.dup; });
   const opts = sel => stops().map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
-  body.innerHTML = `
-    <p class="small">${plural(rows.length, "Ort", "Orte")} erkannt${missing.length ? `, ${missing.length} nicht gefunden` : ""}. Prüf die Zuordnung und ändere sie bei Bedarf.</p>
+  const show = () => {
+    body.innerHTML = `
+    <p class="small">${plural(rows.length, "Ort", "Orte")} erkannt${missing.length ? `, ${missing.length} nicht gefunden` : ""}. Prüf die Zuordnung und ändere sie bei Bedarf –
+      bei Orten aus der Kartensuche steht dabei, wo der Treffer liegt.</p>
     <ul class="importlist">${rows.map((r, i) => `<li>
       <label class="check"><input type="checkbox" data-i="${i}" ${r.on ? "checked" : ""}>
-        <span><strong>${esc(r.name)}</strong>${r.known ? "" : ` <span class="small">(${esc(r.full.split(",").slice(0, 3).join(","))})</span>`}
-        <span class="small block">${r.dup ? "schon eingeplant · " : ""}${r.best.how === "unterwegs" ? `auf der Fahrt von ${esc(r.best.from)}` : `≈ ${P.dur(r.best.t)} entfernt`}${r.best.t > 180 && r.best.how !== "unterwegs" ? " · ⚠️ weit weg von deiner Route" : ""}</span></span></label>
-      <select data-i="${i}" aria-label="Zu welchem Ort?">${opts(r.stop)}</select></li>`).join("")}</ul>
+        <span><strong>${esc(r.name)}</strong>
+        ${r.known ? `<span class="small block">✓ bekannte Sehenswürdigkeit${costLabel(r.c) ? " · " + costLabel(r.c) : ""}</span>` : `<span class="small block">📍 ${esc(r.where || "Kartensuche")}</span>`}
+        <span class="small block">${r.dup ? "schon eingeplant · " : ""}${r.best.how === "unterwegs" ? `auf der Fahrt von ${esc(r.best.from)}` : `≈ ${P.dur(r.best.t)} entfernt`}${r.far || (r.best.t > 180 && r.best.how !== "unterwegs") ? ` · <span class="warntext">⚠️ weit weg von deiner Route – richtiger Ort?</span>` : ""}</span></span></label>
+      <div class="importctl">
+        ${r.alts && r.alts.length > 1 ? `<select data-alt="${i}" aria-label="Welcher Treffer?">${r.alts.map((a, k) => `<option value="${k}" ${k === r.alt ? "selected" : ""}>${esc(a.name)} – ${esc(a.where)}</option>`).join("")}</select>` : ""}
+        <select data-i="${i}" aria-label="Zu welchem Ort?">${opts(r.stop)}</select>
+      </div></li>`).join("")}</ul>
     ${missing.length ? `<p class="small warntext">Nicht gefunden: ${missing.map(esc).join(", ")} – füge sie im Tagesplan über „Eigener Ort“ hinzu.</p>` : ""}
     <button class="btn big" id="importGo">Übernehmen</button>`;
-  body.querySelector(".importlist").onchange = e => {
-    const r = rows[e.target.dataset.i]; if (!r) return;
-    if (e.target.type === "checkbox") r.on = e.target.checked; else r.stop = e.target.value;
+    body.querySelector(".importlist").onchange = e => {
+      const t = e.target;
+      if (t.dataset.alt != null) { const r = rows[t.dataset.alt]; r.alt = Number(t.value); place(r); show(); return; }
+      const r = rows[t.dataset.i]; if (!r) return;
+      if (t.type === "checkbox") r.on = t.checked; else r.stop = t.value;
+    };
+    body.querySelector("#importGo").onclick = () => {
+      let n = 0;
+      for (const r of rows.filter(x => x.on)) {
+        const s = stopById(r.stop); if (!s) continue;
+        const day = r.best.how === "unterwegs" && r.stop === r.best.id ? s.from : "";
+        s.wishes.push(r.sid ? { id: St.newId(), sid: r.sid, prio: 1, day } : { id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, place: (r.where || "").slice(0, 80), dur: r.dur, prio: 1, day });
+        n++;
+      }
+      closeSheet(); commit();
+      toast(`${plural(n, "Wunsch", "Wünsche")} eingeplant`);
+    };
   };
-  body.querySelector("#importGo").onclick = () => {
-    let n = 0;
-    for (const r of rows.filter(x => x.on)) {
-      const s = stopById(r.stop); if (!s) continue;
-      const day = r.best.how === "unterwegs" && r.stop === r.best.id ? s.from : "";
-      s.wishes.push(r.sid ? { id: St.newId(), sid: r.sid, prio: 1, day } : { id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, dur: r.dur, prio: 1, day });
-      n++;
-    }
-    closeSheet(); commit();
-    toast(`${plural(n, "Wunsch", "Wünsche")} eingeplant`);
-  };
+  show();
 }
 
 function offerSheet(l) {
@@ -1157,7 +1255,7 @@ const findWish = id => { for (const s of stops()) { const w = s.wishes.find(x =>
 
 async function joinCode(code, fromUser) {
   if (code.length < 10) { toast("Der Reisecode hat 10 Zeichen."); return; }
-  try { await St.connect(code, T, false); if (!T) T = St.loadLocal(); toast("Verbunden ☁"); render(); }
+  try { await St.connect(code, T, false); if (!T) T = St.loadLocal(); if (T) { T = Object.assign(blankTrip(), T); repairAndTell(); } toast("Verbunden ☁"); render(); }
   catch (e) { if (fromUser || e.message === "notfound") toast(e.message === "notfound" ? "Diesen Reisecode gibt es nicht." : "Verbinden hat nicht geklappt. Bist du online?"); }
 }
 
@@ -1168,6 +1266,7 @@ const CHANGE = {
   dayEnd(el) { if (el.value) { T.dayEnd = el.value; commit(); } },
   "wish-dur"(el) { const w = findWish(el.dataset.id); if (w) { w.dur = Number(el.value); commit(); } },
   "wish-day"(el) { const w = findWish(el.dataset.id); if (w) { w.day = el.value; commit(); } },
+  "wish-cost"(el) { const w = findWish(el.dataset.id); if (w) { if (el.value.trim() === "") delete w.c; else w.c = num(el.value); commit(); } },
   checkEvery(el) { T.checkEvery = Number(el.value); commit(false); },
   maxNight(el) { const s = stopById(el.dataset.id); if (s) { s.maxNight = num(el.value) || 0; commit(); } },
   check(el) { T.checks[el.dataset.id] = el.checked; commit(false); },
@@ -1435,9 +1534,14 @@ function demoTrip() {
 }
 
 /* ---------- Start ---------- */
-St.onSync(t => { T = t; render(); }, mode => { $("#syncBadge").hidden = mode !== "sync"; $("#syncBadge").classList.toggle("err", mode === "fehler"); });
+function repairAndTell() {
+  const fixed = repairWishes();
+  if (fixed.length) { St.save(T); setTimeout(() => toast(`Korrigiert: ${fixed.join(", ")}`), 600); }
+}
+St.onSync(t => { T = Object.assign(blankTrip(), t); repairAndTell(); render(); }, mode => { $("#syncBadge").hidden = mode !== "sync"; $("#syncBadge").classList.toggle("err", mode === "fehler"); });
 document.querySelectorAll(".nav button").forEach(b => b.onclick = () => ACT.tab({ tab: b.dataset.tab }));
-if (T) T = Object.assign(blankTrip(), T);
+// Mit Reisecode erst nach dem Abgleich reparieren, sonst würde der lokale Stand den neueren vom anderen Gerät überschreiben
+if (T) { T = Object.assign(blankTrip(), T); if (!St.canSync || !St.savedCode()) repairAndTell(); }
 render();
 if (St.canSync) {
   const fromLink = St.cleanCode(new URLSearchParams(location.search).get("code"));

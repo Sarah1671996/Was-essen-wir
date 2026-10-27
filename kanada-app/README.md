@@ -16,6 +16,11 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/kanada-a
   Hinweise: früh am Morgen am schönsten (Tag startet dann um 7 Uhr), Reservierung nötig (z. B. Moraine Lake), falsche Jahreszeit,
   „liegt von einem anderen Ort viel näher“. Vorschläge in der Nähe nach Vorlieben: Sehenswürdigkeiten, Natur, Ruhe, Wandern, Tiere,
   Aussicht, Seen, Kultur, Stadt, Kinder, Geheimtipp. Dazu Wetter pro Tag (Vorhersage bzw. wie es letztes Jahr war) und Sonnenaufgang.
+- **Kosten**: bei jeder Sehenswürdigkeit steht, ob sie kostenlos ist, den Nationalpark-Pass braucht oder ungefähr wie viel Eintritt kostet
+  (Stand 2025/26, ändert sich oft). Pro Tag und Ort zeigt die App die geschätzten Eintritte, unter Mehr → Budget die Summe
+  und wie viele Tage man im Nationalpark ist. Der Vorschlags-Filter „🆓 Kostenlos“ zeigt nur Kostenloses.
+- **Liste hochladen**: eine Liste mit Wünschen (Text, .txt, .csv) wird automatisch dem passenden Ort zugeordnet;
+  bekannte Sehenswürdigkeiten werden auch unter anderen Namen erkannt (z. B. „The Beehive“, „Sulphur Mountain“).
 - **Flüge**: passende Suchen aus der Route (auch Gabelflug: rein in Vancouver, raus aus Calgary), mit einem Tipp bei
   Google Flights, Kayak, Momondo oder Skyscanner. **Preiswächter**: Zielpreis festlegen, gefundenen Preis eintragen,
   die App zeigt den Verlauf, erinnert alle paar Tage ans Nachsehen und schlägt Alarm, wenn der Zielpreis erreicht ist.

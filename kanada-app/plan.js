@@ -137,7 +137,7 @@ export function wishPoint(w) {
     wid: w.id, sid: w.sid || null, name: w.name || base?.name || "Ort", lat: src.lat, lng: src.lng,
     dur: Number(w.dur) || base?.dur || 1.5, prio: w.prio ?? 1, when: w.when || base?.w || "",
     res: base?.r || "", months: base?.m || null, tip: base?.t || "", tags: base?.tags || w.tags || [],
-    fixDay: w.day || ""
+    fixDay: w.day || "", c: base ? base.c : w.c, cn: base?.cn || "", place: w.place || ""
   };
 }
 
@@ -342,7 +342,10 @@ export function interestScore(x, criteria) {
 }
 export function suggestNear(point, criteria, exclude, { maxMin = 100, limit = 8, from, to } = {}) {
   const m1 = from ? monthOf(from) : 0, m2 = to ? monthOf(to) : m1;
-  return SIGHTS.filter(x => !exclude.has(x.id))
+  // „Kostenlos“ ist ein echter Filter, keine Vorliebe
+  const freeOnly = criteria.includes("gratis");
+  criteria = criteria.filter(c => c !== "gratis");
+  return SIGHTS.filter(x => !exclude.has(x.id) && (!freeOnly || x.c === 0))
     .map(x => {
       const t = travel(point, x).min;
       let sc = interestScore(x, criteria) - t / 50;
@@ -354,7 +357,7 @@ export function suggestNear(point, criteria, exclude, { maxMin = 100, limit = 8,
     .sort((a, b) => b.sc - a.sc).slice(0, limit);
 }
 export function matchLabels(x, criteria) {
-  return x.tags.filter(t => TAGS[t] && (criteria.includes(t) || (!criteria.length && t !== "voll"))).slice(0, 3).map(t => TAGS[t].icon + " " + TAGS[t].label);
+  return x.tags.filter(t => TAGS[t] && t !== "gratis" && (criteria.includes(t) || (!criteria.length && t !== "voll"))).slice(0, 3).map(t => TAGS[t].icon + " " + TAGS[t].label);
 }
 
 /* ---------- Ganze Route ---------- */

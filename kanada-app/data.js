@@ -2,6 +2,7 @@
 // Koordinaten sind auf wenige hundert Meter genau, Dauer = typische Zeit vor Ort in Stunden.
 // Felder bei Sehenswürdigkeiten: w = beste Tageszeit ("früh"/"abends"), r = Reservierung/Ticket nötig,
 // m = [vonMonat, bisMonat] wann sinnvoll/geöffnet, t = Tipp.
+// Kosten stehen unten in COST, andere Namen (für den Listen-Import) in ALIAS.
 
 export const TAGS = {
   sight:   { label: "Sehenswürdigkeiten", icon: "📸" },
@@ -14,7 +15,8 @@ export const TAGS = {
   kultur:  { label: "Kultur & Geschichte", icon: "🎭" },
   stadt:   { label: "Stadtleben", icon: "🏙️" },
   familie: { label: "Mit Kindern", icon: "🧒" },
-  geheim:  { label: "Geheimtipp", icon: "💎" }
+  geheim:  { label: "Geheimtipp", icon: "💎" },
+  gratis:  { label: "Kostenlos", icon: "🆓" }
 };
 
 export const REGIONS = {
@@ -118,13 +120,13 @@ export const SIGHTS = [
   s("helmcken", "wellsgray", "Helmcken Falls", 51.9550, -120.1770, 1, "natur aussicht sight", { m: [5, 10] }),
   s("dawsonfalls", "wellsgray", "Dawson Falls", 51.9640, -120.1260, 0.75, "natur ruhe"),
   s("spahats", "wellsgray", "Spahats Creek Falls", 51.7410, -120.0060, 0.5, "natur"),
-  s("moul", "wellsgray", "Moul Falls (hinter den Wasserfall)", 51.8320, -120.1000, 2, "wandern natur geheim"),
+  s("moul", "wellsgray", "Moul Falls (hinter den Wasserfall)", 51.8345, -120.0504, 2, "wandern natur geheim"),
   s("clearwaterlake", "wellsgray", "Kanu auf dem Clearwater Lake", 52.1300, -120.1800, 3, "ruhe wasser tiere", { m: [6, 9] }),
 
   // Revelstoke & Glacier NP
   s("mtrevelstoke", "revelstoke", "Meadows in the Sky (Mt. Revelstoke)", 51.0400, -118.1600, 3, "aussicht natur", { m: [7, 9], t: "Wildblumen Ende Juli/August." }),
   s("cedars", "revelstoke", "Giant Cedars Boardwalk", 51.0070, -117.8300, 0.75, "natur ruhe familie"),
-  s("pipecoaster", "revelstoke", "Revelstoke Mountain Resort (Gondel & Coaster)", 50.9580, -118.1640, 2, "familie aussicht"),
+  s("pipecoaster", "revelstoke", "Revelstoke Mountain Resort (Gondel & Coaster)", 50.9693, -118.1093, 2, "familie aussicht"),
   s("rogerspass", "revelstoke", "Rogers Pass (Glacier NP)", 51.3000, -117.5200, 2, "natur aussicht wandern"),
   s("enchanted", "revelstoke", "Enchanted Forest", 51.0000, -118.4500, 1.5, "familie", { m: [5, 9] }),
 
@@ -144,7 +146,7 @@ export const SIGHTS = [
   // Lake Louise & Icefields Parkway Süd
   s("lakelouise", "lakelouise", "Lake Louise", 51.4166, -116.2150, 2, "wasser sight voll", { w: "früh", r: "Parkplatz kostenpflichtig und früh voll – Parks-Canada-Shuttle reservieren." }),
   s("moraine", "lakelouise", "Moraine Lake", 51.3217, -116.1860, 2, "wasser sight voll", { w: "früh", m: [6, 10], r: "Keine Privatautos: Parks-Canada-Shuttle oder Bus (Roam/Tour) vorab buchen." }),
-  s("agnes", "lakelouise", "Lake Agnes Teahouse", 51.4145, -116.2300, 3.5, "wandern aussicht", { m: [6, 10], t: "Nur Barzahlung im Teehaus." }),
+  s("agnes", "lakelouise", "Lake Agnes Teahouse", 51.4164, -116.2442, 3.5, "wandern aussicht", { m: [6, 10], t: "Nur Barzahlung im Teehaus." }),
   s("sixglaciers", "lakelouise", "Plain of Six Glaciers", 51.4000, -116.2650, 5, "wandern natur", { m: [6, 10] }),
   s("peyto", "lakelouise", "Peyto Lake", 51.7180, -116.5100, 1, "aussicht sight voll" ),
   s("bowlake", "lakelouise", "Bow Lake", 51.6750, -116.4500, 0.75, "wasser natur ruhe", { w: "früh" }),
@@ -157,9 +159,9 @@ export const SIGHTS = [
   s("takakkaw", "golden", "Takakkaw Falls", 51.5000, -116.4720, 1, "natur sight", { m: [6, 10] }),
   s("spiral", "golden", "Spiral Tunnels Aussicht", 51.4380, -116.3930, 0.3, "kultur familie"),
   s("ohara", "golden", "Lake O'Hara", 51.3555, -116.3350, 7, "wandern ruhe natur", { m: [6, 10], r: "Nur mit Parks-Canada-Bus, Plätze per Lotterie im Frühjahr." }),
-  s("wapta", "golden", "Wapta Falls", 51.1450, -116.5800, 1.5, "ruhe natur geheim"),
+  s("wapta", "golden", "Wapta Falls", 51.1873, -116.5758, 1.5, "ruhe natur geheim"),
   s("kickinghorse", "golden", "Kicking Horse Gondel & Grizzly-Refugium", 51.2970, -117.0480, 3, "tiere aussicht", { m: [6, 9] }),
-  s("skybridge", "golden", "Golden Skybridge", 51.2730, -116.9600, 2, "familie aussicht"),
+  s("skybridge", "golden", "Golden Skybridge", 51.3150, -116.9574, 2, "familie aussicht"),
 
   // Banff
   s("banfftown", "banff", "Banff Avenue & Ort", 51.1760, -115.5700, 1.5, "stadt"),
@@ -178,7 +180,7 @@ export const SIGHTS = [
   s("grassi", "canmore", "Grassi Lakes", 51.0730, -115.3970, 2, "wandern ruhe wasser"),
   s("haling", "canmore", "Ha Ling Peak", 51.0710, -115.4000, 4, "wandern aussicht"),
   s("lougheed", "canmore", "Peter Lougheed Provincial Park", 50.6720, -115.1500, 4, "natur ruhe tiere geheim", { r: "Kananaskis Conservation Pass nötig (online)." }),
-  s("nordicspa", "canmore", "Kananaskis Nordic Spa", 50.9580, -115.1610, 3, "ruhe"),
+  s("nordicspa", "canmore", "Kananaskis Nordic Spa", 50.9175, -115.1458, 3, "ruhe"),
   s("quarrylake", "canmore", "Quarry Lake", 51.0710, -115.3680, 1, "wasser familie"),
 
   // Kootenay
@@ -186,7 +188,7 @@ export const SIGHTS = [
   s("paintpots", "radium", "Paint Pots", 51.1700, -116.1350, 1, "natur ruhe"),
   s("radiumhot", "radium", "Radium Hot Springs", 50.6390, -116.0390, 1.5, "ruhe"),
   s("sinclair", "radium", "Sinclair Canyon", 50.6450, -116.0300, 0.3, "natur"),
-  s("kootenayview", "radium", "Kootenay Valley Viewpoint", 50.8780, -115.9000, 0.3, "aussicht"),
+  s("kootenayview", "radium", "Kootenay Valley Viewpoint", 50.6746, -115.8878, 0.3, "aussicht"),
 
   // Waterton
   s("princeofwales", "waterton", "Prince of Wales Hotel", 49.0480, -113.9100, 0.75, "aussicht sight"),
@@ -233,19 +235,19 @@ export const SIGHTS = [
   // Bruce Peninsula
   s("grotto", "tobermory", "The Grotto", 45.2470, -81.5240, 3, "wasser wandern voll", { r: "Parkplatz-Reservierung bei Parks Canada nötig.", m: [5, 10] }),
   s("flowerpot", "tobermory", "Flowerpot Island (Boot)", 45.3010, -81.6200, 4, "wasser natur", { r: "Bootstour vorab buchen.", m: [5, 10] }),
-  s("singingsands", "tobermory", "Singing Sands", 45.1930, -81.6230, 1, "ruhe familie wasser"),
+  s("singingsands", "tobermory", "Singing Sands", 45.1914, -81.5776, 1, "ruhe familie wasser"),
   s("bigtub", "tobermory", "Big Tub Lighthouse & Schiffswracks", 45.2585, -81.6700, 0.75, "wasser kultur"),
   s("lionshead", "tobermory", "Lion's Head Lookout", 44.9900, -81.2400, 2.5, "wandern aussicht geheim"),
 
   // Algonquin & Muskoka
-  s("lookout", "algonquin", "Algonquin Lookout Trail", 45.5350, -78.4820, 1.5, "aussicht wandern", { t: "Ende September ist das Laub knallrot." }),
+  s("lookout", "algonquin", "Algonquin Lookout Trail", 45.5740, -78.4020, 1.5, "aussicht wandern", { t: "Ende September ist das Laub knallrot." }),
   s("canoelake", "algonquin", "Kanu auf dem Canoe Lake", 45.5500, -78.7270, 3, "wasser ruhe", { m: [5, 10] }),
   s("moose", "algonquin", "Elche am Highway 60", 45.5600, -78.6000, 2, "tiere", { w: "früh", m: [5, 7] }),
-  s("tracktower", "algonquin", "Track & Tower Trail", 45.5530, -78.4600, 3, "wandern aussicht ruhe"),
-  s("algonquinvc", "algonquin", "Algonquin Visitor Centre", 45.5330, -78.4300, 1, "kultur familie"),
+  s("tracktower", "algonquin", "Track & Tower Trail", 45.5498, -78.5743, 3, "wandern aussicht ruhe"),
+  s("algonquinvc", "algonquin", "Algonquin Visitor Centre", 45.5836, -78.3596, 1, "kultur familie"),
   s("arrowhead", "algonquin", "Arrowhead Provincial Park", 45.3920, -79.2140, 2, "ruhe natur geheim"),
   s("muskokaboat", "algonquin", "Dampferfahrt auf dem Muskoka-See", 44.9200, -79.3730, 2.5, "wasser kultur", { m: [6, 10] }),
-  s("dorset", "algonquin", "Dorset Lookout Tower", 45.2370, -78.8950, 1, "aussicht"),
+  s("dorset", "algonquin", "Dorset Lookout Tower", 45.2522, -78.8932, 1, "aussicht"),
 
   // Ottawa
   s("parliament", "ottawa", "Parliament Hill", 45.4236, -75.7009, 1.5, "sight kultur"),
@@ -271,7 +273,7 @@ export const SIGHTS = [
   // Mont-Tremblant
   s("tremblantvillage", "tremblant", "Village & Gondel", 46.2090, -74.5840, 2.5, "aussicht familie"),
   s("pntremblant", "tremblant", "Parc national du Mont-Tremblant", 46.3260, -74.6500, 3, "natur ruhe wandern wasser"),
-  s("scandinave", "tremblant", "Scandinave Spa", 46.2140, -74.5580, 3, "ruhe"),
+  s("scandinave", "tremblant", "Scandinave Spa", 46.1687, -74.6061, 3, "ruhe"),
 
   // Québec City
   s("vieuxqc", "quebec", "Vieux-Québec & Château Frontenac", 46.8122, -71.2050, 3, "kultur sight"),
@@ -284,7 +286,7 @@ export const SIGHTS = [
 
   // Tadoussac
   s("whalestad", "tadoussac", "Walbeobachtung (Zodiac/Boot)", 48.1390, -69.7150, 3, "tiere wasser", { r: "Tour vorab buchen.", m: [6, 10] }),
-  s("bondesir", "tadoussac", "Cap de Bon-Désir (Wale vom Ufer)", 48.2440, -69.4860, 1.5, "tiere ruhe geheim"),
+  s("bondesir", "tadoussac", "Cap de Bon-Désir (Wale vom Ufer)", 48.2706, -69.4670, 1.5, "tiere ruhe geheim"),
   s("belugas", "tadoussac", "Belugas in der Baie-Sainte-Marguerite", 48.2600, -70.0350, 2, "tiere ruhe"),
   s("dunes", "tadoussac", "Dünen von Tadoussac", 48.1600, -69.6800, 1, "aussicht"),
 
@@ -302,7 +304,7 @@ export const SIGHTS = [
   s("pier21", "halifax", "Pier 21 Einwanderer-Museum", 44.6375, -63.5680, 2, "kultur"),
 
   // Cape Breton
-  s("cabottrail", "capebreton", "Cabot Trail (ganze Runde)", 46.7400, -60.6500, 8, "natur aussicht sight", { t: "Am besten gegen den Uhrzeigersinn fahren, dann ist das Meer auf deiner Seite." }),
+  s("cabottrail", "capebreton", "Cabot Trail (ganze Runde)", 46.6402, -61.0053, 8, "natur aussicht sight", { t: "Am besten gegen den Uhrzeigersinn fahren, dann ist das Meer auf deiner Seite." }),
   s("skyline", "capebreton", "Skyline Trail", 46.7300, -60.8800, 2.5, "wandern aussicht tiere", { w: "abends" }),
   s("pleasantbay", "capebreton", "Walbeobachtung Pleasant Bay", 46.8300, -60.7900, 2.5, "tiere wasser", { m: [6, 10] }),
   s("bell", "capebreton", "Alexander Graham Bell Museum", 46.1000, -60.7470, 1.5, "kultur"),
@@ -321,7 +323,7 @@ export const SIGHTS = [
   s("hopewell", "fundy", "Hopewell Rocks", 45.8210, -64.5740, 2, "natur sight voll", { t: "Bei Ebbe auf dem Meeresboden laufen – Gezeitentabelle vorher ansehen!" }),
   s("dickson", "fundy", "Dickson Falls (Fundy NP)", 45.5900, -64.9900, 1, "natur wandern"),
   s("capeenrage", "fundy", "Cape Enrage", 45.5950, -64.7800, 1.5, "aussicht"),
-  s("fundytrail", "fundy", "Fundy Trail Parkway", 45.4300, -65.2000, 3, "aussicht wasser ruhe"),
+  s("fundytrail", "fundy", "Fundy Trail Parkway", 45.4021, -65.4503, 3, "aussicht wasser ruhe"),
 
   // Neufundland
   s("signal", "stjohns", "Signal Hill", 47.5700, -52.6820, 1.5, "aussicht kultur"),
@@ -330,11 +332,134 @@ export const SIGHTS = [
   s("puffins", "stjohns", "Papageientaucher in der Witless Bay", 47.2800, -52.8200, 3, "tiere wasser", { r: "Bootstour vorab buchen.", m: [5, 8] }),
   s("quidivid", "stjohns", "Quidi Vidi", 47.5800, -52.6800, 1, "ruhe"),
   s("westernbrook", "grosmorne", "Western Brook Pond (Bootstour)", 49.7900, -57.8800, 4, "wasser natur", { r: "Bootstour vorab buchen.", m: [6, 10] }),
-  s("tablelands", "grosmorne", "Tablelands", 49.4700, -57.9600, 1.5, "natur geheim"),
+  s("tablelands", "grosmorne", "Tablelands", 49.4462, -57.9940, 1.5, "natur geheim"),
   s("gmmountain", "grosmorne", "Gros Morne Mountain", 49.5900, -57.7900, 8, "wandern aussicht", { m: [7, 10] }),
   s("lobstercove", "grosmorne", "Lobster Cove Head Leuchtturm", 49.6000, -57.9500, 0.75, "aussicht", { w: "abends" }),
-  s("greengardens", "grosmorne", "Green Gardens Trail", 49.4750, -58.0900, 3, "wandern ruhe")
+  s("greengardens", "grosmorne", "Green Gardens Trail", 49.4750, -58.0900, 3, "wandern ruhe"),
+
+  // Ergänzungen Rockies (Lake Louise, Icefields Parkway, Banff, Jasper)
+  s("bigbeehive", "lakelouise", "Big Beehive (The Beehive)", 51.4146, -116.2434, 5, "wandern aussicht", { m: [6, 10], t: "Über den Lake Agnes Teahouse hinauf, ca. 10 km hin und zurück, 520 Höhenmeter – Blick direkt auf Lake Louise." }),
+  s("littlebeehive", "lakelouise", "Little Beehive", 51.4211, -116.2375, 4, "wandern aussicht", { m: [6, 10], t: "Abzweig kurz nach dem Lake Agnes Teahouse, etwas leichter als der Big Beehive." }),
+  s("fairview", "lakelouise", "Fairview Lookout", 51.4135, -116.2120, 1, "aussicht wandern ruhe", { t: "Kurzer Weg vom Bootshaus, Blick von oben auf Lake Louise." }),
+  s("larch", "lakelouise", "Larch Valley & Sentinel Pass", 51.3150, -116.2050, 5, "wandern aussicht natur", { m: [7, 10], t: "Mitte/Ende September leuchten die Lärchen golden." }),
+  s("consolation", "lakelouise", "Consolation Lakes", 51.3153, -116.1528, 2.5, "wandern ruhe wasser", { m: [6, 10] }),
+  s("mistaya", "lakelouise", "Mistaya Canyon", 51.9428, -116.7206, 0.5, "natur", { t: "Kurzer Stopp am Icefields Parkway." }),
+  s("waterfowl", "lakelouise", "Waterfowl Lakes", 51.8400, -116.6200, 0.5, "wasser ruhe"),
+  s("parker", "jasper", "Parker Ridge", 52.1813, -117.0923, 2, "wandern aussicht", { m: [7, 9], t: "Kurze Wanderung mit Blick auf den Saskatchewan-Gletscher." }),
+  s("wilcox", "jasper", "Wilcox Pass", 52.2542, -117.2312, 3, "wandern aussicht tiere", { m: [7, 9], t: "Oft Bergschafe, Blick auf den Athabasca-Gletscher." }),
+  s("skywalk", "jasper", "Columbia Icefield Skywalk", 52.2587, -117.2770, 1, "aussicht sight", { m: [5, 10], r: "Ticket vorab buchen." }),
+  s("sunshine", "banff", "Sunshine Meadows", 51.0895, -115.7622, 5, "wandern natur aussicht", { m: [7, 9], r: "Gondel/Bus nach oben vorab buchen.", t: "Wildblumen im Juli und August." }),
+  s("annette", "jasper", "Lake Annette", 52.8920, -118.0560, 1, "ruhe wasser familie")
 ];
+
+// Kosten: 0 = kostenlos, "park" = Nationalpark/Historic Site (Parks-Canada-Pass), "kpass" = Kananaskis Conservation Pass,
+// "sepaq" = Nationalpark in Québec (Tageseintritt), "prov" = Provinzpark-Tagespass pro Auto,
+// Zahl = ungefährer Eintritt pro Erwachsenem in CAD, -1 = kostet etwas (Preis ändert sich oft).
+// Alle Preise ungefähr (Stand 2025/26) – vor Ort oder online prüfen.
+export const COST_LABEL = {
+  park: "Nationalpark-Pass (ca. 11 CAD p. P./Tag oder Discovery Pass)",
+  kpass: "Kananaskis Conservation Pass (ca. 15 CAD/Tag pro Auto)",
+  sepaq: "Parc-national-Eintritt (ca. 10 CAD p. P.)",
+  prov: "Provinzpark-Tagespass (pro Auto)"
+};
+const COST = {
+  stanley: 0, granville: 0, capilano: 70, lynn: 0, grouse: 75, gastown: 0, moa: 25, englishbay: 0, lighthouse: 0, quarryrock: 0,
+  seatosky: 70, shannon: 0, peak2peak: 100, joffre: 0, brandywine: 0, lostlake: 0, garibaldi: 0, nairn: 0,
+  innerharbour: 0, butchart: 40, rbcm: 30, whalevic: 150, fortrodd: "park", eastsooke: 0, dallasrd: 0,
+  longbeach: "park", chesterman: 0, rainforest: "park", wildpacific: 0, beartofino: 130, hotsprings: 150, cathedral: 0,
+  naramata: -1, myra: 0, citypark: 0, knox: 0, spotted: 0,
+  helmcken: 0, dawsonfalls: 0, spahats: 0, moul: 0, clearwaterlake: 60,
+  mtrevelstoke: "park", cedars: "park", pipecoaster: 50, rogerspass: "park", enchanted: 25,
+  maligne: "park", spirit: 90, medicine: "park", skytram: 65, athabasca: "park", sunwapta: "park", icefield: "park",
+  pyramid: "park", edithcavell: "park", fivelakes: "park", darksky: "park",
+  lakelouise: "park", moraine: "park", agnes: "park", sixglaciers: "park", peyto: "park", bowlake: "park", llgondola: 60, herbert: "park",
+  emerald: "park", naturalbridge: "park", takakkaw: "park", spiral: "park", ohara: "park", wapta: "park", kickinghorse: 50, skybridge: 50,
+  banfftown: 0, banffgondola: 70, johnston: "park", minnewanka: 70, twojack: "park", vermilion: "park", upperhot: 17,
+  bowvalley: "park", caveandbasin: "park", hoodoos: "park", bowfalls: "park",
+  grassi: "kpass", haling: "kpass", lougheed: "kpass", nordicspa: 100, quarrylake: 0,
+  marble: "park", paintpots: "park", radiumhot: 17, sinclair: "park", kootenayview: "park",
+  princeofwales: "park", redrock: "park", cameronlake: "park", bearshump: "park", crypt: 35,
+  calgarytower: 20, heritage: 35, tyrrell: 21, dinopark: 0, stampede: 25, princes: 0,
+  miles: 0, takhini: 30, aurora: 0, ywp: 20, emeraldyukon: 0, klondike: -1,
+  cntower: 45, distillery: 0, stlawrence: 0, islands: 9, rom: 26, kensington: 0, bluffs: 0, casaloma: 45,
+  falls: 0, cruise: 35, behind: 25, notl: 0, wineniagara: -1, glen: 0, fallsnight: 0,
+  grotto: "park", flowerpot: 50, singingsands: "park", bigtub: 0, lionshead: 0,
+  lookout: "prov", canoelake: 50, moose: "prov", tracktower: "prov", algonquinvc: "prov", arrowhead: "prov", muskokaboat: 50, dorset: -1,
+  parliament: 0, byward: 0, rideau: 0, history: 23, gallery: 25, gatineau: 0,
+  "1000boat": 45, forthenry: 25, "1000bike": 0,
+  vieuxmtl: 0, montroyal: 0, jeantalon: 0, plateau: 0, biodome: 25, lachine: 0,
+  tremblantvillage: 30, pntremblant: "sepaq", scandinave: 90,
+  vieuxqc: 0, champlain: 0, citadelle: 20, montmorency: 0, orleans: 0, sainteanne: 18, jacquescartier: "sepaq",
+  whalestad: 90, bondesir: "park", belugas: "sepaq", dunes: 0,
+  rocherperce: 0, bonaventure: 40, forillon: "park",
+  waterfront: 0, citadel: "park", peggys: 0, lunenburg: 0, mahone: 0, pier21: 15,
+  cabottrail: "park", skyline: "park", pleasantbay: 70, bell: "park", meatcove: 0, ingonish: "park",
+  greengables: "park", peibeach: "park", charlottetown: 0, lobster: 50, greenwich: "park", eastpoint: 0,
+  hopewell: 15, dickson: "park", capeenrage: -1, fundytrail: 10,
+  signal: 0, capespear: "park", jellybean: 0, puffins: 70, quidivid: 0,
+  westernbrook: 75, tablelands: "park", gmmountain: "park", lobstercove: "park", greengardens: "park",
+  bigbeehive: "park", littlebeehive: "park", fairview: "park", larch: "park", consolation: "park", mistaya: "park", waterfowl: "park",
+  parker: "park", wilcox: "park", skywalk: 40, sunshine: 60, annette: "park"
+};
+// Zusatzhinweise zu Kosten
+const COST_NOTE = {
+  icefield: "Zum Gletscherrand zu Fuß im Parkpass enthalten; Fahrt mit dem Ice Explorer ca. 100 CAD.",
+  moraine: "Dazu Shuttle (Parks Canada ca. 8 CAD) oder Bus/Tour.",
+  lakelouise: "Parken ca. 37 CAD/Tag oder Parks-Canada-Shuttle.",
+  ohara: "Dazu Bus ca. 20 CAD + Reservierungsgebühr.",
+  spirit: "Wer nur zum See will, braucht nur den Parkpass.",
+  montmorency: "Anschauen kostenlos, Parkplatz und Seilbahn extra.",
+  vieuxmtl: "Altstadt kostenlos, Basilika Notre-Dame ca. 16 CAD.",
+  joffre: "Der Tagespass von BC Parks ist kostenlos.",
+  garibaldi: "Der Tagespass von BC Parks ist kostenlos.",
+  naramata: "Weinproben meist ca. 10–25 CAD.",
+  wineniagara: "Weinproben meist ca. 15–30 CAD.",
+  aurora: "Selbst schauen kostenlos; geführte Touren ca. 150 CAD.",
+  dinopark: "Geführte Touren kosten extra.",
+  westernbrook: "Bootstour, dazu der Parkpass.",
+  parliament: "Führungen kostenlos, vorab reservieren."
+};
+// Andere Namen, unter denen man einen Ort kennt
+const ALIAS = {
+  bigbeehive: ["The Beehive", "Beehive", "Big Beehive Trail"],
+  banffgondola: ["Sulphur Mountain", "Banff Gondel"],
+  agnes: ["Lake Agnes", "Teahouse", "Teehaus"],
+  spirit: ["Spirit Island", "Maligne Lake", "Maligne Lake Cruise"],
+  capilano: ["Capilano Hängebrücke", "Capilano Bridge"],
+  falls: ["Horseshoe Falls", "Niagarafälle", "Niagara Falls"],
+  moraine: ["Rockpile", "Moraine Lake Rockpile"],
+  icefield: ["Athabasca Glacier", "Athabasca Gletscher", "Columbia Icefield", "Ice Explorer"],
+  peak2peak: ["Peak 2 Peak", "Whistler Gondola"],
+  seatosky: ["Sea to Sky Gondola", "Squamish Gondola"],
+  johnston: ["Ink Pots"],
+  cntower: ["CN-Turm"],
+  stanley: ["Stanley Park", "Seawall"],
+  vieuxqc: ["Chateau Frontenac", "Altstadt Québec", "Old Quebec"],
+  vieuxmtl: ["Old Montreal", "Notre-Dame Basilika", "Basilique Notre-Dame"],
+  cabottrail: ["Cabot Trail"],
+  hopewell: ["Flowerpot Rocks"],
+  emerald: ["Emerald Lake Yoho"],
+  helmcken: ["Wells Gray"],
+  minnewanka: ["Lake Minnewanka"]
+};
+for (const x of SIGHTS) {
+  x.c = COST[x.id];
+  if (COST_NOTE[x.id]) x.cn = COST_NOTE[x.id];
+  if (ALIAS[x.id]) x.a = ALIAS[x.id];
+  if (x.c === 0) x.tags.push("gratis");
+}
+
+// Kurze Beschriftung für die Kosten einer Sehenswürdigkeit (oder "" wenn unbekannt)
+export function costLabel(c) {
+  if (c === 0) return "🆓 kostenlos";
+  if (c === -1) return "💲 kostet Eintritt";
+  if (typeof c === "number") return `💲 ca. ${c} CAD p. P.`;
+  if (c === "park") return "🎫 Nationalpark-Pass";
+  if (c === "kpass") return "🎫 Kananaskis-Pass";
+  if (c === "sepaq") return "🎫 ca. 10 CAD Parkeintritt";
+  if (c === "prov") return "🎫 Provinzpark-Tagespass";
+  return "";
+}
 
 export const AIRPORTS = {
   YVR: { name: "Vancouver", lat: 49.1951, lng: -123.1779 },

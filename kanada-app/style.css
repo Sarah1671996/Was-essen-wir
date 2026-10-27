@@ -283,3 +283,8 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .importlist li { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
 .importlist select { width: auto; max-width: 150px; min-height: 36px; padding: 3px 8px; font-size: .86rem; }
 .importlist .check { padding: 2px 0; }
+.cost { display: inline-block; font-weight: 600; color: var(--ink); }
+.cost.free { color: var(--good); }
+.costline { margin: 0 0 6px; }
+.importctl { display: grid; gap: 4px; justify-items: end; }
+.importctl select { max-width: 180px; }
