@@ -64,6 +64,7 @@ Ohne Reisecode bleibt alles nur auf dem jeweiligen Gerät.
 ## Daten von außen
 
 - Fahrzeiten und Straßenverlauf: OSRM-Demoserver auf Basis von OpenStreetMap (ohne Schlüssel, für privaten Gebrauch).
+  OSRM rechnet auf kanadischen Highways ca. 20–25 % zu langsam; ab 10 km wird mit Faktor 0,8 korrigiert (abgeglichen mit Google Maps).
   Offline oder bevor die Zeiten da sind, schätzt die App aus der Luftlinie (dann steht „≈“ davor).
 - Karte: OpenStreetMap-Kacheln mit Leaflet. Ortssuche: Nominatim. Restaurants: Overpass (OpenStreetMap; die öffentlichen Server sind manchmal überlastet). Wetter: Open-Meteo. Wechselkurs: EZB über Frankfurter.
 

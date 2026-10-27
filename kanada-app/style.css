@@ -352,3 +352,5 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .plan li.now { border-color: var(--forest); }
 .plan li.late { background: var(--warn-bg); border-color: transparent; }
 .plan li.done { opacity: .65; }
+.costedit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 2px; }
+.costedit input.mini { width: 70px; min-height: 30px; padding: 2px 6px; }

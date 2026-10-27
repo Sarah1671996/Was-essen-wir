@@ -33,14 +33,20 @@ export function km(a, b) {
 }
 export function estimate(a, b) {
   const d = km(a, b) * 1.3;
-  const speed = d < 15 ? 35 : d < 60 ? 60 : 80;
+  const speed = d < 15 ? 35 : d < 60 ? 65 : 90;
   return { km: d, min: d / speed * 60 + (d > 1 ? 3 : 0), real: false };
 }
 
 const keyOf = p => p.lat.toFixed(4) + "," + p.lng.toFixed(4);
 const pairKey = (a, b) => keyOf(a) + "|" + keyOf(b);
 const OSRM = "https://router.project-osrm.org";
-const routeCache = new Map(readLs("ka.routes", []));
+// Der freie OSRM-Server rechnet auf kanadischen Highways deutlich zu langsam: verglichen mit Google Maps (Okt. 2026,
+// z. B. Calgary → Lake Louise 154 statt ca. 115 min, Banff → Lake Louise 59 statt ca. 47 min) im Schnitt etwa 20–25 % zu lang.
+// Deshalb wird ab 10 km mit 0,8 korrigiert; kurze Stadtfahrten bleiben, wie sie sind.
+const osrmMin = (sec, meters) => Math.round(sec / 60 * (meters > 10000 ? 0.8 : 1));
+// Gespeicherte Fahrzeiten (neuer Schlüssel, damit alte, zu lange Werte neu berechnet werden)
+try { localStorage.removeItem("ka.routes"); } catch {}
+const routeCache = new Map(readLs("ka.routes2", []));
 const geoCache = new Map();
 let listener = () => {}, saveTimer = null, queue = new Map(), queueTimer = null, offline = false;
 
@@ -49,7 +55,7 @@ function persist() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     const all = [...routeCache.entries()];
-    try { localStorage.setItem("ka.routes", JSON.stringify(all.slice(-4000))); } catch {}
+    try { localStorage.setItem("ka.routes2", JSON.stringify(all.slice(-4000))); } catch {}
   }, 800);
 }
 export function onRoutesUpdated(fn) { listener = fn; }
@@ -85,11 +91,10 @@ async function runQueue() {
       pts.forEach((a, i) => pts.forEach((b, k) => {
         if (i === k) return;
         const t = j.durations?.[i]?.[k], d = j.distances?.[i]?.[k];
-        // OSRM rechnet mit Tempolimit; mit Fotostopps und Baustellen dauert es real etwas länger.
         // Unter 25 km/h über mehr als 5 km ist meist ein falsch eingerasteter Punkt (Forstweg, Bergstation) – dann mit 50 km/h rechnen.
         if (t != null && d != null) {
           const slow = d > 5000 && d / t < 25 / 3.6;
-          routeCache.set(pairKey(a, b), [Math.round(d / 100) / 10, Math.round((slow ? d / (50 / 3.6) : t) / 60 * 1.1)]);
+          routeCache.set(pairKey(a, b), [Math.round(d / 100) / 10, osrmMin(slow ? d / (50 / 3.6) : t, d)]);
         }
       }));
       changed = true;
@@ -114,7 +119,7 @@ export async function pathGeometry(points) {
   if (!r) throw new Error("keine Route");
   const line = r.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
   geoCache.set(k, line);
-  if (points.length === 2 && !routeCache.has(k)) { routeCache.set(k, [Math.round(r.distance / 100) / 10, Math.round(r.duration / 60 * 1.1)]); persist(); }
+  if (points.length === 2 && !routeCache.has(k)) { routeCache.set(k, [Math.round(r.distance / 100) / 10, osrmMin(r.duration, r.distance)]); persist(); }
   return line;
 }
 export const legGeometry = (a, b) => pathGeometry([a, b]);
@@ -173,7 +178,7 @@ export function wishPoint(w) {
     wid: w.id, sid: w.sid || null, name: w.name || base?.name || "Ort", lat: src.lat, lng: src.lng,
     dur: Number(w.dur) || base?.dur || 1.5, prio: w.prio ?? 1, when: w.when || base?.w || "",
     res: base?.r || "", months: base?.m || null, tip: base?.t || "", tags: base?.tags || w.tags || [],
-    fixDay: w.day || "", c: base ? base.c : w.c, cn: base?.cn || "", place: w.place || "", meal: !!w.meal, close: base?.close || ""
+    fixDay: w.day || "", c: w.c != null ? w.c : base?.c, cOwn: w.c != null && !!base, cn: base?.cn || "", place: w.place || "", meal: !!w.meal, close: base?.close || ""
   };
 }
 

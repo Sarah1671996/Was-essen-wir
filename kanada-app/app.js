@@ -138,9 +138,11 @@ function blankTrip(o = {}) {
 /* ---------- Plan je Ort ---------- */
 // Wo man wirklich schläft: gebuchte Unterkunft mit bekannter Lage, sonst der Ort selbst
 function homeOf(stop) {
-  const l = T.lodgings.find(x => x.stopId === stop.id && x.status === "gebucht" && x.lat != null);
+  // Liegt die Unterkunft weit weg vom Ort, ist die gefundene Adresse vermutlich falsch – dann lieber den Ort nehmen
+  const l = T.lodgings.find(x => x.stopId === stop.id && x.status === "gebucht" && x.lat != null && !lodgeFar(x, stop));
   return l ? { ...stop, lat: l.lat, lng: l.lng, lodging: l.name } : stop;
 }
+const lodgeFar = (l, stop) => l.lat != null && stop && P.km(l, stop) > 60;
 function ctxFor(stop) {
   const list = stops(), i = list.indexOf(stop);
   const prev = list[i - 1] && homeOf(list[i - 1]), next = list[i + 1];
@@ -551,11 +553,15 @@ function costLine(r, perPerson = true) {
 function wishRow(s, w, dayOpts) {
   const p = P.wishPoint(w);
   if (!p) return "";
+  const home = homeOf(s), tr = P.travel(home, p);
+  const base = w.sid ? P.sight(w.sid) : null;
   return `<li class="wish">
     <div class="wishmain"><strong>${esc(p.name)}</strong>
-      <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${P.dur(P.travel(s, p).min)} von der Unterkunft${w.sid ? "" : ` · <a href="${mapsPlace(p)}" target="_blank" rel="noopener">📍 ${esc(p.place || "auf der Karte ansehen")}</a>`}</span>
-      ${w.sid ? `<span class="small">${costChip(p.c)}${p.cn ? ` ${esc(p.cn)}` : ""}</span>`
-        : `<label class="inline small">Eintritt <input class="mini" inputmode="decimal" data-change="wish-cost" data-id="${w.id}" value="${w.c === 0 ? "0" : numIn(w.c)}" placeholder="?"> CAD p. P. <span class="small">(0 = kostenlos)</span></label>`}</div>
+      <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${tr.real ? "" : "≈ "}${P.dur(tr.min)} von ${esc(home.lodging || "der Unterkunft")}
+        · <a href="${esc(mapsRoute([home, p]))}" target="_blank" rel="noopener">Strecke in Google Maps ↗</a>${w.sid ? "" : ` · <a href="${mapsPlace(p)}" target="_blank" rel="noopener">📍 ${esc(p.place || "Ort ansehen")}</a>`}</span>
+      <span class="small costedit">${costChip(p.c)}${p.cOwn ? ` <span class="tag">eigener Preis</span>` : p.cn ? ` ${esc(p.cn)}` : ""}
+        <label class="inline">✎ <input class="mini" inputmode="decimal" data-change="wish-cost" data-id="${w.id}" value="${w.c == null ? "" : w.c === 0 ? "0" : numIn(w.c)}" placeholder="${base && typeof base.c === "number" && base.c > 0 ? base.c : "?"}" aria-label="Eintritt in CAD pro Person"> CAD p. P.</label>
+        ${p.cOwn ? `<button class="linkbtn" data-act="wish-cost-reset" data-id="${w.id}" title="Zurück zum hinterlegten Preis">↺</button>` : ""}</span></div>
     <div class="wishctl">
       <div class="seg" role="group" aria-label="Wie wichtig?">
         ${[[2, "Muss"], [1, "Gern"], [0, "Optional"]].map(([v, l]) => `<button aria-pressed="${p.prio === v}" data-act="wish-prio" data-id="${w.id}" data-v="${v}">${l}</button>`).join("")}
@@ -1227,6 +1233,7 @@ function lodgeCard(l, s) {
       <button class="linkbtn" data-act="lodge-edit" data-id="${l.id}">Bearbeiten</button></div>
     <p class="small">${esc(l.platform || "")}${l.platform ? " · " : ""}${fmtShort(l.checkIn)} – ${fmtShort(l.checkOut)}${total ? ` · ${money(total)} (${money(per)}/Nacht)` : ""}${l.cur === "CAD" ? ` · ${money(num(l.total), "CAD")}` : ""}</p>
     ${(() => { if (!per) return ""; const la = Adv.lodgingAdvice(per / rate(), l.checkIn, !!BASES.find(b => b.id === s?.baseId)?.park); return `<p class="small">💶 ${money(per / rate(), "CAD")}/Nacht ist für ${Adv.SEASON_LABEL[la.season]} hier <strong class="${la.level === "teuer" ? "warntext" : la.level === "günstig" ? "goodtext" : ""}">${la.level}</strong> (üblich ca. ${la.range[0]}–${la.range[1]} CAD)</p>`; })()}
+    ${lodgeFar(l, s) ? `<p class="small warntext">📍 Die gespeicherte Lage liegt ${Math.round(P.km(l, s))} km von ${esc(s.name)} entfernt – vermutlich falsch gefunden. Bitte unter „Bearbeiten“ → „📍 Lage suchen“ korrigieren. Bis dahin rechnet die App ab ${esc(s.name)}.</p>` : ""}
     ${l.cancelUntil ? `<p class="small ${dl != null && dl <= 7 && dl >= 0 ? "warntext" : ""}">${dl < 0 ? "Kostenlose Stornierung abgelaufen" : `Kostenlos stornierbar bis ${fmtD(l.cancelUntil)} (${dl === 0 ? "heute" : `noch ${plural(dl, "Tag", "Tage")}`})`}</p>` : ""}
     ${l.note ? `<p class="small">${esc(l.note)}</p>` : ""}
     ${booked && dl !== null && dl < 0 ? "" : booked ? `<details class="cheaper" ${best ? "open" : ""}>
@@ -1921,6 +1928,7 @@ const ACT = {
   },
   "car-edit"() { carSheet(); },
   "car-ai"() { aiCarSheet("car"); },
+  "wish-cost-reset"(d) { const w = findWish(d.id); if (w) { delete w.c; commit(); } },
   "lodge-ai"(d) { aiLodging(d.id); },
   "flight-ai"() { aiFlight(); },
   "price-shot"(d) { const f = T.flights.find(x => x.id === d.id); if (f) aiPrice(f); },
