@@ -667,7 +667,8 @@ function viewCar() {
     <button class="btn small ghost" data-act="copy" data-text="${esc(info)}">📋 Daten kopieren</button>
     <p class="small"><strong>Vergleichen</strong> – deutsche Vermittler haben oft Pakete ohne Selbstbeteiligung und mit hoher Zusatzhaftpflicht:</p>
     ${sites}
-    <button class="btn wide" data-act="car-edit">+ Mietwagen eintragen</button>
+    ${St.canAi ? `<button class="btn wide" data-act="car-ai">✨ Buchung automatisch auslesen</button>` : ""}
+    <button class="btn wide ${St.canAi ? "ghost" : ""}" data-act="car-edit">+ Mietwagen selbst eintragen</button>
   </section>
   ${insHelp()}`;
   const total = toEur(num(c.total), c.cur), ic = insCheck(c.ins, c);
@@ -685,9 +686,10 @@ function viewCar() {
       <span class="track"><span style="width:${ic.score}%" class="${ic.score >= 70 ? "ok" : "bad"}"></span></span>
       <ul class="plain small">${CAR_INS.map(x => { const ok = !ic.missing.includes(x); return `<li class="${ok ? "goodtext" : "warntext"}">${ok ? "✓" : "✗"} ${esc(x.label)}${ok ? "" : ` – ${esc(x.why)}`}</li>`; }).join("")}</ul>
       ${c.deductible ? `<p class="small">Selbstbeteiligung: ${money(num(c.deductible), c.cur || "EUR")}</p>` : ""}
+      ${aiBox(c)}
       ${!c.ins?.km && tt.km > 1500 ? `<p class="small warntext">Ihr fahrt ca. ${Math.round(tt.km).toLocaleString("de-DE")} km – ohne unbegrenzte Kilometer kann das teuer werden.</p>` : ""}
     </div>
-    <div class="btnrow"><button class="btn small ghost" data-act="car-edit">Bearbeiten</button>${c.status !== "gebucht" ? `<button class="btn small" data-act="car-book">✓ Gebucht</button>` : ""}</div>
+    <div class="btnrow"><button class="btn small ghost" data-act="car-edit">Bearbeiten</button>${St.canAi ? `<button class="btn small ghost" data-act="car-ai">✨ Neu auslesen</button>` : ""}${c.status !== "gebucht" ? `<button class="btn small" data-act="car-book">✓ Gebucht</button>` : ""}</div>
   </section>
 
   <section class="card">
@@ -714,9 +716,109 @@ function insHelp() {
     <li>Kreditkarte für die Kaution mitnehmen (meist 250–500 CAD, nicht Debitkarte).</li></ul>
   </details>`;
 }
-function carSheet() {
-  const c = T.car, v = { status: "gebucht", ins: {}, ...carDefaults(), ...(c || {}) };
-  openSheet(c ? "Mietwagen bearbeiten" : "Mietwagen eintragen", `
+/* KI liest Buchung, Angebot oder Tarifbedingungen und füllt das Formular vor */
+// Bilder verkleinern (spart Datenvolumen), PDFs und kleine Bilder so lassen
+function fileToPart(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onerror = () => reject(r.error);
+    r.onload = () => {
+      const url = String(r.result);
+      if (!file.type.startsWith("image/") || file.size < 1.5e6) return resolve({ mimeType: file.type || "application/pdf", data: url.split(",")[1] });
+      const img = new Image();
+      img.onload = () => {
+        const k = Math.min(1, 1800 / Math.max(img.width, img.height)), cv = document.createElement("canvas");
+        cv.width = Math.round(img.width * k); cv.height = Math.round(img.height * k);
+        cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+        resolve({ mimeType: "image/jpeg", data: cv.toDataURL("image/jpeg", 0.85).split(",")[1] });
+      };
+      img.onerror = () => reject(new Error("Bild nicht lesbar"));
+      img.src = url;
+    };
+    r.readAsDataURL(file);
+  });
+}
+function aiCarSheet(target = "car") {
+  if (!St.canAi) { toast("Automatisch ausfüllen geht nur in der installierten App (nicht im Demo-Modus)."); return; }
+  const c = target === "car" ? T.car : null, [a, b] = range();
+  openSheet(target === "car" ? "✨ Mietwagen automatisch ausfüllen" : "✨ Angebot automatisch auslesen", `
+    <p class="small">Gib so viel an, wie du hast. Am zuverlässigsten ist der <strong>Text der Bestätigungsmail</strong> oder ein <strong>Screenshot/PDF</strong> –
+      Buchungslinks sind oft nur mit Login sichtbar. Mit nur Anbieter und Vermittler sucht die KI die allgemeinen Tarifbedingungen im Netz.</p>
+    <form class="form">
+      <label>Link zur Buchung oder zum Angebot<input name="url" type="url" value="${esc(c?.url || "")}" placeholder="https://…"></label>
+      <div class="row2">
+        <label>Vermieter<input name="provider" value="${esc(c?.provider || "")}" placeholder="z. B. Avis"></label>
+        <label>Gebucht über<input name="via" value="${esc(c?.via || "")}" placeholder="z. B. Sunny Cars, direkt"></label>
+      </div>
+      <label>Text der Buchung / Bedingungen <span class="small">(einfach aus der Mail kopieren)</span><textarea name="text" rows="5" placeholder="Buchungsbestätigung, Leistungen, Versicherungsbedingungen …"></textarea></label>
+      <label class="btn ghost small">📄 Screenshot oder PDF wählen<input type="file" name="files" accept="image/*,application/pdf" multiple hidden></label>
+      <p class="small" id="aiFiles"></p>
+      <button class="btn big">✨ Auslesen</button>
+      <p class="small">Die Angaben gehen zur Auswertung an Google Gemini (wie bei den Rezeptideen der Essens-App). Danach prüfst du alles und speicherst selbst.</p>
+    </form>`, null, body => {
+    const f = body.querySelector("form");
+    f.elements.files.onchange = () => { body.querySelector("#aiFiles").textContent = [...f.elements.files.files].map(x => "✓ " + x.name).join("  "); };
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const input = {
+        url: safeUrl(f.elements.url.value), provider: f.elements.provider.value.trim(), via: f.elements.via.value.trim(),
+        text: f.elements.text.value.trim(), trip: a ? `${fmtShort(a)} bis ${fmtShort(b)}, Gabelflug ${flyPlan().inAp} → ${flyPlan().outAp}` : ""
+      };
+      if (!input.url && !input.provider && !input.via && !input.text && !f.elements.files.files.length) { toast("Bitte mindestens eine Angabe machen."); return; }
+      const files = [...f.elements.files.files].slice(0, 4);
+      body.innerHTML = `<p>✨ Lese ${files.length ? "die Datei" : input.text ? "den Text" : input.url ? "den Link" : "die Tarifbedingungen"} … das dauert bis zu einer Minute.</p>`;
+      try {
+        input.files = await Promise.all(files.map(fileToPart));
+        const r = await St.readCarBooking(input);
+        const draft = aiDraft(r, input);
+        if (target === "car") carSheet(draft); else carOfferSheet(draft);
+      } catch (err) {
+        console.error(err);
+        body.innerHTML = `<p class="warntext">Das Auslesen hat nicht geklappt (${esc(err.message || "Fehler")}).</p>
+          <p class="small">Tipp: Kopier den Text der Bestätigungsmail und versuch es nochmal – oder trag die Angaben selbst ein.</p>
+          <button class="btn" data-act="${target === "car" ? "car-edit" : "car-offer"}">Selbst eintragen</button>`;
+      }
+    };
+  });
+}
+// KI-Antwort in Formularwerte übersetzen (nur, was wirklich drinsteht)
+function aiDraft(r, input) {
+  const str = (v, n = 80) => typeof v === "string" ? v.trim().slice(0, n) : "";
+  const date = v => /^\d{4}-\d{2}-\d{2}$/.test(str(v)) ? str(v) : "";
+  const time = v => /^\d{1,2}:\d{2}$/.test(str(v)) ? str(v).padStart(5, "0") : "";
+  const d = { aiSource: ["dokument", "recherche", "wissen"].includes(r.source) ? r.source : "wissen", aiAt: Date.now(), linkUnread: !!r.linkUnread };
+  for (const k of ["provider", "via", "cls", "pickPlace", "dropPlace"]) if (str(r[k])) d[k] = str(r[k], 60);
+  for (const k of ["pickDate", "dropDate", "cancelUntil"]) if (date(r[k])) d[k] = date(r[k]);
+  for (const k of ["pickTime", "dropTime"]) if (time(r[k])) d[k] = time(r[k]);
+  if (num(r.total) > 0) d.total = num(r.total);
+  if (r.cur === "CAD" || r.cur === "EUR") d.cur = r.cur;
+  if (r.deductible != null && r.deductible !== "") d.deductible = num(r.deductible);
+  if (str(r.sliSum)) d.sliSum = str(r.sliSum, 40);
+  if (str(r.deposit)) d.deposit = str(r.deposit, 60);
+  if (input.url) d.url = input.url;
+  d.ins = {}; d.insUnknown = [];
+  for (const x of CAR_INS) {
+    const v = r.ins?.[x.id];
+    if (v === true || v === false) d.ins[x.id] = v; else d.insUnknown.push(x.id);
+  }
+  d.aiNotes = Array.isArray(r.notes) ? r.notes.filter(n => typeof n === "string").map(n => n.slice(0, 200)).slice(0, 8) : [];
+  return d;
+}
+const AI_SOURCE = { dokument: "aus deiner Buchung gelesen", recherche: "aus den allgemeinen Tarifbedingungen im Netz – deine Buchung kann abweichen", wissen: "nur aus dem allgemeinen Wissen der KI über diesen Anbieter geschätzt – bitte unbedingt mit deiner Buchung vergleichen" };
+function aiBox(v) {
+  if (!v.aiSource) return "";
+  return `<div class="aibox"><p class="small"><strong>✨ Automatisch ausgefüllt</strong> – ${AI_SOURCE[v.aiSource]}.</p>
+    ${v.linkUnread ? `<p class="small warntext">Den Link konnte die KI nicht öffnen (meist nur mit Login sichtbar). Kopier lieber den Text der Bestätigungsmail oder lade einen Screenshot hoch.</p>` : ""}
+    ${v.insUnknown?.length ? `<p class="small warntext">Steht nicht drin, bitte selbst prüfen: ${v.insUnknown.map(id => esc(CAR_INS.find(x => x.id === id)?.label || id)).join(", ")}</p>` : ""}
+    ${v.sliSum ? `<p class="small">Haftpflicht: ${esc(v.sliSum)}</p>` : ""}${v.deposit ? `<p class="small">Kaution: ${esc(v.deposit)}</p>` : ""}
+    ${v.aiNotes?.length ? `<ul class="plain small">${v.aiNotes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}</div>`;
+}
+
+function carSheet(draft) {
+  // Bei neuer Auswertung zählt nur, was die KI gefunden hat; Unbekanntes bleibt leer und wird angezeigt
+  const c = T.car, v = { status: "gebucht", ...carDefaults(), ...(c || {}), ...(draft || {}), ins: draft ? { ...draft.ins } : { ...(c?.ins || {}) } };
+  openSheet(draft ? "Mietwagen prüfen & speichern" : c ? "Mietwagen bearbeiten" : "Mietwagen eintragen", `
+    ${draft ? aiBox(v) : St.canAi ? `<button type="button" class="btn ghost wide" data-act="car-ai">✨ Aus Link, Mail, Screenshot oder Anbieter automatisch ausfüllen</button>` : ""}
     <form class="form">
       <div class="row2">
         <label>Vermieter<input name="provider" value="${esc(v.provider || "")}" maxlength="60" placeholder="z. B. Avis, Hertz" required></label>
@@ -753,24 +855,29 @@ function carSheet() {
       deductible: num(s("deductible")), cancelUntil: s("cancelUntil"), note: s("note").slice(0, 300),
       ins: Object.fromEntries(CAR_INS.map(x => [x.id, !!fd.get("ins_" + x.id)])), offers: T.car?.offers || []
     };
+    // Hinweise der KI behalten (oder bei neuer Auswertung ersetzen)
+    if (draft) Object.assign(T.car, { aiSource: v.aiSource, aiAt: v.aiAt, aiNotes: v.aiNotes || [], insUnknown: v.insUnknown || [], sliSum: v.sliSum || "", deposit: v.deposit || "" });
     commit(); toast("Gespeichert");
   });
 }
-function carOfferSheet() {
-  openSheet("Mietwagen-Angebot vergleichen", `
+function carOfferSheet(draft) {
+  const v = { name: "", url: "", total: "", cur: "EUR", ins: {}, ...(draft || {}) };
+  if (draft && !draft.name) v.name = [draft.via, draft.provider, draft.cls].filter(Boolean).join(" – ");
+  openSheet(draft ? "Angebot prüfen & vergleichen" : "Mietwagen-Angebot vergleichen", `
+    ${draft ? aiBox(v) : St.canAi ? `<button type="button" class="btn ghost wide" data-act="car-offer-ai">✨ Angebot automatisch auslesen</button>` : ""}
     <form class="form">
-      <label>Anbieter<input name="name" maxlength="80" placeholder="z. B. Sunny Cars – SUV" required></label>
-      <label>Link<input name="url" type="url" placeholder="https://…"></label>
+      <label>Anbieter<input name="name" maxlength="80" value="${esc(v.name)}" placeholder="z. B. Sunny Cars – SUV" required></label>
+      <label>Link<input name="url" type="url" value="${esc(v.url)}" placeholder="https://…"></label>
       <div class="row2">
-        <label>Preis gesamt<input name="total" inputmode="decimal" required></label>
-        <label>Währung<select name="cur"><option>EUR</option><option>CAD</option></select></label>
+        <label>Preis gesamt<input name="total" inputmode="decimal" value="${numIn(num(v.total))}" required></label>
+        <label>Währung<select name="cur"><option ${v.cur !== "CAD" ? "selected" : ""}>EUR</option><option ${v.cur === "CAD" ? "selected" : ""}>CAD</option></select></label>
       </div>
       <p class="grouplabel">Was ist enthalten?</p>
-      ${CAR_INS.map(x => `<label class="check"><input type="checkbox" name="ins_${x.id}"><span>${esc(x.label)}</span></label>`).join("")}
+      ${CAR_INS.map(x => `<label class="check"><input type="checkbox" name="ins_${x.id}" ${v.ins[x.id] ? "checked" : ""}><span>${esc(x.label)}</span></label>`).join("")}
       <button class="btn big">Vergleichen</button>
     </form>`, fd => {
     const o = { id: St.newId(), name: String(fd.get("name")).trim().slice(0, 80), url: safeUrl(fd.get("url")), total: num(fd.get("total")), cur: fd.get("cur"),
-      ins: Object.fromEntries(CAR_INS.map(x => [x.id, !!fd.get("ins_" + x.id)])), at: Date.now() };
+      ins: Object.fromEntries(CAR_INS.map(x => [x.id, !!fd.get("ins_" + x.id)])), at: Date.now(), ...(draft?.aiNotes?.length ? { aiNotes: draft.aiNotes } : {}) };
     (T.car.offers ||= []).push(o);
     commit();
   });
@@ -1459,6 +1566,8 @@ const ACT = {
     catch { prompt("Zum Kopieren markieren:", d.text); }
   },
   "car-edit"() { carSheet(); },
+  "car-ai"() { aiCarSheet("car"); },
+  "car-offer-ai"() { if (T.car) aiCarSheet("offer"); },
   "car-book"() { if (T.car) { T.car.status = "gebucht"; commit(); toast("Mietwagen gebucht – zählt jetzt zum Budget"); } },
   "car-del"() { if (confirm("Mietwagen entfernen?")) { T.car = null; closeSheet(); commit(); } },
   "car-offer"() { if (T.car) carOfferSheet(); },

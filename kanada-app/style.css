@@ -320,3 +320,6 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .restspot { margin: 6px 0; }
 .rests { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 6px; }
 .rests li { display: flex; gap: 8px; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--line); }
+.aibox { margin: 8px 0 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--lake) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--lake) 30%, var(--line)); }
+.aibox p { margin: 2px 0; }
+.aibox ul { margin: 4px 0 0; }

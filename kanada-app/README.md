@@ -32,6 +32,10 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/kanada-a
 - **Mietwagen**: eintragen mit Abholung/Rückgabe, Preis und was versichert ist. Versicherungs-Check (Vollkasko,
   Selbstbeteiligung, Zusatzhaftpflicht, Glas/Reifen, Kilometer …) mit Punkten. Andere Angebote eintragen → Vergleich
   von Preis *und* Schutz („131 € günstiger und gleich gut versichert“).
+  **✨ Automatisch ausfüllen** (KI über Firebase AI Logic, wie in der Essens-App): aus Link, Text der Bestätigungsmail,
+  Screenshot/PDF oder nur Anbieter + Vermittler. Die App zeigt, woher die Angaben stammen (Buchung, Webseite oder nur geschätzt)
+  und was nicht drinstand. Am zuverlässigsten ist der Mailtext; Buchungslinks sind oft nur mit Login lesbar.
+  Die Google-Suche für die KI ist im kostenlosen Firebase-Tarif nicht freigeschaltet – dann schätzt die KI aus ihrem Wissen.
 - **Restaurants**: im Tagesplan pro Tag Restaurants mittags am Programmpunkt und abends bei der Unterkunft
   (aus OpenStreetMap, ohne Ketten) mit Link zu den Google-Bewertungen. „+ Einplanen“ ersetzt die Mittagspause.
 - **Unterkünfte**: pro Ort Suche bei Airbnb, Booking.com, Vrbo, Expedia, Google Hotels (und Parks-Canada-Camping),
