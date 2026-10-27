@@ -369,3 +369,6 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .sugbody { padding: 12px 14px; display: grid; gap: 4px; }
 .sugbody p { margin: 0; }
 .facts { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 2px; }
+.daygroup { margin: 16px 0 6px; padding-left: 10px; border-left: 5px solid var(--c, var(--line)); font-size: 1rem; }
+.daygroup.rest { border-left-color: var(--warn); color: var(--warn); }
+.wtime { font-variant-numeric: tabular-nums; color: var(--muted); font-weight: 700; margin-right: 2px; }

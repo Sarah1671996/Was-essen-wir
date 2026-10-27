@@ -441,9 +441,7 @@ function viewTage() {
   </section>
 
   <h2 class="sec">Das möchte ich sehen/machen</h2>
-  <ul class="wishes">
-    ${s.wishes.map(w => wishRow(s, w, dayOpts)).join("") || `<li class="small pad">Noch nichts ausgewählt. Füge Orte hinzu – oder schau unten in die Vorschläge.</li>`}
-  </ul>
+  ${wishesByDay(s, plan, dayOpts)}
   ${autoCount ? `<button class="btn small ghost danger" data-act="wish-auto-del">🗑 ${plural(autoCount, "automatisch vorgemerkten Vorschlag", "automatisch vorgemerkte Vorschläge")} entfernen</button>` : ""}
   <button class="btn wide" data-act="wish-add">+ Sehenswürdigkeit oder eigenen Ort hinzufügen</button>
   <button class="btn ghost wide" data-act="list-import">📋 Ganze Liste hochladen und automatisch zuordnen</button>
@@ -556,14 +554,31 @@ function costLine(r, perPerson = true) {
   return parts.join(" · ");
 }
 
-function wishRow(s, w, dayOpts) {
+// Wünsche so ordnen wie im Plan: nach Tag, innerhalb des Tages nach Uhrzeit; was nicht reinpasst, ans Ende
+function wishesByDay(s, plan, dayOpts) {
+  if (!s.wishes.length) return `<ul class="wishes"><li class="small pad">Noch nichts ausgewählt. Füge Orte hinzu – oder schau unten in die Empfehlungen.</li></ul>`;
+  const slot = new Map();
+  plan.days.forEach((d, i) => d.steps.forEach(x => { if (x.type === "besuch") slot.set(x.w.wid, { day: i, start: x.start }); }));
+  const groups = plan.days.map((d, i) => ({ title: `Tag ${i + 1} · ${fmtD(d.date)}`, color: dayColor(i), list: [] }));
+  const rest = [];
+  for (const w of s.wishes) {
+    const at = slot.get(w.id);
+    if (at) groups[at.day].list.push({ w, start: at.start }); else rest.push(w);
+  }
+  return groups.filter(g => g.list.length).map(g => `
+    <h3 class="daygroup" style="--c:${g.color}">${esc(g.title)}</h3>
+    <ul class="wishes">${g.list.sort((a, b) => a.start - b.start).map(x => wishRow(s, x.w, dayOpts, x.start)).join("")}</ul>`).join("")
+    + (rest.length ? `<h3 class="daygroup rest">Passt nicht mehr rein</h3><ul class="wishes">${rest.map(w => wishRow(s, w, dayOpts)).join("")}</ul>` : "");
+}
+
+function wishRow(s, w, dayOpts, start) {
   const p = P.wishPoint(w);
   if (!p) return "";
   const home = homeOf(s), tr = P.travel(home, p);
   const base = w.sid ? P.sight(w.sid) : null;
   return `<li class="wish">
     <div class="thumb" data-photo="${esc(p.name)}" data-lat="${p.lat}" data-lng="${p.lng}" aria-hidden="true"></div>
-    <div class="wishmain"><strong>${esc(p.name)}</strong>
+    <div class="wishmain"><strong>${start != null ? `<span class="wtime">${P.hhmm(start)}</span> ` : ""}${esc(p.name)}</strong>
       <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${tr.real ? "" : "≈ "}${P.dur(tr.min)} von ${esc(home.lodging || "der Unterkunft")}
         · <a href="${esc(mapsRoute([home, p]))}" target="_blank" rel="noopener">Strecke in Google Maps ↗</a>${w.sid ? "" : ` · <a href="${mapsPlace(p)}" target="_blank" rel="noopener">📍 ${esc(p.place || "Ort ansehen")}</a>`}</span>
       <span class="small costedit">${costChip(p.c)}${p.cOwn ? ` <span class="tag">eigener Preis</span>` : p.cn ? ` ${esc(p.cn)}` : ""}
