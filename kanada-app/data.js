@@ -29,6 +29,16 @@ export const REGIONS = {
   atlantik: "Atlantikküste"
 };
 
+// Zeitzonen je Region (Golden und Radium liegen zwar in BC, nutzen aber wie Alberta die Mountain Time)
+export const REGION_TZ = {
+  west: "America/Vancouver", rockies: "America/Edmonton", prairie: "America/Edmonton", yukon: "America/Whitehorse",
+  ontario: "America/Toronto", quebec: "America/Toronto", atlantik: "America/Halifax"
+};
+export const TZ_LABEL = {
+  "America/Vancouver": "Pacific Time", "America/Edmonton": "Mountain Time", "America/Whitehorse": "Yukon-Zeit",
+  "America/Toronto": "Eastern Time", "America/Halifax": "Atlantic Time", "America/St_Johns": "Neufundland-Zeit"
+};
+
 // Standquartiere: dort übernachtet man, von dort aus plant die App die Tage
 export const BASES = [
   { id: "vancouver", name: "Vancouver", region: "west", lat: 49.2827, lng: -123.1207, ap: "YVR" },
@@ -65,6 +75,8 @@ export const BASES = [
   { id: "stjohns", name: "St. John's (Neufundland)", region: "atlantik", lat: 47.5615, lng: -52.7126, ap: "YYT" },
   { id: "grosmorne", name: "Gros Morne (Neufundland)", region: "atlantik", lat: 49.6600, lng: -57.9100, ap: "YDF", park: true }
 ];
+
+for (const b of BASES) b.tz = ["stjohns", "grosmorne"].includes(b.id) ? "America/St_Johns" : REGION_TZ[b.region];
 
 const s = (id, base, name, lat, lng, dur, tags, x = {}) => ({ id, base, name, lat, lng, dur, tags: tags.split(" "), ...x });
 
@@ -442,8 +454,20 @@ const ALIAS = {
   helmcken: ["Wells Gray"],
   minnewanka: ["Lake Minnewanka"]
 };
+// Wann etwas im Sommer ungefähr schließt (bzw. die letzte Fahrt/Tour) – eher früh angesetzt, in der Nebensaison oft früher
+const CLOSE = {
+  capilano: "19:00", grouse: "21:00", seatosky: "18:00", peak2peak: "17:00", butchart: "21:00", rbcm: "17:00", moa: "17:00", granville: "19:00",
+  banffgondola: "21:00", upperhot: "22:00", skytram: "19:00", spirit: "17:00", minnewanka: "18:00", llgondola: "16:30", kickinghorse: "17:00",
+  skybridge: "18:00", pipecoaster: "18:00", radiumhot: "21:00", nordicspa: "21:00", skywalk: "18:00", sunshine: "18:00", enchanted: "18:00",
+  calgarytower: "21:00", heritage: "17:00", tyrrell: "18:00", takhini: "22:00", ywp: "18:00",
+  cntower: "22:00", rom: "17:30", casaloma: "17:00", stlawrence: "18:00", cruise: "20:00", behind: "20:00",
+  history: "17:00", gallery: "17:00", forthenry: "17:00", "1000boat": "17:00", muskokaboat: "17:00",
+  biodome: "17:00", jeantalon: "18:00", scandinave: "21:00", citadelle: "17:00",
+  citadel: "17:00", pier21: "17:00", bell: "17:00", greengables: "17:00", hopewell: "18:00"
+};
 for (const x of SIGHTS) {
   x.c = COST[x.id];
+  if (CLOSE[x.id]) x.close = CLOSE[x.id];
   if (COST_NOTE[x.id]) x.cn = COST_NOTE[x.id];
   if (ALIAS[x.id]) x.a = ALIAS[x.id];
   if (x.c === 0) x.tags.push("gratis");

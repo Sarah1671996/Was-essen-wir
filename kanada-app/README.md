@@ -72,3 +72,19 @@ Ohne Reisecode bleibt alles nur auf dem jeweiligen Gerät.
 `node serve.mjs . 5177` im übergeordneten Ordner, dann http://localhost:5177/kanada-app/?demo
 (`?demo` = ohne Reisecode-Abgleich). Auf dem Startbildschirm „Beispielreise ansehen“ lädt eine fertige Westkanada-Tour.
 Nach Änderungen an den App-Dateien in `sw.js` die Version hochzählen (`kanada-v1` → `kanada-v2`).
+
+## Neu: KI-Auslesen, Zeitzonen, gemeinsames Planen, Ausgaben
+
+- **✨ Auslesen per KI** (Gemini über Firebase, nicht im Demo-Modus): Unterkunfts-Buchung (Mail, Screenshot, PDF, öffentlicher Link) →
+  Formular ausgefüllt, Adresse auf der Karte gesucht, passendem Ort zugeordnet. Flugbuchung → als gebucht eingetragen,
+  Ankunftszeit (+1,5 h) und Rückflug (−3 h) in den Tagesplan übernommen. **📷 Preis aus Screenshot** im Preiswächter:
+  Screenshot vom Suchergebnis der Airline → Preis landet im Verlauf.
+- **Zeitzonen**: Jeder Ort kennt seine Zeitzone (Golden/Radium = Mountain Time). An Reisetagen über eine Zonengrenze stellt der
+  Tagesplan die Uhr um und weist darauf hin.
+- **Gemeinsam planen**: Stände von zwei Geräten werden Eintrag für Eintrag zusammengeführt; Gelöschtes wird gemerkt (90 Tage),
+  damit es nicht zurückkommt.
+- **Restaurants** werden 60 Tage auf dem Gerät gemerkt (auch offline).
+- **Öffnungszeiten**: übliche Sommer-Schließzeiten von Gondeln, Museen, Bootstouren; der Planer legt Besuche davor und warnt sonst.
+  Endet eine Wanderung nach Sonnenuntergang, steht beim Tag ein Hinweis.
+- **Ausgaben & Aufteilen** (Mehr): Betrag, Kategorie, wer bezahlt hat, für wen; die App rechnet aus, wer wem was schuldet,
+  mit PayPal.Me-Link. Getankte Beträge erscheinen auf dem Dashboard neben der Sprit-Schätzung.

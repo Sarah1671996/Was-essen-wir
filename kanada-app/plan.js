@@ -1,7 +1,7 @@
 // Planung: Fahrzeiten, Tagesplan pro Ort, Hinweise zur Route und Vorschläge.
 // Fahrzeiten kommen vom freien OSRM-Routenserver (OpenStreetMap). Solange die noch nicht da sind
 // (oder offline), schätzt die App aus der Luftlinie.
-import { SIGHTS, BASES, AIRPORTS, TAGS } from "./data.js";
+import { SIGHTS, BASES, AIRPORTS, TAGS, TZ_LABEL } from "./data.js";
 
 export const PACE = {
   entspannt: { label: "Entspannt", buf: 1.25, lunch: 60 },
@@ -119,6 +119,38 @@ export async function pathGeometry(points) {
 }
 export const legGeometry = (a, b) => pathGeometry([a, b]);
 
+/* ---------- Zeitzonen ---------- */
+// Zeitzone eines Punktes = die des nächsten bekannten Ortes (reicht für Kanada, die Grenzen verlaufen zwischen den Orten)
+const tzMem = new Map();
+export function tzOf(p) {
+  if (!p) return "";
+  const k = keyOf(p);
+  if (!tzMem.has(k)) {
+    let best = null, bd = Infinity;
+    for (const b of BASES) { const d = km(p, b); if (d < bd) { bd = d; best = b; } }
+    tzMem.set(k, best?.tz || "");
+  }
+  return tzMem.get(k);
+}
+// Abstand zu UTC in Minuten an einem Datum (mit Sommerzeit), z. B. Mountain Time im Juli: −360
+const offMem = new Map();
+export function tzOffset(tz, iso) {
+  if (!tz) return 0;
+  const k = tz + iso;
+  if (!offMem.has(k)) {
+    let off = 0;
+    try {
+      const name = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "shortOffset" }).formatToParts(new Date(iso + "T12:00:00Z")).find(x => x.type === "timeZoneName")?.value || "";
+      const m = name.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
+      if (m) off = (m[1] === "-" ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0));
+    } catch {}
+    offMem.set(k, off);
+  }
+  return offMem.get(k);
+}
+// Um wie viele Minuten springt die Uhr zwischen zwei Punkten (positiv = vorstellen, Richtung Osten)
+export const tzShift = (a, b, iso) => tzOffset(tzOf(b), iso) - tzOffset(tzOf(a), iso);
+
 export function nearestAirport(p) {
   let best = null;
   for (const [code, a] of Object.entries(AIRPORTS)) {
@@ -141,7 +173,7 @@ export function wishPoint(w) {
     wid: w.id, sid: w.sid || null, name: w.name || base?.name || "Ort", lat: src.lat, lng: src.lng,
     dur: Number(w.dur) || base?.dur || 1.5, prio: w.prio ?? 1, when: w.when || base?.w || "",
     res: base?.r || "", months: base?.m || null, tip: base?.t || "", tags: base?.tags || w.tags || [],
-    fixDay: w.day || "", c: base ? base.c : w.c, cn: base?.cn || "", place: w.place || "", meal: !!w.meal
+    fixDay: w.day || "", c: base ? base.c : w.c, cn: base?.cn || "", place: w.place || "", meal: !!w.meal, close: base?.close || ""
   };
 }
 
@@ -170,10 +202,11 @@ export function planStop(stop, ctx) {
   }
 
   const visitMin = w => w.dur * 60 * pace.buf;
+  // Gerechnet in Ortszeit: über eine Zeitzonengrenze nach Osten springt die Uhr vor (die Stunde fehlt), nach Westen zurück
   const routeMin = (d, list) => {
     let t = 0, p = d.startPt;
-    for (const w of list) { t += travel(p, w).min + visitMin(w); p = w; }
-    return t + travel(p, d.endPt).min;
+    for (const w of list) { t += travel(p, w).min + tzShift(p, w, d.date) + visitMin(w); p = w; }
+    return t + travel(p, d.endPt).min + tzShift(p, d.endPt, d.date);
   };
   // Ist ein Restaurant eingeplant, ersetzt es die Mittagspause
   const lunchOf = (d, t, list = d.items) => (d.end - d.start > 300 && t > 240 && !list.some(w => w.meal) ? pace.lunch : 0);
@@ -185,6 +218,16 @@ export function planStop(stop, ctx) {
       if (w.when === "früh" && (k > 0 || d.kind === "reise" || d.kind === "ankunft")) p += 75;
       if (w.when === "abends" && k < list.length - 1) p += 60;
     });
+    // Nach Schließzeit ankommen oder noch drin sein ist schlecht (grob, ohne Mittagspause)
+    if (list.some(w => w.close)) {
+      let t = d.start, q = d.startPt;
+      for (const w of list) {
+        t += travel(q, w).min + tzShift(q, w, d.date);
+        const end = t + visitMin(w);
+        if (w.close && end > toMin(w.close)) p += t >= toMin(w.close) ? 400 : 120;
+        t = end; q = w;
+      }
+    }
     const f = load(d, list) / Math.max(60, budget(d));
     return p + f * f * 120;
   };
@@ -250,9 +293,11 @@ export function planStop(stop, ctx) {
       steps.push({ type: "pause", start: t, min: pace.lunch }); t += pace.lunch; lunchDone = true;
     };
     const drive = to => {
-      const r = travel(p, to);
+      const r = travel(p, to), shift = tzShift(p, to, d.date);
       if (r.min >= 2) steps.push({ type: "fahrt", start: t, min: r.min, km: r.km, real: r.real, to: to.name });
-      t += r.min; driveSum += r.min; kmSum += r.km; p = to;
+      t += r.min; driveSum += r.min; kmSum += r.km;
+      if (shift) { steps.push({ type: "zeit", start: t + shift, shift, tz: tzOf(to) }); t += shift; d.tzChange = { shift, tz: tzOf(to) }; }
+      p = to;
     };
     for (const w of d.items) {
       drive(w);
@@ -329,6 +374,11 @@ function stopHints(stop, ctx, days, unplaced, wishes, budget, pace, base) {
     }
     if (best && here > 60) H.push({ kind: "move", icon: "📍", text: `${w.name} liegt von ${best.o.name} aus näher (${dur(best.t)} statt ${dur(here)}).`, action: { type: "move", wid: w.wid, to: best.o.id } });
   }
+  days.forEach((d, n) => {
+    for (const x of d.steps) if (x.type === "besuch" && x.w.close && x.start + x.min > toMin(x.w.close))
+      H.push({ kind: "warn", icon: "🔒", text: `Tag ${n + 1}: ${x.w.name} schließt meist schon gegen ${x.w.close} – im Plan bis ${hhmm(x.start + x.min)}. Lieber früher hin oder an einen anderen Tag (Wunsch auf einen Tag festlegen).` });
+    if (d.tzChange) H.push({ kind: "info", icon: "🕐", text: `Tag ${n + 1}: Zeitzonenwechsel zur ${TZ_LABEL[d.tzChange.tz] || d.tzChange.tz} – die Uhr geht ${Math.abs(d.tzChange.shift) / 60} h ${d.tzChange.shift > 0 ? "vor (die Stunde fehlt dir)" : "zurück (du gewinnst eine Stunde)"}. Shuttle- und Tourzeiten gelten in Ortszeit.` });
+  });
   const freeDays = days.filter(d => d.free >= 240 && d.kind !== "abreise");
   if (freeDays.length && wishes.length) H.push({ kind: "idea", icon: "✨", text: `${freeDays.length === 1 ? "Ein Tag hat" : freeDays.length + " Tage haben"} noch viel Zeit frei. Unten findest du passende Vorschläge.` });
   return H;

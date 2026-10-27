@@ -325,3 +325,13 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .aibox ul { margin: 4px 0 0; }
 .apfits { list-style: none; padding: 0; margin: 4px 0; }
 .apfits li { padding: 2px 0; }
+/* Ausgaben */
+.explist { list-style: none; padding: 0; margin: 10px 0; }
+.explist li { display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.expamt { text-align: right; font-variant-numeric: tabular-nums; }
+.settle { padding: 0; }
+.settle li { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 6px 0; }
+.chip.radio { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: var(--ink); font-weight: 600; }
+.chip.radio input { width: auto; min-height: 0; margin: 0; accent-color: var(--forest); }
+.chip.radio:has(input:checked) { background: var(--forest); color: #fff; border-color: transparent; }
+.st.tz { color: var(--lake); font-weight: 600; }

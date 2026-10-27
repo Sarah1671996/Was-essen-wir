@@ -1,4 +1,4 @@
-import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, HOME_AP_POS, AIRLINES, CAR_SITES, CAR_INS, CHECKLIST, PACKLIST, TIPS, COST_LABEL, costLabel } from "./data.js";
+import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, HOME_AP_POS, AIRLINES, CAR_SITES, CAR_INS, CHECKLIST, PACKLIST, TIPS, COST_LABEL, TZ_LABEL, costLabel } from "./data.js";
 import * as P from "./plan.js";
 import * as St from "./store.js";
 import { lodgingLinks, mapsPlace, mapsRoute } from "./links.js";
@@ -58,8 +58,71 @@ const rate = () => Number(JSON.parse(ls.get("ka.rate") || "null")?.cadEur) || 0.
 const toEur = (n, cur) => cur === "CAD" ? n * rate() : n;
 
 function commit(rerender = true) {
+  noteDeleted();
   St.save(T);
   if (rerender) render();
+}
+
+/* ---------- Zusammenführen, wenn zwei Geräte gleichzeitig planen ---------- */
+// Alle Einträge mit id (Orte, Wünsche, Flüge, Unterkünfte, Angebote, Ausgaben)
+function idsOf(t) {
+  const ids = new Set();
+  const add = list => (list || []).forEach(x => x?.id && ids.add(x.id));
+  add(t?.stops); (t?.stops || []).forEach(s => add(s.wishes));
+  add(t?.flights); add(t?.lodgings); (t?.lodgings || []).forEach(l => add(l.offers));
+  add(t?.expenses); add(t?.car?.offers); add(t?.people);
+  return ids;
+}
+// Was seit dem letzten Speichern verschwunden ist, wurde gelöscht – merken, damit es beim Zusammenführen nicht zurückkommt
+let knownIds = idsOf(T);
+function noteDeleted() {
+  if (!T) return;
+  const now = idsOf(T), gone = T.gone ||= {}, cut = Date.now() - 90 * 864e5;
+  for (const id of knownIds) if (!now.has(id)) gone[id] = Date.now();
+  for (const [id, at] of Object.entries(gone)) if (at < cut) delete gone[id];
+  knownIds = now;
+}
+// Zwei Listen nach id vereinen; bei Einträgen in beiden gewinnt die neuere Fassung, Gelöschtes bleibt weg
+function mergeList(a = [], b = [], preferB, gone, nest) {
+  const A = new Map(a.filter(x => x?.id).map(x => [x.id, x])), B = new Map(b.filter(x => x?.id).map(x => [x.id, x]));
+  const out = [], seen = new Set();
+  for (const x of preferB ? [...b, ...a] : [...a, ...b]) {
+    if (!x?.id || seen.has(x.id) || gone[x.id]) continue;
+    seen.add(x.id);
+    const ax = A.get(x.id), bx = B.get(x.id);
+    let m = ax && bx ? (preferB ? { ...ax, ...bx } : { ...bx, ...ax }) : (ax || bx);
+    if (ax && bx && nest) m = nest(ax, bx, m);
+    out.push(m);
+  }
+  return out;
+}
+const mergePrices = (a = [], b = []) => [...new Map([...a, ...b].map(p => [p.at, p])).values()].sort((x, y) => x.at - y.at);
+function mergeTrip(L, R) {
+  if (!L) return R;
+  const preferR = (R.st || 0) >= (L.st || 0), newer = preferR ? R : L, older = preferR ? L : R;
+  const gone = { ...(L.gone || {}), ...(R.gone || {}) };
+  const out = { ...older, ...newer, gone };
+  out.stops = mergeList(L.stops, R.stops, preferR, gone, (a, b, m) => ({ ...m, wishes: mergeList(a.wishes, b.wishes, preferR, gone) }));
+  // Ein verschobener Wunsch soll nur an einem Ort stehen: dort, wo ihn der neuere Stand hat
+  const home = new Map(); (newer.stops || []).forEach(s => (s.wishes || []).forEach(w => home.set(w.id, s.id)));
+  out.stops.forEach(s => { s.wishes = (s.wishes || []).filter(w => !home.has(w.id) || home.get(w.id) === s.id); });
+  out.flights = mergeList(L.flights, R.flights, preferR, gone, (a, b, m) => ({ ...m, prices: mergePrices(a.prices, b.prices) }));
+  out.lodgings = mergeList(L.lodgings, R.lodgings, preferR, gone, (a, b, m) => ({ ...m, offers: mergeList(a.offers, b.offers, preferR, gone) }));
+  out.expenses = mergeList(L.expenses, R.expenses, preferR, gone);
+  out.people = mergeList(L.people, R.people, preferR, gone);
+  if (L.car || R.car) out.car = newer.car === null && older.car ? null : { ...(older.car || {}), ...(newer.car || {}), offers: mergeList(L.car?.offers, R.car?.offers, preferR, gone) };
+  for (const k of ["checks", "packed"]) out[k] = { ...(older[k] || {}), ...(newer[k] || {}) };
+  return out;
+}
+// Stand vom anderen Gerät kommt an
+function receiveRemote(R) {
+  const merged = Object.assign(blankTrip(), mergeTrip(T, R));
+  const same = JSON.stringify({ ...merged, st: 0 }) === JSON.stringify({ ...Object.assign(blankTrip(), R), st: 0 });
+  T = merged;
+  knownIds = idsOf(T);
+  if (same) St.adopt(T); else St.save(T); // Eigene Änderungen waren dabei → zurückschicken
+  repairAndTell();
+  render();
 }
 
 // Neuer Plan mit sinnvollen Grundwerten
@@ -147,7 +210,7 @@ function viewStart() {
   const flightsBooked = T.flights.filter(f => f.booked).length;
   const checks = CHECKLIST.filter(c => T.checks[c.id]).length;
   const bar = (label, n, of, tab) => `<button class="prog" data-act="tab" data-tab="${tab}"><span>${label}</span><span class="small">${n} / ${of}</span><span class="track"><span style="width:${of ? Math.round(n / of * 100) : 0}%"></span></span></button>`;
-  const parts = [["✈️ Flüge", B.flights, ""], ["🏡 Unterkünfte", B.lodging, ""], ["🚗 Mietwagen", B.car, ""], ["⛽ Sprit", B.fuel, "geschätzt"], ["🎟️ Eintritte", B.entryEur, "geschätzt"], ["🧾 Sonstiges", B.extra, ""]].filter(p => p[1] > 0);
+  const parts = [["✈️ Flüge", B.flights, ""], ["🏡 Unterkünfte", B.lodging, ""], ["🚗 Mietwagen", B.car, ""], ["⛽ Sprit", B.fuel, "geschätzt"], ["🎟️ Eintritte", B.entryEur, "geschätzt"], ["💳 Ausgaben", B.extra, ""]].filter(p => p[1] > 0);
   const maxPart = Math.max(1, ...parts.map(p => p[1]));
   return `
   <section class="hero">
@@ -165,8 +228,9 @@ function viewStart() {
     <section class="card tile"><span class="small">Bisher gebucht</span><strong>${money(B.total)}</strong><span class="small">${B.perPerson ? `${money(B.total / (pax().adults + pax().children))} pro Person` : "&nbsp;"}</span></section>
     <section class="card tile"><span class="small">Voraussichtlich gesamt</span><strong>${money(B.expected)}</strong><span class="small">${B.perDay ? `≈ ${money(B.perDay)} pro Tag` : "&nbsp;"}</span></section>
     <section class="card tile"><span class="small">Kilometer</span><strong>${Math.round(tt.km).toLocaleString("de-DE")} km</strong><span class="small">${Math.round(tt.legKm).toLocaleString("de-DE")} Etappen · ${Math.round(tt.tripKm).toLocaleString("de-DE")} Ausflüge</span></section>
-    <section class="card tile"><span class="small">Sprit (geschätzt)</span><strong>${money(B.fuel)}</strong><span class="small">${Math.round(tt.liters).toLocaleString("de-DE")} l · ${money(tt.fuelCad, "CAD")}</span></section>
+    <section class="card tile"><span class="small">Sprit (geschätzt)</span><strong>${money(B.fuel)}</strong><span class="small">${Math.round(tt.liters).toLocaleString("de-DE")} l · ${money(tt.fuelCad, "CAD")}${B.fuelPaid ? ` · getankt: ${money(B.fuelPaid)}` : ""}</span></section>
   </div>
+  <button class="btn ghost wide" data-act="exp-add">💳 Ausgabe eintragen</button>
 
   <section class="card">
     <h2>Wohin geht das Geld?</h2>
@@ -398,6 +462,13 @@ const restMem = new Map();
 async function restaurantsNear(p, radius = 2500) {
   const key = `${p.lat.toFixed(3)},${p.lng.toFixed(3)},${radius}`;
   if (restMem.has(key)) return restMem.get(key);
+  // Schon einmal gesucht? Dann aus dem Gerätespeicher (geht auch offline in den Bergen)
+  const saved = JSON.parse(ls.get("ka.rest") || "{}");
+  if (saved[key] && Date.now() - saved[key].at < 60 * 864e5) {
+    const hit = Promise.resolve(saved[key].list.map(r => ({ ...r, d: P.km(p, r) })));
+    restMem.set(key, hit);
+    return hit;
+  }
   const q = `[out:json][timeout:20];nwr["amenity"~"^(restaurant|cafe|pub)$"]["name"](around:${radius},${p.lat},${p.lng});out center tags 80;`;
   // Der Hauptserver ist oft überlastet, dann die öffentlichen Spiegel versuchen
   const servers = ["https://overpass-api.de", "https://overpass.kumi.systems", "https://overpass.private.coffee"];
@@ -419,7 +490,15 @@ async function restaurantsNear(p, radius = 2500) {
       return { name: t.name, lat, lng, d, sc, amenity: t.amenity, web: safeUrl(t.website || t["contact:website"]),
         cuisine: (t.cuisine || "").split(";").map(c => CUISINE[c.trim()] || "").filter(Boolean).slice(0, 2).join(", ") };
     }).filter(r => r.lat != null && !/tim hortons|mcdonald|subway|a&w|starbucks|wendy|burger king|dairy queen|kfc|domino/i.test(r.name))
-      .sort((a, b) => b.sc - a.sc).slice(0, 6));
+      .sort((a, b) => b.sc - a.sc).slice(0, 6))
+    .then(list => {
+      const all = JSON.parse(ls.get("ka.rest") || "{}");
+      all[key] = { at: Date.now(), list: list.map(({ d, sc, ...r }) => r) };
+      // Höchstens 80 Orte merken, die ältesten fliegen raus
+      const keep = Object.entries(all).sort((x, y) => y[1].at - x[1].at).slice(0, 80);
+      ls.set("ka.rest", JSON.stringify(Object.fromEntries(keep)));
+      return list;
+    });
   restMem.set(key, job);
   job.catch(() => restMem.delete(key));
   return job;
@@ -493,6 +572,7 @@ function dayCard(s, d, i) {
   rows.push(`<li class="st start"><span class="time">${P.hhmm(d.start)}</span><span>${d.kind === "reise" ? `Abfahrt in ${esc(d.startPt.name)}` : d.kind === "ankunft" ? "Ankunft" : "Los geht's"}</span></li>`);
   for (const x of d.steps) {
     if (x.type === "fahrt") rows.push(`<li class="st drive"><span class="time"></span><span>🚗 ${x.real ? "" : "≈ "}${P.dur(x.min)} · ${Math.round(x.km)} km</span></li>`);
+    if (x.type === "zeit") rows.push(`<li class="st drive tz"><span class="time"></span><span>🕐 Uhr ${x.shift > 0 ? "vorstellen" : "zurückstellen"}: ${x.shift > 0 ? "+" : "−"}${Math.abs(x.shift) / 60} h – jetzt ${TZ_LABEL[x.tz] || ""}</span></li>`);
     if (x.type === "pause") rows.push(`<li class="st lunch"><span class="time">${P.hhmm(x.start)}</span><span>🍽️ Mittagspause</span></li>`);
     if (x.type === "besuch") rows.push(`<li class="st visit"><span class="time">${P.hhmm(x.start)}</span><span><a href="${mapsPlace(x.w)}" target="_blank" rel="noopener"><strong>${esc(x.w.name)}</strong></a>
       <span class="small">bis ${P.hhmm(x.start + x.min)}${costLabel(x.w.c) ? " · " + costLabel(x.w.c) : ""}${x.w.res ? " · 🎟️ reservieren" : ""}${x.w.tip ? ` · ${esc(x.w.tip)}` : ""}</span></span></li>`);
@@ -501,9 +581,9 @@ function dayCard(s, d, i) {
   rows.push(`<li class="st end"><span class="time">${P.hhmm(d.finish)}</span><span>🏡 ${d.kind === "abreise" && !d.items.length ? "Abreise" : "Zurück in der Unterkunft"}${d.free >= 30 ? ` · noch ${P.dur(d.free)} frei` : ""}</span></li>`);
   return `<article class="day" style="--c:${dayColor(i)}">
     <header><h3>Tag ${i + 1} · ${fmtD(d.date)}</h3>${label ? `<span class="tag">${label}</span>` : ""}</header>
-    <p class="wx small" data-wx="${d.date}"></p>
+    ${(() => { const out = d.steps.filter(x => x.type === "besuch" && x.w.tags?.some(t => ["wandern", "natur", "aussicht", "wasser"].includes(t))).at(-1); return `<p class="wx small" data-wx="${d.date}"${out ? ` data-out="${Math.round(out.start + out.min)}" data-outname="${esc(out.w.name)}"` : ""}></p>`; })()}
     ${cost ? `<p class="small costline">${cost}</p>` : ""}
-    ${d.items.length ? `<ol class="timeline">${rows.join("")}</ol>
+    ${d.items.length || d.kind === "reise" ? `<ol class="timeline">${rows.join("")}</ol>
       <a class="small" href="${esc(mapsRoute(pts))}" target="_blank" rel="noopener">Route in Google Maps ↗</a>` : `<p class="small">${d.kind === "abreise" ? "Abreisetag." : "Noch frei – Zeit zum Treibenlassen oder für einen Vorschlag unten."}</p>`}
     ${restBlock(d)}
   </article>`;
@@ -649,6 +729,7 @@ function viewFlights() {
     <p class="small">Die Airlines geben ihre Preise nicht frei heraus. Trag den Preis ein, den du auf der Airline-Seite siehst – die App merkt sich den Verlauf, erinnert dich alle <select data-change="checkEvery" class="inline">${[1, 2, 3, 5, 7].map(n => `<option value="${n}" ${n === (T.checkEvery || 3) ? "selected" : ""}>${n}</option>`).join("")}</select> Tage ans Nachsehen und meldet sich, sobald dein Zielpreis erreicht ist.</p>
   </section>
   ${T.flights.map(flightCard).join("") || `<p class="small pad">Noch keine Flüge unter Beobachtung.</p>`}
+  ${St.canAi ? `<button class="btn wide" data-act="flight-ai">✨ Gebuchten Flug aus Bestätigung auslesen</button>` : ""}
   <button class="btn ghost wide" data-act="flight-watch">+ Anderen Flug beobachten</button>
 
   <section class="card">
@@ -762,6 +843,124 @@ function fileToPart(file) {
     r.readAsDataURL(file);
   });
 }
+// Allgemeines KI-Formular: Text einfügen oder Screenshot/PDF wählen, die KI liest es aus
+function aiDocSheet(kind, { title, intro, withUrl = false, onResult }) {
+  if (!St.canAi) { toast("Automatisch auslesen geht nur in der installierten App (nicht im Demo-Modus)."); return; }
+  const [a, b] = range();
+  openSheet(title, `
+    <p class="small">${intro}</p>
+    <form class="form">
+      ${withUrl ? `<label>Link <span class="small">(nur öffentliche Seiten)</span><input name="url" type="url" placeholder="https://…"></label>` : ""}
+      <label>Text einfügen <span class="small">(z. B. aus der Bestätigungsmail)</span><textarea name="text" rows="5"></textarea></label>
+      <label class="btn ghost small">📄 Screenshot oder PDF wählen<input type="file" name="files" accept="image/*,application/pdf" multiple hidden></label>
+      <p class="small" id="aiFiles"></p>
+      <button class="btn big">✨ Auslesen</button>
+      <p class="small">Die Angaben gehen zur Auswertung an Google Gemini. Danach prüfst du alles.</p>
+    </form>`, null, body => {
+    const f = body.querySelector("form");
+    f.elements.files.onchange = () => { body.querySelector("#aiFiles").textContent = [...f.elements.files.files].map(x => "✓ " + x.name).join("  "); };
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const files = [...f.elements.files.files].slice(0, 4);
+      const input = { text: f.elements.text.value.trim(), url: withUrl ? safeUrl(f.elements.url.value) : "", trip: a ? `Reise ${a} bis ${b}` : "" };
+      if (!input.text && !input.url && !files.length) { toast("Text einfügen oder eine Datei wählen."); return; }
+      body.innerHTML = `<p>✨ Lese … das dauert ein paar Sekunden.</p>`;
+      try {
+        input.files = await Promise.all(files.map(fileToPart));
+        await onResult(await St.readDocument(kind, input));
+      } catch (err) {
+        console.error(err);
+        body.innerHTML = `<p class="warntext">Das Auslesen hat nicht geklappt (${esc(err.message || "Fehler")}).</p><p class="small">Probier es mit dem Text der Mail oder einem deutlicheren Screenshot – oder trag es selbst ein.</p>`;
+      }
+    };
+  });
+}
+const aiStr = (v, n = 80) => typeof v === "string" ? v.trim().slice(0, n) : "";
+const aiDate = v => /^\d{4}-\d{2}-\d{2}$/.test(aiStr(v)) ? aiStr(v) : "";
+const aiTime = v => /^\d{1,2}:\d{2}$/.test(aiStr(v)) ? aiStr(v).padStart(5, "0") : "";
+
+// Unterkunft: Formular vorausfüllen, Lage über die Adresse suchen und zum passenden Ort der Route legen
+function aiLodging(stopId) {
+  aiDocSheet("lodging", {
+    title: "✨ Unterkunft aus Buchung auslesen",
+    intro: "Bestätigungsmail von Airbnb, Booking.com oder dem Hotel einfügen – oder einen Screenshot bzw. das PDF wählen. Die App sucht auch die Adresse auf der Karte, damit Kilometer und Tagesplan ab der echten Unterkunft rechnen.",
+    withUrl: true,
+    async onResult(r) {
+      const d = {
+        name: aiStr(r.name) || "Unterkunft", platform: ["Airbnb", "Booking.com", "Vrbo", "Expedia", "Hotel direkt", "Camping", "Sonstiges"].includes(r.platform) ? r.platform : "Sonstiges",
+        address: aiStr(r.address, 120) || aiStr(r.city), checkIn: aiDate(r.checkIn), checkOut: aiDate(r.checkOut), total: num(r.total), cur: r.cur === "CAD" ? "CAD" : "EUR",
+        cancelUntil: aiDate(r.cancelUntil), url: safeUrl(r.url), status: "gebucht",
+        note: [aiTime(r.checkInTime) ? `Check-in ab ${aiTime(r.checkInTime)}` : "", ...(Array.isArray(r.notes) ? r.notes.map(n => aiStr(n, 120)) : [])].filter(Boolean).join(" · ").slice(0, 300)
+      };
+      // Lage suchen (erst genaue Adresse, dann Name + Ort)
+      for (const q of [d.address, `${d.name} ${aiStr(r.city)}`].filter(Boolean)) {
+        try { const hit = (await geocode(q))[0]; if (hit) { d.lat = hit.lat; d.lng = hit.lng; break; } } catch {}
+        await new Promise(res => setTimeout(res, 1100));
+      }
+      const s = stops().find(x => d.checkIn && x.from <= d.checkIn && d.checkIn < x.to) || (d.lat != null ? stops().slice().sort((x, y) => P.km(x, d) - P.km(y, d))[0] : null);
+      lodgeSheet(null, s?.id || stopId, d);
+      toast(d.lat != null ? "Ausgefüllt – Lage gefunden 📍" : "Ausgefüllt – bitte prüfen");
+    }
+  });
+}
+
+// Flugbuchung: als gebuchten Flug speichern und Ankunfts-/Abflugzeit in den Tagesplan übernehmen
+function aiFlight() {
+  aiDocSheet("flight", {
+    title: "✨ Flugbuchung auslesen",
+    intro: "Buchungsbestätigung der Airline einfügen oder als Screenshot/PDF wählen. Die App trägt den Flug als gebucht ein und übernimmt die Ankunftszeit in Kanada und die Rückflugzeit in den Tagesplan.",
+    async onResult(r) {
+      const o = r.out || {}, bk = r.back || {};
+      const code = v => /^[A-Z]{3}$/.test(aiStr(v).toUpperCase()) ? aiStr(v).toUpperCase() : "";
+      const al = AIRLINES.find(x => aiStr(r.airline).toLowerCase().includes(x.name.toLowerCase().split(" ")[0]));
+      const f = {
+        id: St.newId(), prices: [], booked: true, airline: al?.id || "", airlineName: al ? "" : aiStr(r.airline, 40),
+        from: code(o.from) || flyPlan().ap, to: code(o.to) || flyPlan().inAp, date: aiDate(o.date) || range()[0],
+        ret: aiDate(bk.date), retFrom: code(bk.from), retTo: code(bk.to), bookedPrice: toEur(num(r.total), r.cur === "CAD" ? "CAD" : "EUR"),
+        code: aiStr(r.code, 12), station: r.rail ? aiStr(r.station, 40) : "",
+        times: { dep: aiTime(o.dep), arr: aiTime(o.arr), retDep: aiTime(bk.dep), retArr: aiTime(bk.arr), flight: aiStr(o.flight, 30), retFlight: aiStr(bk.flight, 30) },
+        notes: Array.isArray(r.notes) ? r.notes.map(n => aiStr(n, 150)).slice(0, 6) : []
+      };
+      // Gleichen beobachteten Flug ersetzen statt doppelt anlegen
+      const same = T.flights.find(x => x.from === f.from && x.to === f.to && x.date === f.date);
+      if (same) Object.assign(same, { ...f, id: same.id, prices: same.prices, target: same.target });
+      else T.flights.push(f);
+      const applied = [];
+      const first = stops()[0], last = stops().at(-1);
+      // Nach der Landung: Einreise, Gepäck, Mietwagen – etwa 1,5 Stunden
+      if (first && f.times.arr && f.date === first.from) { first.arrive = P.hhmm(P.toMin(f.times.arr) + 90).padStart(5, "0"); applied.push(`Ankunft in ${first.name} ab ${first.arrive}`); }
+      // Vor dem Rückflug: Auto abgeben, einchecken – 3 Stunden vorher am Flughafen
+      if (last && f.times.retDep && f.ret === last.to) { last.depart = P.hhmm(Math.max(0, P.toMin(f.times.retDep) - 180)).padStart(5, "0"); applied.push(`letzter Tag bis ${last.depart}`); }
+      commit();
+      openSheet("✈️ Flug eingetragen", `
+        <p><strong>${esc(al?.name || f.airlineName || "Flug")}</strong>${f.code ? ` · Buchungscode ${esc(f.code)}` : ""}${f.bookedPrice ? ` · ${money(f.bookedPrice)}` : ""}</p>
+        <p class="small">Hin: ${esc(f.from)} → ${esc(f.to)} ${fmtD(f.date)}${f.times.dep ? ` · ${f.times.dep} → ${f.times.arr || "?"}` : ""}${f.times.flight ? ` · ${esc(f.times.flight)}` : ""}</p>
+        ${f.ret ? `<p class="small">Zurück: ${esc(f.retFrom || f.to)} → ${esc(f.retTo || f.from)} ${fmtD(f.ret)}${f.times.retDep ? ` · ${f.times.retDep} → ${f.times.retArr || "?"}` : ""}${f.times.retFlight ? ` · ${esc(f.times.retFlight)}` : ""}</p>` : ""}
+        ${f.station ? `<p class="small">🚆 Zug ab ${esc(f.station)} inklusive</p>` : ""}
+        ${applied.length ? `<p class="small goodtext">Im Tagesplan übernommen: ${applied.map(esc).join(", ")}.</p>` : ""}
+        ${f.notes.length ? `<ul class="plain small">${f.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
+        <button class="btn big" data-act="sheet-close">OK</button>`);
+    }
+  });
+}
+
+// Preis-Screenshot von der Airline-Seite in den Preiswächter übernehmen
+function aiPrice(f) {
+  aiDocSheet("price", {
+    title: "📷 Preis aus Screenshot",
+    intro: "Mach auf der Airline-Seite einen Screenshot vom Suchergebnis (mit dem Preis) und wähl ihn hier aus. Die App liest den Preis und trägt ihn in den Verlauf ein.",
+    async onResult(r) {
+      let p = num(r.price);
+      if (!p) throw new Error("kein Preis erkannt");
+      if (r.perPerson) p *= pax().adults + pax().children;
+      const eur = r.cur && r.cur !== "EUR" ? toEur(p, r.cur === "CAD" ? "CAD" : "EUR") : p;
+      f.prices.push({ at: Date.now(), p: Math.round(eur), src: "screenshot" });
+      commit(); closeSheet();
+      toast(`${money(eur)} eingetragen${r.perPerson ? " (Preis pro Person × Reisende)" : ""}${f.target && eur <= f.target ? " – 🎉 unter deinem Zielpreis!" : ""}`);
+    }
+  });
+}
+
 function aiCarSheet(target = "car") {
   if (!St.canAi) { toast("Automatisch ausfüllen geht nur in der installierten App (nicht im Demo-Modus)."); return; }
   const c = target === "car" ? T.car : null, [a, b] = range();
@@ -914,13 +1113,15 @@ function flightCard(f) {
     : f.target ? `<span class="tag">noch ${money(last.p - f.target)} drüber</span>` : "";
   const due = !f.booked && (!last || Date.now() - last.at > (T.checkEvery || 3) * 864e5);
   return `<article class="card watch ${due ? "due" : ""}">
-    <div class="sechead"><h3>${f.airline ? esc(AIRLINES.find(al => al.id === f.airline)?.name || "") + " · " : ""}${f.station ? `${esc(f.station)} 🚆 ` : ""}${esc(f.from)} → ${esc(f.to)}${f.retFrom && f.retFrom !== f.to ? ` · ${esc(f.retFrom)} → ${esc(f.retTo || f.from)}` : f.ret ? " · zurück" : ""}</h3>${status}</div>
+    <div class="sechead"><h3>${f.airline ? esc(AIRLINES.find(al => al.id === f.airline)?.name || "") + " · " : f.airlineName ? esc(f.airlineName) + " · " : ""}${f.station ? `${esc(f.station)} 🚆 ` : ""}${esc(f.from)} → ${esc(f.to)}${f.retFrom && f.retFrom !== f.to ? ` · ${esc(f.retFrom)} → ${esc(f.retTo || f.from)}` : f.ret ? " · zurück" : ""}</h3>${status}</div>
     <p class="small">${fmtD(f.date)}${f.ret ? ` – ${fmtD(f.ret)}` : ""}${f.flex ? ` · ± ${f.flex} Tage` : ""}${f.direct ? " · nur direkt" : ""}${f.target ? ` · Ziel: ${money(f.target)}` : ""}</p>
+    ${f.times?.dep || f.code ? `<p class="small">${f.times?.dep ? `Hin ${f.times.dep} → ${f.times.arr || "?"}${f.times.flight ? ` (${esc(f.times.flight)})` : ""}` : ""}${f.times?.retDep ? ` · Zurück ${f.times.retDep} → ${f.times.retArr || "?"}${f.times.retFlight ? ` (${esc(f.times.retFlight)})` : ""}` : ""}${f.code ? ` · Buchungscode <strong>${esc(f.code)}</strong>` : ""}</p>` : ""}
+    ${f.notes?.length ? `<ul class="plain small">${f.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
     ${f.prices.length ? `<div class="pricerow"><div><span class="small">Zuletzt (${ago(last.at)})</span><strong>${money(last.p)}</strong></div><div><span class="small">Bisher günstigster</span><strong>${money(min)}</strong></div>${spark(f)}</div>` : ""}
     ${linkBtns(AIRLINES.filter(al => f.airline ? al.id === f.airline : airlineFit(al, f.from, f.to)).map(al => ({ name: al.name, url: al.url })))}
     ${f.booked ? "" : `<form class="priceform" data-form="flight-price" data-id="${f.id}">
       <input name="p" inputmode="decimal" placeholder="Heutiger Preis in € (gesamt)" aria-label="Heutiger Preis" required>
-      <button class="btn small">Eintragen</button></form>`}
+      <button class="btn small">Eintragen</button>${St.canAi ? `<button type="button" class="btn small ghost" data-act="price-shot" data-id="${f.id}">📷 Screenshot</button>` : ""}</form>`}
     <div class="btnrow">
       <button class="btn small ghost" data-act="flight-booked" data-id="${f.id}">${f.booked ? "Doch nicht gebucht" : "✓ Gebucht"}</button>
       <button class="btn small ghost" data-act="flight-edit" data-id="${f.id}">Bearbeiten</button>
@@ -952,6 +1153,7 @@ function viewLodging() {
   if (!list.length) return `<div class="card empty"><p>Lege zuerst in der Route deine Orte mit Daten an – dann siehst du hier für jeden Ort passende Unterkünfte.</p><button class="btn" data-act="stop-add">+ Ort hinzufügen</button></div>`;
   const loose = T.lodgings.filter(l => !stopById(l.stopId));
   return `<p class="small pad">Trag ein, was du gebucht hast. Die App sucht dann mit denselben Daten nach günstigeren Angeboten in der Nähe und erinnert dich vor Ende der kostenlosen Stornierung.</p>
+  ${St.canAi ? `<button class="btn wide" data-act="lodge-ai">✨ Buchungsbestätigung auslesen (Mail, Screenshot, PDF)</button>` : ""}
   ${list.map(lodgeStop).join("")}
   ${loose.length ? `<h2 class="sec">Ohne Ort</h2>${loose.map(l => lodgeCard(l, null)).join("")}` : ""}`;
 }
@@ -970,7 +1172,7 @@ function lodgeStop(s) {
       ${linkBtns(lodgingLinks(search, pax()))}
     </div>` : ""}
     ${saved.length ? `<p class="small"><strong>Gemerkt</strong></p>${saved.map(l => lodgeCard(l, s)).join("")}` : ""}
-    <button class="btn small ghost" data-act="lodge-add" data-id="${s.id}">+ Unterkunft eintragen</button>
+    <div class="btnrow"><button class="btn small ghost" data-act="lodge-add" data-id="${s.id}">+ Unterkunft eintragen</button>${St.canAi ? `<button class="btn small ghost" data-act="lodge-ai" data-id="${s.id}">✨ Aus Buchung auslesen</button>` : ""}</div>
   </section>`;
 }
 function lodgeCard(l, s) {
@@ -1029,21 +1231,17 @@ function viewMore() {
       <tr><td>Flüge (gebucht)</td><td>${money(b.flights)}</td></tr>
       <tr><td>Unterkünfte (gebucht)</td><td>${money(b.lodging)}</td></tr>
       <tr><td>Mietwagen (gebucht)</td><td>${money(b.car)}</td></tr>
-      ${T.expenses.map(e => `<tr><td>${esc(e.text)} <button class="iconbtn sm" data-act="exp-del" data-id="${e.id}" aria-label="entfernen">✕</button></td><td>${money(toEur(e.amount, e.cur))}${e.cur === "CAD" ? `<span class="small block">${money(e.amount, "CAD")}</span>` : ""}</td></tr>`).join("")}
-      <tr class="sum"><td>Gebucht</td><td>${money(b.total)}</td></tr>
+      <tr><td>Ausgaben <span class="small block">${plural(T.expenses.length, "Eintrag", "Einträge")} – siehe „Ausgaben & Aufteilen“</span></td><td>${money(b.extra)}</td></tr>
+      <tr class="sum"><td>Gebucht & ausgegeben</td><td>${money(b.total)}</td></tr>
       <tr><td>Sprit <span class="small block">geschätzt: ${Math.round(b.tt.km).toLocaleString("de-DE")} km × ${String(b.tt.l100).replace(".", ",")} l/100 km × ${String(b.tt.price).replace(".", ",")} CAD/l</span></td><td>≈ ${money(b.fuel)}</td></tr>
       <tr><td>Eintritte laut Tagesplan <span class="small block">geschätzt${b.parkDays ? ` · ${plural(b.parkDays, "Tag", "Tage")} im Nationalpark${b.parkDays >= 7 ? " – der Discovery Pass lohnt sich" : " – Tagespässe reichen"}` : ""}</span></td><td>≈ ${money(b.entryEur)}</td></tr>
       <tr class="sum"><td>Voraussichtlich gesamt</td><td>${money(b.expected)}</td></tr>
     </tbody></table>
     <p class="small">${b.perDay ? `≈ ${money(b.perDay)} pro Tag · ` : ""}1 CAD ≈ ${rate().toFixed(3).replace(".", ",")} €</p>
-    <form class="expform" data-form="expense">
-      <input name="text" placeholder="z. B. Mietwagen, Parks Pass" maxlength="60" required aria-label="Wofür">
-      <input name="amount" inputmode="decimal" placeholder="Betrag" required aria-label="Betrag">
-      <select name="cur" aria-label="Währung"><option>EUR</option><option>CAD</option></select>
-      <button class="btn small">+</button>
-    </form>
     <p class="small">Umrechner: <input class="mini" inputmode="decimal" data-change="conv" placeholder="CAD"> CAD = <strong id="convOut">–</strong></p>
   </details>
+
+  ${expensesSection()}
 
   <details class="card more"><summary><h2>🍁 Kanada-Tipps</h2></summary>
     ${TIPS.map(t => `<p><strong>${t.icon} ${esc(t.title)}</strong><br>${esc(t.text)}</p>`).join("")}
@@ -1085,6 +1283,91 @@ function viewMore() {
     <button class="btn small danger" data-act="reset">Reise löschen und neu anfangen</button>
   </details>`;
 }
+/* ---------- Ausgaben unterwegs & aufteilen ---------- */
+const EXP_CATS = { tanken: "⛽ Tanken", essen: "🍽️ Essen", einkauf: "🛒 Einkauf", eintritt: "🎟️ Eintritt", unterkunft: "🏡 Unterkunft", auto: "🚗 Auto", flug: "✈️ Flug", sonst: "🧾 Sonstiges" };
+// Mitreisende; beim ersten Mal aus der Zahl der Reisenden angelegt
+function people() {
+  if (!T.people?.length) {
+    const n = Math.max(1, pax().adults + pax().children);
+    T.people = Array.from({ length: n }, (_, i) => ({ id: St.newId(), name: i ? `Person ${i + 1}` : "Ich", paypal: "" }));
+  }
+  return T.people;
+}
+// Wer hat wie viel bezahlt, wer schuldet wem (in Euro)
+function balances() {
+  const ps = people(), net = Object.fromEntries(ps.map(p => [p.id, 0]));
+  for (const e of T.expenses) {
+    const eur = toEur(num(e.amount), e.cur);
+    const forIds = (e.for?.length ? e.for : ps.map(p => p.id)).filter(id => id in net);
+    if (!e.by || !(e.by in net) || !forIds.length) continue;
+    net[e.by] += eur;
+    for (const id of forIds) net[id] -= eur / forIds.length;
+  }
+  // Ausgleich: wer im Minus ist, zahlt an den, der im Plus ist
+  const debt = ps.map(p => ({ p, v: net[p.id] })).filter(x => x.v < -0.5).sort((a, b) => a.v - b.v);
+  const cred = ps.map(p => ({ p, v: net[p.id] })).filter(x => x.v > 0.5).sort((a, b) => b.v - a.v);
+  const pay = [];
+  for (const d of debt) for (const c of cred) {
+    const amt = Math.min(-d.v, c.v);
+    if (amt > 0.5) { pay.push({ from: d.p, to: c.p, amt }); d.v += amt; c.v -= amt; }
+  }
+  return { net, pay };
+}
+function expensesSection() {
+  const ps = people(), name = id => ps.find(p => p.id === id)?.name || "?";
+  const list = [...T.expenses].sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  const byCat = {};
+  for (const e of T.expenses) byCat[e.cat || "sonst"] = (byCat[e.cat || "sonst"] || 0) + toEur(num(e.amount), e.cur);
+  const { pay } = balances();
+  return `<details class="card more" ${UI.openExp ? "open" : ""}><summary><h2>💳 Ausgaben & Aufteilen</h2><span class="small">${money(Object.values(byCat).reduce((t, v) => t + v, 0))}</span></summary>
+    <button class="btn wide" data-act="exp-add">+ Ausgabe eintragen</button>
+    ${Object.keys(byCat).length ? `<p class="small">${Object.entries(byCat).map(([k, v]) => `${EXP_CATS[k] || k} ${money(v)}`).join(" · ")}</p>` : ""}
+    ${ps.length > 1 ? `<h3 class="sec">Wer schuldet wem?</h3>
+      ${pay.length ? `<ul class="plain settle">${pay.map(x => `<li><span><strong>${esc(x.from.name)}</strong> → <strong>${esc(x.to.name)}</strong>: ${money(x.amt)}</span>
+        ${x.to.paypal ? `<a class="btn small" href="https://www.paypal.com/paypalme/${encodeURIComponent(x.to.paypal)}/${x.amt.toFixed(2)}EUR" target="_blank" rel="noopener noreferrer">Mit PayPal zahlen</a>` : ""}</li>`).join("")}</ul>`
+        : `<p class="small goodtext">Alles ausgeglichen 👍</p>`}` : ""}
+    <ul class="explist">${list.map(e => `<li>
+      <div><strong>${esc(e.text || EXP_CATS[e.cat] || "Ausgabe")}</strong>
+        <span class="small block">${EXP_CATS[e.cat] || ""}${e.date ? ` · ${fmtShort(e.date)}` : ""}${ps.length > 1 && e.by ? ` · bezahlt von ${esc(name(e.by))}${e.for?.length && e.for.length < ps.length ? ` für ${e.for.map(name).map(esc).join(", ")}` : ""}` : ""}</span></div>
+      <div class="expamt"><strong>${money(num(e.amount), e.cur || "EUR")}</strong>${e.cur === "CAD" ? `<span class="small block">${money(toEur(num(e.amount), "CAD"))}</span>` : ""}</div>
+      <button class="iconbtn sm" data-act="exp-edit" data-id="${e.id}" aria-label="bearbeiten">✎</button></li>`).join("") || `<li class="small">Noch keine Ausgaben.</li>`}</ul>
+    <details class="fuelset"><summary class="small">👥 Mitreisende & PayPal</summary>
+      <form class="form" data-form="people">
+        ${ps.map((p, i) => `<div class="row2"><label>Name<input name="name_${i}" value="${esc(p.name)}" maxlength="24"></label><label>PayPal.Me-Name<input name="pp_${i}" value="${esc(p.paypal || "")}" maxlength="40" placeholder="optional"></label></div>`).join("")}
+        <div class="btnrow"><button class="btn small">Speichern</button><button type="button" class="btn small ghost" data-act="person-add">+ Person</button></div>
+      </form>
+    </details>
+  </details>`;
+}
+function expenseSheet(e) {
+  const ps = people(), [a, b] = range(), today = todayIso();
+  const during = a && today >= a && today <= b;
+  const v = e || { text: "", amount: "", cur: during ? "CAD" : "EUR", cat: "essen", date: today, by: ps[0].id, for: ps.map(p => p.id) };
+  openSheet(e ? "Ausgabe bearbeiten" : "Ausgabe eintragen", `
+    <form class="form">
+      <div class="row2">
+        <label>Betrag<input name="amount" inputmode="decimal" value="${numIn(num(v.amount))}" required autofocus></label>
+        <label>Währung<select name="cur"><option ${v.cur !== "CAD" ? "selected" : ""}>EUR</option><option ${v.cur === "CAD" ? "selected" : ""}>CAD</option></select></label>
+      </div>
+      <div class="chips">${Object.entries(EXP_CATS).map(([k, l]) => `<label class="chip radio"><input type="radio" name="cat" value="${k}" ${k === (v.cat || "sonst") ? "checked" : ""}>${l}</label>`).join("")}</div>
+      <label>Wofür <span class="small">(optional)</span><input name="text" value="${esc(v.text || "")}" maxlength="60" placeholder="z. B. Abendessen in Banff"></label>
+      <label>Datum<input type="date" name="date" value="${v.date || today}"></label>
+      ${ps.length > 1 ? `<label>Bezahlt von<select name="by">${ps.map(p => `<option value="${p.id}" ${p.id === v.by ? "selected" : ""}>${esc(p.name)}</option>`).join("")}</select></label>
+      <p class="grouplabel">Für wen?</p>
+      <div class="chips">${ps.map(p => `<label class="chip radio"><input type="checkbox" name="for" value="${p.id}" ${!v.for?.length || v.for.includes(p.id) ? "checked" : ""}>${esc(p.name)}</label>`).join("")}</div>` : ""}
+      <button class="btn big">Speichern</button>
+      ${e ? `<button type="button" class="btn ghost danger wide" data-act="exp-del" data-id="${e.id}">Löschen</button>` : ""}
+    </form>`, fd => {
+    const amount = num(fd.get("amount"));
+    if (amount <= 0) { toast("Bitte einen Betrag eingeben."); return false; }
+    const data = { amount, cur: fd.get("cur"), cat: fd.get("cat") || "sonst", text: String(fd.get("text") || "").trim().slice(0, 60),
+      date: fd.get("date") || today, by: fd.get("by") || ps[0].id, for: ps.length > 1 ? fd.getAll("for") : [ps[0].id] };
+    if (e) Object.assign(e, data); else T.expenses.push({ id: St.newId(), ...data });
+    UI.openExp = true;
+    commit(); toast("Gespeichert");
+  });
+}
+
 // Gebucht = steht fest. Geschätzt = Sprit und Eintritte laut Plan.
 function budget() {
   const tt = tripTotals();
@@ -1094,13 +1377,14 @@ function budget() {
   const flights = T.flights.filter(f => f.booked).reduce((t, f) => t + num(f.bookedPrice), 0);
   const lodging = T.lodgings.filter(l => l.status === "gebucht").reduce((t, l) => t + lodgeEur(l), 0);
   const car = T.car?.status === "gebucht" ? toEur(num(T.car.total), T.car.cur) : 0;
-  const extra = T.expenses.reduce((t, e) => t + toEur(e.amount, e.cur), 0);
+  const extra = T.expenses.reduce((t, e) => t + toEur(num(e.amount), e.cur), 0);
+  const fuelPaid = T.expenses.filter(e => e.cat === "tanken").reduce((t, e) => t + toEur(num(e.amount), e.cur), 0);
   const entryEur = entry.cad * rate() * people;
   const total = flights + lodging + car + extra;
   const expected = total + tt.fuelEur + entryEur;
   const [a, b] = range();
   const days = a && b ? P.daysBetween(a, b) + 1 : 0;
-  return { tt, flights, lodging, car, extra, total, fuel: tt.fuelEur, entryEur, entry, parkDays, expected,
+  return { tt, flights, lodging, car, extra, fuelPaid, total, fuel: tt.fuelEur, entryEur, entry, parkDays, expected,
     perDay: days ? expected / days : 0, perPerson: people > 1 ? expected / people : 0 };
 }
 
@@ -1326,10 +1610,10 @@ function flightSheet(f, preset) {
   });
 }
 
-function lodgeSheet(l, stopId) {
+function lodgeSheet(l, stopId, draft) {
   const s = stopById(l?.stopId || stopId);
   const isNew = !l;
-  const v = l || { name: "", platform: "Airbnb", url: "", address: "", checkIn: s?.from || "", checkOut: s?.to || "", total: "", cur: "EUR", status: "gebucht", cancelUntil: "", note: "" };
+  const v = l || { name: "", platform: "Airbnb", url: "", address: "", checkIn: s?.from || "", checkOut: s?.to || "", total: "", cur: "EUR", status: "gebucht", cancelUntil: "", note: "", ...(draft || {}) };
   openSheet(isNew ? `Unterkunft${s ? " in " + s.name : ""}` : v.name, `
     <form class="form">
       <label>Name<input name="name" value="${esc(v.name)}" maxlength="80" required placeholder="z. B. Blockhütte am See"></label>
@@ -1596,6 +1880,10 @@ const ACT = {
   },
   "car-edit"() { carSheet(); },
   "car-ai"() { aiCarSheet("car"); },
+  "lodge-ai"(d) { aiLodging(d.id); },
+  "flight-ai"() { aiFlight(); },
+  "price-shot"(d) { const f = T.flights.find(x => x.id === d.id); if (f) aiPrice(f); },
+  "sheet-close"() { closeSheet(); },
   "car-offer-ai"() { if (T.car) aiCarSheet("offer"); },
   "car-book"() { if (T.car) { T.car.status = "gebucht"; commit(); toast("Mietwagen gebucht – zählt jetzt zum Budget"); } },
   "car-del"() { if (confirm("Mietwagen entfernen?")) { T.car = null; closeSheet(); commit(); } },
@@ -1694,7 +1982,10 @@ const ACT = {
   "lodge-book"(d) { const l = T.lodgings.find(x => x.id === d.id); if (l) lodgeSheet(Object.assign(l, { status: "gebucht" })); },
   "offer-add"(d) { offerSheet(T.lodgings.find(l => l.id === d.id)); },
   "offer-del"(d) { const l = T.lodgings.find(x => x.id === d.id); if (l) { l.offers = l.offers.filter(o => o.id !== d.o); commit(); } },
-  "exp-del"(d) { T.expenses = T.expenses.filter(e => e.id !== d.id); commit(); },
+  "exp-del"(d) { T.expenses = T.expenses.filter(e => e.id !== d.id); UI.openExp = true; closeSheet(); commit(); },
+  "exp-add"() { expenseSheet(null); },
+  "exp-edit"(d) { const e = T.expenses.find(x => x.id === d.id); if (e) expenseSheet(e); },
+  "person-add"() { people().push({ id: St.newId(), name: `Person ${people().length + 1}`, paypal: "" }); UI.openExp = true; commit(); },
   async "sync-new"() {
     try { await St.connect(St.newId(10), T, true); toast("Reisecode erstellt"); render(); }
     catch (e) { console.error(e); toast("Das hat nicht geklappt. Bist du online?"); }
@@ -1784,9 +2075,12 @@ const FORMS = {
     commit();
     toast(f.target && p <= f.target ? "🎉 Unter deinem Zielpreis – jetzt zuschlagen!" : f.prices.length > 1 && p < f.prices.at(-2).p ? "Günstiger als letztes Mal 📉" : "Eingetragen");
   },
-  expense(fd) {
-    T.expenses.push({ id: St.newId(), text: String(fd.get("text")).trim().slice(0, 60), amount: num(fd.get("amount")), cur: fd.get("cur") });
-    commit();
+  people(fd) {
+    people().forEach((p, i) => {
+      p.name = String(fd.get(`name_${i}`) || p.name).trim().slice(0, 24) || p.name;
+      p.paypal = String(fd.get(`pp_${i}`) || "").trim().replace(/^.*paypal\.me\//i, "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 40);
+    });
+    UI.openExp = true; commit(); toast("Gespeichert");
   },
   settings(fd) {
     Object.assign(T, {
@@ -1940,7 +2234,17 @@ async function fillWeatherDays() {
   const s = stopById(UI.stop); if (!s) return;
   try {
     const w = await weather(s);
-    document.querySelectorAll("[data-wx]").forEach(el => { el.textContent = wxLine(w.days[el.dataset.wx], w.kind); });
+    document.querySelectorAll("[data-wx]").forEach(el => {
+      const x = w.days[el.dataset.wx];
+      el.textContent = wxLine(x, w.kind);
+      // Draußen unterwegs, wenn es dunkel wird?
+      if (x?.set && el.dataset.out && Number(el.dataset.out) > P.toMin(x.set) - 20) {
+        const warn = document.createElement("span");
+        warn.className = "warntext block";
+        warn.textContent = `🔦 ${el.dataset.outname} endet erst um ${P.hhmm(Number(el.dataset.out))}, Sonnenuntergang ca. ${x.set} – Stirnlampe mitnehmen oder früher starten.`;
+        el.append(warn);
+      }
+    });
   } catch {}
 }
 async function fillWeatherStart() {
@@ -2037,7 +2341,7 @@ function repairAndTell() {
   const fixed = repairWishes();
   if (fixed.length) { St.save(T); setTimeout(() => toast(`Korrigiert: ${fixed.join(", ")}`), 600); }
 }
-St.onSync(t => { T = Object.assign(blankTrip(), t); repairAndTell(); render(); }, mode => { $("#syncBadge").hidden = mode !== "sync"; $("#syncBadge").classList.toggle("err", mode === "fehler"); });
+St.onSync(receiveRemote, mode => { $("#syncBadge").hidden = mode !== "sync"; $("#syncBadge").classList.toggle("err", mode === "fehler"); });
 document.querySelectorAll(".nav button").forEach(b => b.onclick = () => ACT.tab({ tab: b.dataset.tab }));
 // Mit Reisecode erst nach dem Abgleich reparieren, sonst würde der lokale Stand den neueren vom anderen Gerät überschreiben
 if (T) { T = Object.assign(blankTrip(), T); if (!St.canSync || !St.savedCode()) repairAndTell(); }
