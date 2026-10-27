@@ -12,7 +12,7 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/kanada-a
   eine kürzere Reihenfolge der Orte und „hier lieber fliegen“.
 - **Tage**: pro Ort auswählen, was man sehen/machen will (rund 200 Sehenswürdigkeiten sind hinterlegt, eigene Orte gehen auch),
   jeweils als *Muss*, *Gern* oder *Optional*. Die App verteilt alles auf die Tage, sucht die beste Reihenfolge,
-  rechnet Uhrzeiten mit Fahrzeit und Mittagspause und sagt, was nicht mehr reinpasst (mit „+1 Nacht“-Knopf).
+  rechnet Uhrzeiten mit Fahrzeit (Pausen plant man selbst) und sagt, was nicht mehr reinpasst (mit „+1 Nacht“-Knopf).
   Hinweise: früh am Morgen am schönsten (Tag startet dann um 7 Uhr), Reservierung nötig (z. B. Moraine Lake), falsche Jahreszeit,
   „liegt von einem anderen Ort viel näher“. Vorschläge in der Nähe nach Vorlieben: Sehenswürdigkeiten, Natur, Ruhe, Wandern, Tiere,
   Aussicht, Seen, Kultur, Stadt, Kinder, Geheimtipp. Dazu Wetter pro Tag (Vorhersage bzw. wie es letztes Jahr war) und Sonnenaufgang.
@@ -39,7 +39,7 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/kanada-a
   und was nicht drinstand. Am zuverlässigsten ist der Mailtext; Buchungslinks sind oft nur mit Login lesbar.
   Die Google-Suche für die KI ist im kostenlosen Firebase-Tarif nicht freigeschaltet – dann schätzt die KI aus ihrem Wissen.
 - **Restaurants**: im Tagesplan pro Tag Restaurants mittags am Programmpunkt und abends bei der Unterkunft
-  (aus OpenStreetMap, ohne Ketten) mit Link zu den Google-Bewertungen. „+ Einplanen“ ersetzt die Mittagspause.
+  (aus OpenStreetMap, ohne Ketten) mit Link zu den Google-Bewertungen. „+ Einplanen“ setzt es als Programmpunkt in den Tag.
 - **Unterkünfte**: pro Ort Suche bei Airbnb, Booking.com, Vrbo, Expedia, Google Hotels (und Parks-Canada-Camping),
   schon mit Daten, Personen und Höchstpreis. Gebuchte Unterkunft eintragen → „Günstiger finden“ sucht mit denselben Daten
   im Umkreis von ca. 4 km unter dem eigenen Preis pro Nacht. Gefundene Angebote vergleichen, Erinnerung vor Ende der kostenlosen Stornierung.

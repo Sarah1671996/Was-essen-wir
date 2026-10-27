@@ -4,9 +4,9 @@
 import { SIGHTS, BASES, AIRPORTS, TAGS, TZ_LABEL } from "./data.js";
 
 export const PACE = {
-  entspannt: { label: "Entspannt", buf: 1.25, lunch: 60 },
-  normal: { label: "Normal", buf: 1.1, lunch: 45 },
-  straff: { label: "Viel sehen", buf: 1.0, lunch: 30 }
+  entspannt: { label: "Entspannt", buf: 1.25 },
+  normal: { label: "Normal", buf: 1.1 },
+  straff: { label: "Viel sehen", buf: 1.0 }
 };
 
 /* ---------- Zeit & Datum ---------- */
@@ -221,9 +221,8 @@ export function planStop(stop, ctx) {
     }
     return t + travel(p, d.endPt).min + tzShift(p, d.endPt, d.date) - d.start;
   };
-  // Ist ein Restaurant eingeplant, ersetzt es die Mittagspause
-  const lunchOf = (d, t, list = d.items) => (d.end - d.start > 300 && t > 240 && !list.some(w => w.meal) ? pace.lunch : 0);
-  const load = (d, list = d.items) => { const t = routeMin(d, list); return t + lunchOf(d, t, list); };
+  // Pausen plant die App nicht ein – die macht man selbst, wann es passt
+  const load = (d, list = d.items) => routeMin(d, list);
   const budget = d => d.end - d.start;
   const penalty = (d, list) => {
     let p = 0;
@@ -231,7 +230,7 @@ export function planStop(stop, ctx) {
       if (w.when === "früh" && (k > 0 || d.kind === "reise" || d.kind === "ankunft")) p += 75;
       if (w.when === "abends" && k < list.length - 1) p += 60;
     });
-    // Nach Schließzeit ankommen oder noch drin sein ist schlecht (grob, ohne Mittagspause);
+    // Nach Schließzeit ankommen oder noch drin sein ist schlecht;
     // eine feste Uhrzeit zu verpassen noch schlechter
     if (list.some(w => w.close || w.at)) {
       let t = d.start, q = d.startPt;
@@ -307,12 +306,7 @@ export function planStop(stop, ctx) {
     // Erster Termin mit fester Uhrzeit: erst so losfahren, dass man pünktlich da ist (statt stundenlang zu warten)
     if (!d.ownStart && d.items[0]?.at && d.kind !== "reise") { const leave = toMin(d.items[0].at) - travel(d.startPt, d.items[0]).min - 10; if (leave > d.start) d.start = leave; }
     const steps = [];
-    let t = d.start, p = d.startPt, lunchDone = false, driveSum = 0, visitSum = 0, kmSum = 0;
-    const longDay = d.end - d.start > 300;
-    const lunch = from => {
-      if (lunchDone || !longDay || t < from || t > 14.5 * 60 || d.items.some(w => w.meal)) return;
-      steps.push({ type: "pause", start: t, min: pace.lunch }); t += pace.lunch; lunchDone = true;
-    };
+    let t = d.start, p = d.startPt, driveSum = 0, visitSum = 0, kmSum = 0;
     const drive = to => {
       const r = travel(p, to), shift = tzShift(p, to, d.date);
       if (r.min >= 2) steps.push({ type: "fahrt", start: t, min: r.min, km: r.km, real: r.real, to: to.name });
@@ -322,12 +316,10 @@ export function planStop(stop, ctx) {
     };
     for (const w of d.items) {
       drive(w);
-      lunch(11.75 * 60);
       if (w.at && t < toMin(w.at)) { steps.push({ type: "warten", start: t, min: toMin(w.at) - t }); t = toMin(w.at); }
       const m = visitMin(w);
       steps.push({ type: "besuch", start: t, min: m, w });
       t += m; visitSum += m;
-      lunch(12 * 60);
     }
     drive(d.endPt);
     d.steps = steps;
@@ -471,7 +463,7 @@ export function routeHints(stops, criteria, tripStart) {
     if (l.km > 1500) { H.push({ kind: "warn", icon: "✈️", text: `${l.a.name} → ${l.b.name}: ${Math.round(l.km)} km, ca. ${dur(l.min)} Fahrt. Hier lohnt sich ein Inlandsflug.`, action: { type: "mode", stop: l.b.id, mode: "flug" } }); return; }
     if (l.min > 300) {
       const along = alongRoute(l.a, l.b, criteria, new Set(stops.flatMap(st => (st.wishes || []).map(w => w.sid).filter(Boolean))));
-      H.push({ kind: "info", icon: "🛣️", text: `${l.a.name} → ${l.b.name}: ${dur(l.min)} Fahrt. ${l.min > 480 ? "Das ist sehr lang – besser mit einer Übernachtung unterwegs." : "Plane Pausen ein."}${along.length ? " Schön unterwegs: " + along.map(r => r.x.name).join(", ") + "." : ""}`, action: along.length ? { type: "along", stop: l.b.id, ids: along.map(r => r.x.id) } : null });
+      H.push({ kind: "info", icon: "🛣️", text: `${l.a.name} → ${l.b.name}: ${dur(l.min)} Fahrt. ${l.min > 480 ? "Das ist sehr lang – besser mit einer Übernachtung unterwegs." : ""}${along.length ? " Schön unterwegs: " + along.map(r => r.x.name).join(", ") + "." : ""}`, action: along.length ? { type: "along", stop: l.b.id, ids: along.map(r => r.x.id) } : null });
       const mid = l.min > 480 ? overnight(l.a, l.b, stops) : null;
       if (mid) H.push({ kind: "idea", icon: "🛏️", text: `Übernachtung unterwegs in ${mid.b.name}: ${dur(mid.ta)} hin, am nächsten Tag noch ${dur(mid.tb)}.`, action: { type: "insert", base: mid.b.id, after: l.a.id } });
     }

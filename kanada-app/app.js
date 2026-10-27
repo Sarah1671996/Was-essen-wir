@@ -606,7 +606,6 @@ function dayCard(s, d, i) {
     if (x.type === "fahrt") rows.push(`<li class="st drive"><span class="time"></span><span>🚗 ${x.real ? "" : "≈ "}${P.dur(x.min)} · ${Math.round(x.km)} km</span></li>`);
     if (x.type === "zeit") rows.push(`<li class="st drive tz"><span class="time"></span><span>🕐 Uhr ${x.shift > 0 ? "vorstellen" : "zurückstellen"}: ${x.shift > 0 ? "+" : "−"}${Math.abs(x.shift) / 60} h – jetzt ${TZ_LABEL[x.tz] || ""}</span></li>`);
     if (x.type === "warten") rows.push(`<li class="st drive"><span class="time"></span><span>☕ ${P.dur(x.min)} Zeit bis zum festen Termin</span></li>`);
-    if (x.type === "pause") rows.push(`<li class="st lunch"><span class="time">${P.hhmm(x.start)}</span><span>🍽️ Mittagspause</span></li>`);
     if (x.type === "besuch") rows.push(`<li class="st visit"><span class="time">${P.hhmm(x.start)}</span><span><a href="${mapsPlace(x.w)}" target="_blank" rel="noopener"><strong>${esc(x.w.name)}</strong></a>${x.w.fixDay ? ` <span title="Fest auf diesen Tag gelegt">📌</span>` : ""}${x.w.at ? ` <span class="tag">um ${esc(x.w.at)}</span>` : ""}
       <span class="small">bis ${P.hhmm(x.start + x.min)}${costLabel(x.w.c) ? " · " + costLabel(x.w.c) : ""}${x.w.res ? " · 🎟️ reservieren" : ""}${x.w.tip ? ` · ${esc(x.w.tip)}` : ""}</span></span></li>`);
   }
@@ -630,8 +629,9 @@ function dayCard(s, d, i) {
 function restBlock(d) {
   const spots = [];
   const visits = d.steps.filter(x => x.type === "besuch" && !x.w.meal);
-  const pause = d.steps.findIndex(x => x.type === "pause");
-  const lunchAt = pause > 0 ? d.steps.slice(0, pause).reverse().find(x => x.type === "besuch") : visits.find(x => x.start + x.min >= 11.5 * 60);
+
+  // Mittags: der Programmpunkt, bei dem man um die Mittagszeit ist
+  const lunchAt = visits.find(x => x.start + x.min >= 11.5 * 60) || visits.at(-1);
   if (lunchAt && !d.items.some(w => w.meal)) spots.push({ label: `Mittags bei ${lunchAt.w.name}`, p: lunchAt.w });
   if (d.kind !== "abreise") spots.push({ label: `Abends bei der Unterkunft`, p: d.endPt });
   if (!spots.length) return "";
@@ -1997,7 +1997,7 @@ const ACT = {
     const r = JSON.parse(d.r), s = stops().find(x => x.from <= d.date && (d.date < x.to || x === stops().at(-1))) || stopById(UI.stop);
     if (!s) return;
     s.wishes.push({ id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, dur: 1, prio: 1, day: d.date, meal: true });
-    commit(); toast(`${r.name} eingeplant – ersetzt die Mittagspause`);
+    commit(); toast(`${r.name} eingeplant`);
   },
   "stop-add"() { stopSheet(null); },
   "list-import"() { importSheet(); },
