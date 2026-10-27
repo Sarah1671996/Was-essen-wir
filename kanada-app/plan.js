@@ -407,11 +407,11 @@ export function suggestNear(point, criteria, exclude, { maxMin = 100, limit = 8,
   criteria = criteria.filter(c => c !== "gratis");
   return SIGHTS.filter(x => !exclude.has(x.id) && (!freeOnly || x.c === 0))
     .map(x => {
-      const t = travel(point, x).min;
+      const tr = travel(point, x), t = tr.min;
       let sc = interestScore(x, criteria) - t / 50;
       const offSeason = m1 && x.m && !inMonths(m1, x.m) && !inMonths(m2, x.m);
       if (offSeason) sc -= 4;
-      return { x, t, sc, offSeason };
+      return { x, t, sc, offSeason, real: tr.real };
     })
     .filter(r => r.t <= maxMin && r.sc > 0)
     .sort((a, b) => b.sc - a.sc).slice(0, limit);

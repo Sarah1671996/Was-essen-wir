@@ -3,6 +3,7 @@ import * as P from "./plan.js";
 import * as St from "./store.js";
 import { lodgingLinks, mapsPlace, mapsRoute } from "./links.js";
 import * as Adv from "./advice.js";
+import { fillPhotos } from "./photos.js";
 
 /* ---------- kleine Helfer ---------- */
 const $ = s => document.querySelector(s);
@@ -190,7 +191,7 @@ function render() {
 const afterRender = {
   start() { fillWeatherStart(); },
   route() { drawRouteMap(); },
-  tage() { drawDayMap(); fillWeatherDays(); }
+  tage() { drawDayMap(); fillWeatherDays(); fillPhotos(); }
 };
 
 /* ---------- Start ---------- */
@@ -420,7 +421,10 @@ function viewTage() {
   const plan = lastPlan = planFor(s);
   const planned = new Set(s.wishes.map(w => w.sid).filter(Boolean));
   const allPlanned = new Set(list.flatMap(x => x.wishes.map(w => w.sid).filter(Boolean)));
-  const sug = P.suggestNear(s, T.criteria, allPlanned, { maxMin: 110, limit: 8, from: s.from, to: s.to });
+  const sugAll = P.suggestNear(homeOf(s), T.criteria, allPlanned, { maxMin: 110, limit: 24, from: s.from, to: s.to });
+  const sug = sugAll.slice(0, UI.sugMore ? 24 : 8);
+  P.prefetch([homeOf(s), ...sug.map(r => r.x)]);
+  const autoCount = s.wishes.filter(w => w.auto).length;
   const dayOpts = plan.days.map((d, i) => `<option value="${d.date}">Tag ${i + 1} (${fmtShort(d.date)})</option>`).join("");
 
   return `
@@ -440,6 +444,7 @@ function viewTage() {
   <ul class="wishes">
     ${s.wishes.map(w => wishRow(s, w, dayOpts)).join("") || `<li class="small pad">Noch nichts ausgewählt. Füge Orte hinzu – oder schau unten in die Vorschläge.</li>`}
   </ul>
+  ${autoCount ? `<button class="btn small ghost danger" data-act="wish-auto-del">🗑 ${plural(autoCount, "automatisch vorgemerkten Vorschlag", "automatisch vorgemerkte Vorschläge")} entfernen</button>` : ""}
   <button class="btn wide" data-act="wish-add">+ Sehenswürdigkeit oder eigenen Ort hinzufügen</button>
   <button class="btn ghost wide" data-act="list-import">📋 Ganze Liste hochladen und automatisch zuordnen</button>
 
@@ -452,10 +457,11 @@ function viewTage() {
   </div>
   ${plan.unplaced.length ? `<div class="card warnbox"><strong>Passt nicht mehr rein:</strong> ${plan.unplaced.map(w => esc(w.name)).join(", ")}</div>` : ""}
 
-  <h2 class="sec">Vorschläge in der Nähe</h2>
-  <p class="small">Wonach suchst du? Die Vorschläge richten sich danach.</p>
+  <h2 class="sec">Empfehlungen in der Nähe</h2>
+  <p class="small">Wonach suchst du? Die Empfehlungen richten sich danach.</p>
   <div class="chips">${Object.entries(TAGS).map(([k, t]) => `<button class="chip" aria-pressed="${T.criteria.includes(k)}" data-act="crit" data-tag="${k}">${t.icon} ${t.label}</button>`).join("")}</div>
-  <div class="sugs">${sug.map(r => sugCard(r, plan)).join("") || `<p class="small">Hier in der Nähe kennt die App nichts Passendes mehr. Probier andere Vorlieben.</p>`}</div>`;
+  <div class="sugs">${sug.map(r => sugCard(r, plan)).join("") || `<p class="small">Hier in der Nähe kennt die App nichts Passendes mehr. Probier andere Vorlieben.</p>`}</div>
+  ${sugAll.length > sug.length ? `<button class="btn ghost wide" data-act="sug-more">Weitere ${sugAll.length - sug.length} Empfehlungen zeigen</button>` : ""}`;
 }
 /* ---------- Restaurants unterwegs (OpenStreetMap über Overpass) ---------- */
 const CUISINE = { italian: "Italienisch", pizza: "Pizza", burger: "Burger", american: "Amerikanisch", canadian: "Kanadisch", regional: "Regional",
@@ -556,6 +562,7 @@ function wishRow(s, w, dayOpts) {
   const home = homeOf(s), tr = P.travel(home, p);
   const base = w.sid ? P.sight(w.sid) : null;
   return `<li class="wish">
+    <div class="thumb" data-photo="${esc(p.name)}" data-lat="${p.lat}" data-lng="${p.lng}" aria-hidden="true"></div>
     <div class="wishmain"><strong>${esc(p.name)}</strong>
       <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${tr.real ? "" : "≈ "}${P.dur(tr.min)} von ${esc(home.lodging || "der Unterkunft")}
         · <a href="${esc(mapsRoute([home, p]))}" target="_blank" rel="noopener">Strecke in Google Maps ↗</a>${w.sid ? "" : ` · <a href="${mapsPlace(p)}" target="_blank" rel="noopener">📍 ${esc(p.place || "Ort ansehen")}</a>`}</span>
@@ -615,13 +622,24 @@ function restBlock(d) {
 function sugCard(r, plan) {
   const x = r.x, need = x.dur * 60 * plan.pace.buf + 2 * r.t;
   const fit = plan.days.findIndex(d => d.free >= need && d.kind !== "abreise");
-  return `<article class="sug">
-    <div><strong>${esc(x.name)}</strong>
-      <p class="small">${P.dur(r.t)} entfernt · ${String(x.dur).replace(".", ",")} h vor Ort${fit >= 0 ? ` · passt an Tag ${fit + 1}` : ""}${r.offSeason ? " · nicht die beste Jahreszeit" : ""}</p>
+  return `<article class="sug photo">
+    <div class="ph" data-photo="${esc(x.name)}" data-lat="${x.lat}" data-lng="${x.lng}"></div>
+    <div class="sugbody">
+      <strong>${esc(x.name)}</strong>
+      <p class="small" data-wikitext></p>
+      <ul class="facts small">
+        <li>🚗 ${r.real ? "" : "≈ "}${P.dur(r.t)} von der Unterkunft</li>
+        <li>⏱ ${String(x.dur).replace(".", ",")} h vor Ort${fit >= 0 ? ` · <span class="goodtext">passt an Tag ${fit + 1}</span>` : ""}</li>
+        <li>${costChip(x.c)}${x.cn ? ` <span class="small">${esc(x.cn)}</span>` : ""}</li>
+        ${x.close ? `<li>🔒 schließt meist gegen ${x.close}</li>` : ""}
+        ${x.r ? `<li>🎟️ ${esc(x.r)}</li>` : ""}
+        ${r.offSeason ? `<li class="warntext">📅 nicht die beste Jahreszeit</li>` : ""}
+      </ul>
       <p class="small">${P.matchLabels(x, T.criteria).join(" · ")}</p>
-      <p class="small">${costChip(x.c)}${x.cn ? ` ${esc(x.cn)}` : ""}</p>
-      ${x.t ? `<p class="small tip">${esc(x.t)}</p>` : ""}</div>
-    <button class="btn small" data-act="sug-add" data-sid="${x.id}">+ Dazu</button>
+      ${x.t ? `<p class="small tip">💡 ${esc(x.t)}</p>` : ""}
+      <div class="btnrow"><button class="btn small" data-act="sug-add" data-sid="${x.id}">+ Dazu</button>
+        <a class="small" href="${mapsPlace(x)}" target="_blank" rel="noopener">Karte ↗</a></div>
+    </div>
   </article>`;
 }
 const DAY_COLORS = ["#c0392b", "#1f6f8b", "#7a8b1f", "#8e44ad", "#d35400", "#16a085", "#2c3e50", "#b7950b"];
@@ -1487,7 +1505,7 @@ function stopSheet(s) {
         <label>Ankunft ca. <span class="small">(optional)</span><input type="time" name="arrive" value="${s?.arrive || ""}"></label>
         ${isLast ? `<label>Abreise ca. <span class="small">(letzter Tag)</span><input type="time" name="depart" value="${s?.depart || ""}"></label>` : ""}
       </div>
-      ${isNew ? `<label class="check"><input type="checkbox" name="auto" checked><span>Typische Sehenswürdigkeiten gleich als Wünsche vormerken</span></label>` : ""}
+      ${isNew ? `<label class="check"><input type="checkbox" name="auto"><span>Typische Sehenswürdigkeiten gleich als Wünsche vormerken</span></label>` : ""}
       <button class="btn big">${isNew ? "Hinzufügen" : "Speichern"}</button>
       ${!isNew ? `<button type="button" class="btn ghost danger wide" data-act="stop-del" data-id="${s.id}">Ort entfernen</button>` : ""}
     </form>`, fd => {
@@ -1501,7 +1519,7 @@ function stopSheet(s) {
         // Bis zu so viele Highlights vormerken, wie in die Tage passen könnten
         const n = Math.max(1, P.daysBetween(ns.from, ns.to)) * 2;
         const taken = new Set(stops().flatMap(x => x.wishes.map(w => w.sid)));
-        P.suggestNear(ns, [], taken, { maxMin: 75, limit: n, from: ns.from, to: ns.to }).forEach(r => ns.wishes.push({ id: St.newId(), sid: r.x.id, prio: 1 }));
+        P.suggestNear(ns, [], taken, { maxMin: 75, limit: n, from: ns.from, to: ns.to }).forEach(r => ns.wishes.push({ id: St.newId(), sid: r.x.id, prio: 1, auto: true }));
       }
       T.stops.push(ns);
       UI.stop = ns.id;
@@ -1808,6 +1826,7 @@ function importSheet() {
       <label>Deine Liste<textarea name="text" rows="8" placeholder="Moraine Lake&#10;Johnston Canyon&#10;Spirit Island&#10;Kayak fahren auf dem Emerald Lake&#10;…"></textarea></label>
       <label class="btn ghost small">📄 Datei wählen (.txt oder .csv)<input type="file" name="file" accept=".txt,.csv,text/plain,text/csv" hidden></label>
       <p class="small" id="fileName"></p>
+      <label class="check"><input type="checkbox" name="replace"><span><strong>Bisherige Wünsche ersetzen</strong> – danach stehen im Plan nur die Orte aus dieser Liste</span></label>
       <button class="btn big">Zuordnen</button>
     </form>`, null, body => {
     const f = body.querySelector("form");
@@ -1816,10 +1835,10 @@ function importSheet() {
       f.elements.text.value = await file.text();
       body.querySelector("#fileName").textContent = `✓ ${file.name}`;
     };
-    f.onsubmit = e => { e.preventDefault(); resolveList(parseList(f.elements.text.value)); };
+    f.onsubmit = e => { e.preventDefault(); resolveList(parseList(f.elements.text.value), f.elements.replace.checked); };
   });
 }
-async function resolveList(names) {
+async function resolveList(names, replace = false) {
   if (!names.length) { toast("Die Liste ist leer."); return; }
   const body = $("#sheetBody");
   const taken = new Set(stops().flatMap(s => s.wishes.map(w => w.sid).filter(Boolean)));
@@ -1843,7 +1862,7 @@ async function resolveList(names) {
     r.best = bestStop(r); r.stop = r.best.id;
     r.far = Math.min(...stops().map(s => P.km(s, r))) > 150;
   };
-  rows.forEach(r => { place(r); r.on = !r.dup; });
+  rows.forEach(r => { place(r); r.on = replace || !r.dup; });
   const opts = sel => stops().map(s => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(s.name)}</option>`).join("");
   const show = () => {
     body.innerHTML = `
@@ -1868,10 +1887,16 @@ async function resolveList(names) {
     };
     body.querySelector("#importGo").onclick = () => {
       let n = 0;
+      // Ersetzen: alle bisherigen Wünsche raus (eingeplante Restaurants bleiben), nur diese Liste zählt
+      if (replace) {
+        if (!confirm("Alle bisherigen Wünsche an allen Orten durch diese Liste ersetzen?")) return;
+        stops().forEach(s => { s.wishes = s.wishes.filter(w => w.meal); });
+      }
       for (const r of rows.filter(x => x.on)) {
         const s = stopById(r.stop); if (!s) continue;
         const day = r.best.how === "unterwegs" && r.stop === r.best.id ? s.from : "";
-        s.wishes.push(r.sid ? { id: St.newId(), sid: r.sid, prio: 1, day } : { id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, place: (r.where || "").slice(0, 80), dur: r.dur, prio: 1, day });
+        if (r.sid && s.wishes.some(w => w.sid === r.sid)) continue;
+        s.wishes.push(r.sid ? { id: St.newId(), sid: r.sid, prio: 1, day, mine: true } : { id: St.newId(), name: r.name.slice(0, 60), lat: r.lat, lng: r.lng, place: (r.where || "").slice(0, 80), dur: r.dur, prio: 1, day, mine: true });
         n++;
       }
       closeSheet(); commit();
@@ -1928,6 +1953,12 @@ const ACT = {
   },
   "car-edit"() { carSheet(); },
   "car-ai"() { aiCarSheet("car"); },
+  "wish-auto-del"() {
+    const s = stopById(UI.stop); if (!s) return;
+    s.wishes = s.wishes.filter(w => !w.auto);
+    commit(); toast("Vorgemerkte Vorschläge entfernt – sie stehen weiter unten bei den Empfehlungen");
+  },
+  "sug-more"() { UI.sugMore = true; render(); },
   "wish-cost-reset"(d) { const w = findWish(d.id); if (w) { delete w.c; commit(); } },
   "lodge-ai"(d) { aiLodging(d.id); },
   "flight-ai"() { aiFlight(); },

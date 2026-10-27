@@ -354,3 +354,18 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .plan li.done { opacity: .65; }
 .costedit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 2px; }
 .costedit input.mini { width: 70px; min-height: 30px; padding: 2px 6px; }
+/* Fotos */
+.wish { display: grid; grid-template-columns: 64px 1fr; gap: 0 12px; }
+.wish .wishctl { grid-column: 1 / -1; }
+.thumb { width: 64px; height: 64px; border-radius: 10px; overflow: hidden; background: var(--chip); position: relative; }
+.thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.thumb .src { display: none; }
+.thumb.nophoto::after { content: "📍"; display: grid; place-items: center; height: 100%; font-size: 1.4rem; opacity: .5; }
+.sug.photo { flex-direction: column; align-items: stretch; padding: 0; overflow: hidden; gap: 0; }
+.sug.photo .ph { position: relative; aspect-ratio: 16 / 9; background: var(--chip); }
+.sug.photo .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sug.photo .ph.nophoto { aspect-ratio: auto; height: 0; }
+.sug.photo .ph .src { position: absolute; right: 6px; bottom: 6px; padding: 2px 6px; border-radius: 6px; background: rgba(0, 0, 0, .55); color: #fff; font-size: .7rem; text-decoration: none; }
+.sugbody { padding: 12px 14px; display: grid; gap: 4px; }
+.sugbody p { margin: 0; }
+.facts { list-style: none; padding: 0; margin: 4px 0; display: grid; gap: 2px; }

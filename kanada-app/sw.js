@@ -1,11 +1,11 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Kartenkacheln werden zusätzlich gemerkt, damit schon angesehene Karten unterwegs ohne Netz gehen.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "kanada-v13";
+const CACHE = "kanada-v14";
 const TILES = "kanada-tiles";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "plan.js", "data.js", "links.js", "store.js", "../essen-match-app/firebase-config.js",
-  "advice.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
+  "advice.js", "photos.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", e => {
@@ -19,7 +19,7 @@ self.addEventListener("activate", e => {
 self.addEventListener("fetch", e => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
-  if (url.hostname === "tile.openstreetmap.org" || url.hostname === "unpkg.com") {
+  if (url.hostname === "tile.openstreetmap.org" || url.hostname === "unpkg.com" || url.hostname.endsWith(".wikimedia.org")) {
     e.respondWith(caches.open(TILES).then(async c => {
       const hit = await c.match(e.request);
       if (hit) return hit;

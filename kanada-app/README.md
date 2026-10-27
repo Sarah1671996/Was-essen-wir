@@ -94,3 +94,9 @@ Nach Änderungen an den App-Dateien in `sw.js` die Version hochzählen (`kanada-
   Buchungsfenster). Ebenso für Mietwagen (Preis pro Tag, Termine zum Nachvergleichen) und Unterkünfte (Preis pro Nacht).
   Auf dem Dashboard ein Buchungs-Fahrplan mit Zeitfenstern. Es gibt keine frei zugänglichen historischen Preisdaten –
   die Spannen sind Erfahrungswerte und sollten jährlich in advice.js angepasst werden.
+- **Fotos** (photos.js): Wünsche und Empfehlungen zeigen ein Foto und eine Kurzbeschreibung aus Wikipedia (erst deutsch, dann englisch).
+  Ein Artikel zählt nur, wenn er höchstens 25 km entfernt liegt; passt kein Artikel zum Namen, wird ein Foto aus der Umgebung
+  gezeigt und so beschriftet. Fotos werden 90 Tage gemerkt und offline zwischengespeichert.
+- **Nur eigene Orte**: Beim Anlegen eines Ortes werden keine Sehenswürdigkeiten mehr automatisch vorgemerkt (optional ankreuzbar).
+  Beim Hochladen einer Liste kann man „Bisherige Wünsche ersetzen“ wählen, dann stehen nur die eigenen Orte im Plan;
+  alles andere erscheint unten als Empfehlung.
