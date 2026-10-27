@@ -25,7 +25,9 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/kanada-a
   (Etappen + Ausflüge zu Sehenswürdigkeiten, ab der gebuchten Unterkunft), Spritkosten (Verbrauch und Preis einstellbar),
   wohin das Geld geht und wie weit die Buchungen sind.
 - **Flüge**: nur direkt bei den Fluggesellschaften (Lufthansa, Air Canada, Condor, Discover, Edelweiss, SWISS, Icelandair,
-  KLM, Air France, British Airways). Wohnort eingeben → Abflughäfen nach Entfernung mit Zugzeit, Rail&Fly-Hinweise,
+  KLM, Air France, British Airways). Wohnort eingeben → Abflughäfen nach Entfernung mit Zugzeit, mehrere gleichzeitig wählbar.
+  Abfahrtsbahnhof (z. B. Essen Hbf) → die App zeigt, wo der Zug im Flugpreis enthalten ist (Lufthansa Express Rail ab FRA/MUC)
+  und wo Rail&Fly extra kostet,
   Gabelflug (rein am ersten, raus am letzten Ort). Die App zeigt, welche Airline die Strecke direkt oder mit Umstieg fliegt,
   und kopiert die Buchungsdaten zum Einfügen. **Preiswächter**: Zielpreis festlegen, gefundenen Preis eintragen,
   die App zeigt den Verlauf, erinnert alle paar Tage ans Nachsehen und schlägt Alarm, wenn der Zielpreis erreicht ist.

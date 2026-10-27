@@ -323,3 +323,5 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .aibox { margin: 8px 0 12px; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--lake) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--lake) 30%, var(--line)); }
 .aibox p { margin: 2px 0; }
 .aibox ul { margin: 4px 0 0; }
+.apfits { list-style: none; padding: 0; margin: 4px 0; }
+.apfits li { padding: 2px 0; }

@@ -496,15 +496,17 @@ export const HOME_AP_POS = {
 
 // Fluggesellschaften nach Kanada. from = Abflughäfen mit (meist saisonalem) Direktflug, to = Ziele in Kanada.
 // via = Umsteigeflughafen, wenn es keinen Direktflug gibt. Flugpläne ändern sich – immer auf der Airline-Seite prüfen.
+// railMode: "incl" = Zug ab Bahnhof als Teil des Tickets (Lufthansa Express Rail), "partner" = über Partner-Airline möglich,
+// "addon" = Rail&Fly zubuchbar, sonst Zugticket separat.
 export const AIRLINES = [
-  { id: "lh", name: "Lufthansa", url: "https://www.lufthansa.com/de/de/homepage", from: ["FRA", "MUC"], to: ["YVR", "YYC", "YYZ", "YUL"],
-    gabel: "„Gabelflug / Mehrere Strecken“ in der Suche wählen", rail: "Lufthansa Express Rail: Zug zum Flughafen Frankfurt direkt mitbuchen" },
-  { id: "ac", name: "Air Canada", url: "https://www.aircanada.com/de/de/aco/home.html", from: ["FRA", "MUC", "ZRH"], to: ["YVR", "YYC", "YYZ", "YUL", "YOW", "YHZ"],
-    gabel: "„Mehrere Städte“ wählen", rail: "Zug zum Flughafen bei Abflug Frankfurt teils über Lufthansa Express Rail buchbar" },
-  { id: "de", name: "Condor", url: "https://www.condor.com/de", from: ["FRA"], to: ["YVR", "YYC", "YYZ", "YHZ", "YEG", "YXY"],
-    gabel: "Gabelflug direkt in der Suche möglich", rail: "Rail&Fly zubuchbar (Zug von jedem DB-Bahnhof zum Flughafen)" },
-  { id: "4y", name: "Discover Airlines", url: "https://www.discover-airlines.com/de/de/", from: ["FRA", "MUC"], to: ["YVR", "YYC", "YEG"],
-    gabel: "„Gabelflug“ in der Suche wählen", rail: "Rail&Fly bzw. Lufthansa Express Rail je nach Tarif" },
+  { id: "lh", railMode: "incl", name: "Lufthansa", url: "https://www.lufthansa.com/de/de/homepage", from: ["FRA", "MUC"], to: ["YVR", "YYC", "YYZ", "YUL"],
+    gabel: "„Gabelflug / Mehrere Strecken“ in der Suche wählen", rail: "Lufthansa Express Rail: In der Suche als Abflugort den Bahnhof eingeben (z. B. „Essen Hbf“). Wird er angeboten, ist die Zugfahrt Teil des Flugtickets – Anschluss bei Verspätung abgesichert." },
+  { id: "ac", railMode: "partner", name: "Air Canada", url: "https://www.aircanada.com/de/de/aco/home.html", from: ["FRA", "MUC", "ZRH"], to: ["YVR", "YYC", "YYZ", "YUL", "YOW", "YHZ"],
+    gabel: "„Mehrere Städte“ wählen", rail: "Air Canada selbst verkauft keinen Zug. Die Air-Canada-Flüge ab Frankfurt gibt es aber oft auch als Lufthansa-Codeshare – dann über lufthansa.com mit Express Rail ab deinem Bahnhof buchen." },
+  { id: "de", railMode: "addon", name: "Condor", url: "https://www.condor.com/de", from: ["FRA"], to: ["YVR", "YYC", "YYZ", "YHZ", "YEG", "YXY"],
+    gabel: "Gabelflug direkt in der Suche möglich", rail: "Rail&Fly: bei der Buchung dazuwählen – Zug von jedem DB-Bahnhof zum Flughafen, meist gegen Aufpreis, in manchen Tarifen inklusive." },
+  { id: "4y", railMode: "incl", name: "Discover Airlines", url: "https://www.discover-airlines.com/de/de/", from: ["FRA", "MUC"], to: ["YVR", "YYC", "YEG"],
+    gabel: "„Gabelflug“ in der Suche wählen", rail: "Als Lufthansa-Group-Airline über die Lufthansa-Suche mit Express Rail ab deinem Bahnhof buchbar, sonst Rail&Fly je nach Tarif." },
   { id: "wk", name: "Edelweiss", url: "https://www.flyedelweiss.com/DE", from: ["ZRH"], to: ["YVR", "YYC"],
     gabel: "„Gabelflug“ in der Suche wählen", rail: "Zug zum Flughafen Zürich separat bei der SBB/DB" },
   { id: "lx", name: "SWISS", url: "https://www.swiss.com/de/de/homepage", from: ["ZRH"], to: ["YUL"], via: "ZRH",

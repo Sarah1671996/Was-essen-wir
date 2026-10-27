@@ -545,7 +545,13 @@ function flyPlan() {
   const f = T.fly ||= {};
   const inAp = f.inAp || (list.length ? P.nearestAirport(homeOf(list[0])).code : "YVR");
   const outAp = f.gabel === false ? inAp : f.outAp || (list.length ? P.nearestAirport(homeOf(list.at(-1))).code : inAp);
-  return { place: f.place || null, ap: T.home || "FRA", rail: f.rail !== false, gabel: inAp !== outAp, inAp, outAp };
+  // Mehrere Abflughäfen zum Vergleichen; der erste ist der Hauptflughafen
+  const aps = (f.aps?.length ? f.aps : [T.home || "FRA"]).filter(c => HOME_AIRPORTS[c] || /^[A-Z]{3}$/.test(c));
+  return { place: f.place || null, aps, ap: aps[0] || "FRA", station: f.station || "", rail: f.rail !== false, gabel: inAp !== outAp, inAp, outAp };
+}
+// Zug ab Bahnhof im Flugticket? Lufthansa Express Rail fährt zu den Drehkreuzen Frankfurt und München.
+function railIncluded(al, ap) {
+  return ["incl", "partner"].includes(al.railMode) && ["FRA", "MUC"].includes(ap);
 }
 // Fliegt die Airline diese Strecke – direkt, mit Umstieg oder gar nicht?
 function airlineFit(al, from, to) {
@@ -562,19 +568,29 @@ function viewFlights() {
   const [a, b] = range();
   const fp = flyPlan();
   const people = pax().adults + pax().children;
-  const route = fp.gabel ? `Gabelflug ${fp.ap} → ${fp.inAp} am ${fmtShort(a)}, zurück ${fp.outAp} → ${fp.ap} am ${fmtShort(b)}` : `${fp.ap} → ${fp.inAp} am ${fmtShort(a)}, zurück ${fp.inAp} → ${fp.ap} am ${fmtShort(b)}`;
-  const bookText = `${route}, ${plural(pax().adults, "Erwachsener", "Erwachsene")}${pax().children ? `, ${plural(pax().children, "Kind", "Kinder")}` : ""}`;
+  const paxText = `${plural(pax().adults, "Erwachsener", "Erwachsene")}${pax().children ? `, ${plural(pax().children, "Kind", "Kinder")}` : ""}`;
+  // Buchungsdaten für eine Airline ab einem Flughafen (mit Bahnhof, wenn der Zug im Ticket enthalten ist)
+  const bookText = (ap, withRail) => {
+    const from = withRail ? `${fp.station} (Zug) → ${ap}` : ap;
+    const back = withRail ? `${ap} → ${fp.station} (Zug)` : ap;
+    return (fp.gabel ? `Gabelflug ${from} → ${fp.inAp} am ${fmtShort(a)}, zurück ${fp.outAp} → ${back} am ${fmtShort(b)}`
+      : `${from} → ${fp.inAp} am ${fmtShort(a)}, zurück ${fp.inAp} → ${back} am ${fmtShort(b)}`) + `, ${paxText}`;
+  };
   // Abflughäfen nach Entfernung vom Wohnort
   const aps = fp.place ? Object.entries(HOME_AP_POS).map(([code, [lat, lng]]) => {
     const km = P.km(fp.place, { lat, lng }) * 1.25;
     const direct = AIRLINES.filter(al => airlineFit(al, code, fp.inAp)?.direct).length;
     return { code, km, train: trainTime(km), direct };
-  }).sort((x, y) => x.km - y.km).slice(0, 6) : [];
-  const fits = AIRLINES.map(al => ({ al, hin: airlineFit(al, fp.ap, fp.inAp), rueck: airlineFit(al, fp.ap, fp.outAp) }))
-    .filter(x => x.hin && x.rueck)
-    .sort((x, y) => (y.hin.direct + y.rueck.direct) - (x.hin.direct + x.rueck.direct));
+  }).sort((x, y) => x.km - y.km) : [];
+  // Pro Airline: welche der gewählten Abflughäfen passen? Direkte Verbindungen zuerst.
+  const fits = AIRLINES.map(al => {
+    const opts = fp.aps.map(ap => ({ ap, hin: airlineFit(al, ap, fp.inAp), rueck: airlineFit(al, ap, fp.outAp) }))
+      .filter(o => o.hin && o.rueck)
+      .map(o => ({ ...o, score: o.hin.direct + o.rueck.direct, rail: !!fp.station && fp.rail && railIncluded(al, o.ap) }))
+      .sort((x, y) => (y.score - x.score) || (y.rail - x.rail));
+    return { al, opts };
+  }).filter(x => x.opts.length).sort((x, y) => (y.opts[0].score - x.opts[0].score) || (y.opts[0].rail - x.opts[0].rail));
   const caOpts = sel => Object.entries(AIRPORTS).map(([c, x]) => `<option value="${c}" ${c === sel ? "selected" : ""}>${x.name} (${c})</option>`).join("");
-  const apPos = HOME_AP_POS[fp.ap];
 
   return `
   <div class="seg tabs2" role="tablist">
@@ -588,15 +604,19 @@ function viewFlights() {
       <label>Von wo fährst du los? (Wohnort)<input name="q" value="${esc(fp.place?.name || "")}" placeholder="z. B. Köln, Kassel, Freiburg" autocomplete="address-level2"></label>
       <button class="btn small ghost">📍 Übernehmen</button>
     </form>
-    ${aps.length ? `<p class="small"><strong>Abflughafen wählen</strong> – nach Entfernung von ${esc(fp.place.name)}:</p>
-      <div class="aplist">${aps.map(x => `<button class="placebtn ${x.code === fp.ap ? "on" : ""}" data-act="fly-ap" data-v="${x.code}">
-        <strong>${x.code === fp.ap ? "✓ " : ""}${esc(HOME_AIRPORTS[x.code])} (${x.code})</strong>
-        <span class="small">≈ ${Math.round(x.km)} km · mit dem Zug ca. ${P.dur(x.train)} · ${x.direct ? `${plural(x.direct, "Airline", "Airlines")} direkt nach ${AIRPORTS[fp.inAp].name}` : "kein Direktflug, mit Umstieg"}</span></button>`).join("")}</div>`
-      : `<label>Abflughafen<select data-change="fly-ap">${Object.entries(HOME_AIRPORTS).map(([c, n]) => `<option value="${c}" ${c === fp.ap ? "selected" : ""}>${n} (${c})</option>`).join("")}</select></label>`}
+    <p class="small"><strong>Abflughäfen</strong> – tippe alle an, die für dich in Frage kommen${fp.place ? ` (sortiert nach Entfernung von ${esc(fp.place.name)})` : ""}:</p>
+    <div class="aplist">${(aps.length ? aps : Object.keys(HOME_AIRPORTS).map(code => ({ code }))).map(x => {
+      const on = fp.aps.includes(x.code);
+      return `<button class="placebtn ${on ? "on" : ""}" data-act="fly-ap" data-v="${x.code}" aria-pressed="${on}">
+        <strong>${on ? "✓ " : "+ "}${esc(HOME_AIRPORTS[x.code] || x.code)} (${x.code})</strong>
+        ${x.km != null ? `<span class="small">≈ ${Math.round(x.km)} km · mit dem Zug ca. ${P.dur(x.train)} · ${x.direct ? `${plural(x.direct, "Airline", "Airlines")} direkt nach ${AIRPORTS[fp.inAp].name}` : "kein Direktflug, mit Umstieg"}</span>` : ""}</button>`;
+    }).join("")}</div>
     <label class="check"><input type="checkbox" data-change="fly-rail" ${fp.rail ? "checked" : ""}><span>Mit dem Zug zum Flughafen</span></label>
-    ${fp.rail ? `<p class="small">🚆 ${fp.place && apPos ? `Von ${esc(fp.place.name)} nach ${esc(HOME_AIRPORTS[fp.ap])} ca. ${P.dur(trainTime(P.km(fp.place, { lat: apPos[0], lng: apPos[1] }) * 1.25))} – ` : ""}plane mindestens 3 Stunden vor Abflug am Flughafen ein.
-      Viele Airlines verkaufen das Zugticket gleich mit (<strong>Rail&Fly</strong> bzw. <strong>Lufthansa Express Rail</strong>) – dann bist du abgesichert, wenn der Zug Verspätung hat.
-      <a href="https://www.bahn.de/" target="_blank" rel="noopener">Fahrplan bei bahn.de ↗</a></p>` : ""}
+    ${fp.rail ? `<label>Abfahrtsbahnhof <span class="small">(für Zug im Flugticket)</span><input data-change="fly-station" value="${esc(fp.station)}" maxlength="40" placeholder="z. B. Essen Hbf"></label>
+      <p class="small">🚆 ${fp.station
+        ? `Ab <strong>${esc(fp.station)}</strong>: Bei Lufthansa (und Lufthansa-Partnern) ab Frankfurt oder München kann die Zugfahrt als <strong>Lufthansa Express Rail</strong> Teil des Flugtickets sein – dann ist sie im Flugpreis enthalten und dein Anschluss bei Zugverspätung abgesichert. Condor bietet <strong>Rail&Fly</strong> meist gegen Aufpreis an. Bei den anderen kaufst du das Zugticket extra.`
+        : "Trag deinen Bahnhof ein – dann zeigt die App, bei welcher Airline der Zug im Flugpreis enthalten ist."}
+        Plane mindestens 3 Stunden vor Abflug am Flughafen ein. <a href="https://www.bahn.de/" target="_blank" rel="noopener">Fahrplan bei bahn.de ↗</a></p>` : ""}
     <div class="row2">
       <label>Hinflug nach<select data-change="fly-in">${caOpts(fp.inAp)}</select></label>
       <label>Rückflug ab<select data-change="fly-out" ${fp.gabel ? "" : "disabled"}>${caOpts(fp.outAp)}</select></label>
@@ -607,18 +627,22 @@ function viewFlights() {
   </section>
 
   <h2 class="sec">Direkt bei der Fluggesellschaft buchen</h2>
-  <p class="small pad">Für ${esc(bookText)}. Die Airlines lassen sich nicht vorausfüllen – tippe auf „Daten kopieren“ und füge sie dort ein. Flugpläne sind saisonal, bitte auf der Airline-Seite prüfen.</p>
-  ${fits.map(({ al, hin, rueck }) => `<article class="card airline">
-    <div class="sechead"><h3>${esc(al.name)}</h3>${hin.direct && rueck.direct ? `<span class="tag good">Direkt</span>` : `<span class="tag">mit Umstieg</span>`}</div>
-    <p class="small">✈️ ${esc(hin.text)}${fp.gabel ? ` · zurück ${esc(rueck.text.replace(`${fp.ap} → ${fp.outAp}`, `${fp.outAp} → ${fp.ap}`))}` : " · und zurück"}</p>
+  <p class="small pad">${fp.gabel ? `Gabelflug nach ${AIRPORTS[fp.inAp].name}, zurück ab ${AIRPORTS[fp.outAp].name}` : `Nach ${AIRPORTS[fp.inAp].name} und zurück`} · ab ${fp.aps.join(", ")} · ${esc(paxText)}.
+    Die Airlines lassen sich nicht vorausfüllen – tippe auf „Daten kopieren“ und füge sie dort ein. Flugpläne sind saisonal, bitte auf der Airline-Seite prüfen.</p>
+  ${fits.map(({ al, opts }) => {
+    const best = opts[0];
+    return `<article class="card airline">
+    <div class="sechead"><h3>${esc(al.name)}</h3><span>${best.score === 2 ? `<span class="tag good">Direkt</span>` : `<span class="tag">mit Umstieg</span>`}${best.rail ? ` <span class="tag good">🚆 Zug inklusive</span>` : ""}</span></div>
+    <ul class="plain small apfits">${opts.map(o => `<li>✈️ <strong>${o.ap}</strong>: hin ${o.hin.direct ? "direkt" : esc(o.hin.text.replace(/^.*mit /, "mit "))} · zurück ${o.rueck.direct ? "direkt" : esc(o.rueck.text.replace(/^.*mit /, "mit "))}${o.rail ? ` · 🚆 ab ${esc(fp.station)} im Preis` : ""}</li>`).join("")}</ul>
     ${fp.gabel ? `<p class="small">🔀 Gabelflug: ${esc(al.gabel)}</p>` : ""}
     ${fp.rail ? `<p class="small">🚆 ${esc(al.rail)}</p>` : ""}
     <div class="btnrow">
       <a class="btn small" href="${esc(al.url)}" target="_blank" rel="noopener noreferrer">Zu ${esc(al.name)} ↗</a>
-      <button class="btn small ghost" data-act="copy" data-text="${esc(bookText)}">📋 Daten kopieren</button>
-      <button class="btn small ghost" data-act="flight-watch" data-f="${esc(JSON.stringify({ airline: al.id, from: fp.ap, to: fp.inAp, date: a, ret: b, ...(fp.gabel ? { retFrom: fp.outAp, retTo: fp.ap } : {}) }))}">🔔 Preis beobachten</button>
+      ${opts.map(o => `<button class="btn small ghost" data-act="copy" data-text="${esc(bookText(o.ap, o.rail))}">📋 Daten ab ${o.ap}${o.rail ? " + Zug" : ""}</button>`).join("")}
+      <button class="btn small ghost" data-act="flight-watch" data-f="${esc(JSON.stringify({ airline: al.id, from: best.ap, to: fp.inAp, date: a, ret: b, ...(best.rail ? { station: fp.station } : {}), ...(fp.gabel ? { retFrom: fp.outAp, retTo: best.ap } : {}) }))}">🔔 Preis beobachten</button>
     </div>
-  </article>`).join("") || `<p class="small pad">Für diese Kombination kennt die App keine Airline. Probier einen anderen Abflughafen oder Zielflughafen.</p>`}
+  </article>`;
+  }).join("") || `<p class="small pad">Für diese Kombination kennt die App keine Airline. Wähl weitere Abflughäfen oder einen anderen Zielflughafen.</p>`}
 
   <section class="card info">
     <h2>Preiswächter</h2>
@@ -890,7 +914,7 @@ function flightCard(f) {
     : f.target ? `<span class="tag">noch ${money(last.p - f.target)} drüber</span>` : "";
   const due = !f.booked && (!last || Date.now() - last.at > (T.checkEvery || 3) * 864e5);
   return `<article class="card watch ${due ? "due" : ""}">
-    <div class="sechead"><h3>${f.airline ? esc(AIRLINES.find(al => al.id === f.airline)?.name || "") + " · " : ""}${esc(f.from)} → ${esc(f.to)}${f.retFrom && f.retFrom !== f.to ? ` · ${esc(f.retFrom)} → ${esc(f.retTo || f.from)}` : f.ret ? " · zurück" : ""}</h3>${status}</div>
+    <div class="sechead"><h3>${f.airline ? esc(AIRLINES.find(al => al.id === f.airline)?.name || "") + " · " : ""}${f.station ? `${esc(f.station)} 🚆 ` : ""}${esc(f.from)} → ${esc(f.to)}${f.retFrom && f.retFrom !== f.to ? ` · ${esc(f.retFrom)} → ${esc(f.retTo || f.from)}` : f.ret ? " · zurück" : ""}</h3>${status}</div>
     <p class="small">${fmtD(f.date)}${f.ret ? ` – ${fmtD(f.ret)}` : ""}${f.flex ? ` · ± ${f.flex} Tage` : ""}${f.direct ? " · nur direkt" : ""}${f.target ? ` · Ziel: ${money(f.target)}` : ""}</p>
     ${f.prices.length ? `<div class="pricerow"><div><span class="small">Zuletzt (${ago(last.at)})</span><strong>${money(last.p)}</strong></div><div><span class="small">Bisher günstigster</span><strong>${money(min)}</strong></div>${spark(f)}</div>` : ""}
     ${linkBtns(AIRLINES.filter(al => f.airline ? al.id === f.airline : airlineFit(al, f.from, f.to)).map(al => ({ name: al.name, url: al.url })))}
@@ -1295,7 +1319,7 @@ function flightSheet(f, preset) {
     };
     if (data.retFrom) data.retTo = data.from;
     if (fd.has("bookedPrice")) data.bookedPrice = num(fd.get("bookedPrice"));
-    if (isNew) T.flights.push({ id: St.newId(), prices: [], booked: false, ...(v.airline ? { airline: v.airline } : {}), ...data });
+    if (isNew) T.flights.push({ id: St.newId(), prices: [], booked: false, ...(v.airline ? { airline: v.airline } : {}), ...(v.station ? { station: v.station } : {}), ...data });
     else Object.assign(f, data);
     commit();
     toast(isNew ? "Wird beobachtet 🔔" : "Gespeichert");
@@ -1560,7 +1584,12 @@ const ACT = {
   tab(d) { if (d.tab) { UI.tab = d.tab; UI.sub = d.sub || (d.tab === "fluege" ? UI.sub : ""); ls.set("ka.tab", d.tab); render(); } },
   "setup-demo"() { T = demoTrip(); UI.tab = "start"; commit(); toast("Beispielreise geladen – schau dich um!"); },
   sub(d) { UI.sub = d.v; render(); },
-  "fly-ap"(d) { T.home = d.v; commit(); },
+  "fly-ap"(d) {
+    // Mehrere Abflughäfen an- und abwählen; mindestens einer bleibt
+    const f = T.fly ||= {}, list = flyPlan().aps;
+    f.aps = list.includes(d.v) ? (list.length > 1 ? list.filter(c => c !== d.v) : list) : [...list, d.v];
+    T.home = f.aps[0]; commit();
+  },
   async copy(d) {
     try { await navigator.clipboard.writeText(d.text); toast("Kopiert – auf der Seite einfügen"); }
     catch { prompt("Zum Kopieren markieren:", d.text); }
@@ -1711,7 +1740,7 @@ const CHANGE = {
   checkEvery(el) { T.checkEvery = Number(el.value); commit(false); },
   "fuel-l100"(el) { const v = num(el.value); if (v > 0) { (T.fuel ||= {}).l100 = v; commit(); } },
   "fuel-price"(el) { const v = num(el.value); if (v > 0) { (T.fuel ||= {}).price = v; commit(); } },
-  "fly-ap"(el) { T.home = el.value; commit(); },
+  "fly-station"(el) { (T.fly ||= {}).station = el.value.trim().slice(0, 40); commit(); },
   "fly-rail"(el) { (T.fly ||= {}).rail = el.checked; commit(); },
   "fly-in"(el) { (T.fly ||= {}).inAp = el.value; commit(); },
   "fly-out"(el) { (T.fly ||= {}).outAp = el.value; commit(); },
@@ -1744,7 +1773,7 @@ const FORMS = {
       const fp = flyPlan();
       const best = Object.entries(HOME_AP_POS).map(([code, [lat, lng]]) => ({ code, km: P.km(place, { lat, lng }), direct: AIRLINES.some(al => airlineFit(al, code, fp.inAp)?.direct) }))
         .sort((a, b) => (b.direct - a.direct) || a.km - b.km)[0];
-      if (best) T.home = best.code;
+      if (best) { T.fly.aps = [best.code]; T.home = best.code; }
       commit(); toast(`${place.name} übernommen – Abflug ab ${HOME_AIRPORTS[T.home]} vorgeschlagen`);
     } catch { toast("Suche geht gerade nicht. Bist du online?"); }
   },
