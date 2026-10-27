@@ -14,7 +14,22 @@ const todayIso = () => { const d = new Date(); return new Date(d - d.getTimezone
 const fmtD = (iso, opt = { weekday: "short", day: "numeric", month: "short" }) => iso ? new Date(iso + "T12:00:00").toLocaleDateString("de-DE", opt) : "";
 const fmtShort = iso => fmtD(iso, { day: "numeric", month: "short" });
 const safeUrl = u => /^https?:\/\//i.test(String(u || "").trim()) ? String(u).trim() : "";
-const num = v => { const n = parseFloat(String(v ?? "").replace(/\./g, "").replace(",", ".")); return Number.isFinite(n) ? n : 0; };
+// Zahl aus „580,15“, „580.15“, „1.250“, „1.250,50“ oder „1,250.50“ lesen
+function num(v) {
+  if (typeof v === "number") return Number.isFinite(v) ? v : 0;
+  let s = String(v ?? "").replace(/[^\d.,-]/g, "");
+  const lastDot = s.lastIndexOf("."), lastComma = s.lastIndexOf(",");
+  if (lastDot >= 0 && lastComma >= 0) {
+    // Beide kommen vor: das hintere Zeichen trennt die Nachkommastellen
+    s = lastComma > lastDot ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
+  } else if (lastComma >= 0) {
+    s = /^\d{1,3}(,\d{3})+$/.test(s) && s.split(",").length > 2 ? s.replace(/,/g, "") : s.replace(/,/g, ".");
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, "");
+  const n = parseFloat(s);
+  return Number.isFinite(n) ? n : 0;
+}
+// Zahl so ins Formular schreiben, wie man sie tippt: 580,15
+const numIn = n => n ? String(Math.round(n * 100) / 100).replace(".", ",") : "";
 const money = (n, cur = "EUR") => new Intl.NumberFormat("de-DE", { style: "currency", currency: cur, maximumFractionDigits: n >= 100 ? 0 : 2 }).format(n || 0);
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 const ago = ts => { const d = Math.floor((Date.now() - ts) / 864e5); return d <= 0 ? "heute" : d === 1 ? "gestern" : `vor ${d} Tagen`; };
@@ -783,8 +798,8 @@ function flightSheet(f, preset) {
         <label>Flexibel<select name="flex">${[[0, "genaues Datum"], [1, "± 1 Tag"], [3, "± 3 Tage"]].map(([n, l]) => `<option value="${n}" ${n === (v.flex || 0) ? "selected" : ""}>${l}</option>`).join("")}</select></label>
       </div>
       <label class="check"><input type="checkbox" name="direct" ${v.direct ? "checked" : ""}><span>Nur Direktflüge</span></label>
-      <label>Zielpreis für alle zusammen (€)<input name="target" inputmode="decimal" value="${v.target || ""}" placeholder="z. B. 1600"></label>
-      ${f?.booked ? `<label>Bezahlter Preis (€)<input name="bookedPrice" inputmode="decimal" value="${f.bookedPrice || ""}"></label>` : ""}
+      <label>Zielpreis für alle zusammen (€)<input name="target" inputmode="decimal" value="${numIn(v.target)}" placeholder="z. B. 1600"></label>
+      ${f?.booked ? `<label>Bezahlter Preis (€)<input name="bookedPrice" inputmode="decimal" value="${numIn(f.bookedPrice)}"></label>` : ""}
       ${f?.prices.length ? `<p class="small">Preisverlauf: ${f.prices.map(x => `${new Date(x.at).toLocaleDateString("de-DE", { day: "numeric", month: "numeric" })}: ${money(x.p)}`).join(" · ")}</p>
         <button type="button" class="btn small ghost" data-act="flight-undo" data-id="${f.id}">Letzten Preis löschen</button>` : ""}
       <button class="btn big">${isNew ? "Beobachten" : "Speichern"}</button>
@@ -825,7 +840,7 @@ function lodgeSheet(l, stopId) {
         <label>Check-out<input type="date" name="checkOut" value="${v.checkOut}" required></label>
       </div>
       <div class="row2">
-        <label>Preis gesamt<input name="total" inputmode="decimal" value="${v.total || ""}" placeholder="inkl. Gebühren"></label>
+        <label>Preis gesamt<input name="total" inputmode="decimal" value="${numIn(num(v.total))}" placeholder="inkl. Gebühren"></label>
         <label>Währung<select name="cur"><option ${v.cur !== "CAD" ? "selected" : ""}>EUR</option><option ${v.cur === "CAD" ? "selected" : ""}>CAD</option></select></label>
       </div>
       <label>Kostenlos stornierbar bis<input type="date" name="cancelUntil" value="${v.cancelUntil || ""}"></label>
