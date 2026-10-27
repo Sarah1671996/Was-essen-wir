@@ -581,10 +581,13 @@ function vTag(m) {
 
 /* Fragen hinzufügen: Suchen mit Haken, automatisch, nach Markierung oder nach Nummern */
 function addPanelHTML() {
-  const modes = [["suche", "Suchen"], ["auto", "Automatisch"], ["marks", "Nach Markierung"], ["nummern", "Nummern"]];
+  const modes = [["suche", "Auswählen"], ["auto", "Automatisch"], ["marks", "Nach Markierung"], ["nummern", "Nummern"]];
   let body = "";
   if (tagAddMode === "suche") body = `
-    <label class="field">Suche nach Wort oder Nummern<input type="search" id="tsearch" autocomplete="off" value="${esc(tagSearch)}" placeholder="z. B. Nebel, Tonne, Schallsignal  oder  20-30"></label>
+    <div class="row" style="align-items:end">
+      <label class="field" style="flex:1 1 240px">Suche (leer lassen = alle Fragen)<input type="search" id="tsearch" autocomplete="off" value="${esc(tagSearch)}" placeholder="z. B. Nebel, Tonne, Schallsignal  oder  20-30"></label>
+      <label class="field">Zeigen<select id="tfilter">${LIST_FILTERS.map(([k, l]) => `<option value="${k}" ${tagListFilter === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    </div>
     <div id="tresults"></div>`;
   if (tagAddMode === "auto") body = `
     <p class="muted" style="margin:0">Die App schlägt Fragen vor: fällige sichere zum Auffrischen, dann schlecht markierte und neue.</p>
@@ -607,26 +610,42 @@ function addPanelHTML() {
     ${body}
   </section>`;
 }
+const LIST_FILTERS = [["alle", "Alle Fragen"], ["offen", "Noch nicht sicher"], ["n", "Unbewertet"], ["s", "Schlecht"], ["m", "Mittel"], ["g", "Sicher"], ["basis", "Basisfragen"], ["see", "See-Fragen"], ["bild", "Mit Bild"]];
+let tagListFilter = "alle";
+function listFilter(n) {
+  const k = mark(n) || "n", q = byN.get(n);
+  switch (tagListFilter) {
+    case "offen": return k !== "g";
+    case "n": case "s": case "m": case "g": return k === tagListFilter;
+    case "basis": return q.section === "Basisfragen";
+    case "see": return q.section !== "Basisfragen";
+    case "bild": return q.img.length > 0;
+    default: return true;
+  }
+}
+// Liste aller passenden Fragen zum Durchscrollen und Anhaken; der Hinzufügen-Knopf bleibt unten sichtbar
 function renderResults() {
   const box = $("#tresults"); if (!box) return;
-  const hits = searchQuestions(tagSearch), shown = hits.slice(0, 60);
-  const pickable = shown.filter(n => !inStack(n));
-  if (!tagSearch.trim()) { box.innerHTML = `<p class="muted" style="margin:0">Tippe ein Stichwort oder Nummern ein. Dann hakst du die Fragen an, die du lernen willst.</p>`; return; }
+  const base = tagSearch.trim() ? searchQuestions(tagSearch) : Q.map(q => q.n);
+  const hits = base.filter(listFilter), pickable = hits.filter(n => !inStack(n));
   box.innerHTML = hits.length ? `
-    <div class="row" style="justify-content:space-between;margin-bottom:8px"><b>${hits.length} Treffer${hits.length > 60 ? " (die ersten 60)" : ""}</b>
-      <span class="row"><button class="btn small" id="tpickall" ${pickable.length ? "" : "disabled"}>Alle anhaken</button><button class="btn small primary" id="taddpicked" ${tagPicked.size ? "" : "disabled"}>${tagPicked.size} angehakte hinzufügen</button></span></div>
-    <div class="picklist">${shown.map(n => { const q = byN.get(n), there = inStack(n);
+    <div class="row" style="justify-content:space-between;margin-bottom:8px"><b>${hits.length} ${hits.length === 1 ? "Frage" : "Fragen"}</b>
+      <span class="row"><button class="btn small" id="tpickall" ${pickable.length ? "" : "disabled"}>Alle ${pickable.length} anhaken</button><button class="btn small" id="tpicknone" ${tagPicked.size ? "" : "disabled"}>Haken entfernen</button></span></div>
+    <div class="picklist">${hits.map(n => { const q = byN.get(n), there = inStack(n);
       return `<label class="pick${there ? " there" : ""}"><input type="checkbox" data-pick="${n}" ${there || tagPicked.has(n) ? "checked" : ""} ${there ? "disabled" : ""}>
-        <span class="mono">Nr. ${n}</span><span class="pt">${esc(q.q)}</span>${there ? `<span class="pill n">im Stapel</span>` : markPill(n)}</label>`; }).join("")}</div>`
+        <span class="mono">Nr. ${n}</span><span class="pt">${esc(q.q)}</span>${there ? `<span class="pill n">im Stapel</span>` : markPill(n)}</label>`; }).join("")}</div>
+    <div class="pickbar"><span id="tpickcount">${tagPicked.size} angehakt</span><button class="btn primary" id="taddpicked" ${tagPicked.size ? "" : "disabled"}>In den Stapel legen</button></div>`
     : `<p class="muted" style="margin:0">Keine Frage gefunden.</p>`;
   box.querySelectorAll("[data-pick]").forEach(c => c.onchange = () => { const n = +c.dataset.pick; c.checked ? tagPicked.add(n) : tagPicked.delete(n); updatePickBtn(); });
   if ($("#tpickall")) $("#tpickall").onclick = () => { pickable.forEach(n => tagPicked.add(n)); renderResults(); };
+  if ($("#tpicknone")) $("#tpicknone").onclick = () => { tagPicked.clear(); renderResults(); };
   if ($("#taddpicked")) $("#taddpicked").onclick = () => { addToStack([...tagPicked]); tagPicked.clear(); render(); };
 }
-function updatePickBtn() { const b = $("#taddpicked"); if (b) { b.disabled = !tagPicked.size; b.textContent = tagPicked.size + " angehakte hinzufügen"; } }
+function updatePickBtn() { const b = $("#taddpicked"); if (b) b.disabled = !tagPicked.size; const c = $("#tpickcount"); if (c) c.textContent = tagPicked.size + " angehakt"; const nn = $("#tpicknone"); if (nn) nn.disabled = !tagPicked.size; }
 function wireAddPanel(m) {
   m.querySelectorAll("[data-addmode]").forEach(b => b.onclick = () => { tagAddMode = b.dataset.addmode; rememberTag(); render(); });
   if ($("#tsearch")) { $("#tsearch").oninput = e => { tagSearch = e.target.value; renderResults(); }; renderResults(); }
+  if ($("#tfilter")) $("#tfilter").onchange = e => { tagListFilter = e.target.value; renderResults(); };
   if ($("#tautocount")) $("#tautocount").onchange = e => { tagAutoCount = e.target.value; };
   if ($("#taddauto")) $("#taddauto").onclick = () => { addToStack(suggest(+tagAutoCount)); render(); };
   if ($("#tmkcount")) $("#tmkcount").onchange = e => { tagMkCount = e.target.value; };
@@ -758,7 +777,7 @@ function vKarten(m) {
         <p style="margin:0">20 Fragen mit Bild schnell hintereinander: Lichter, Sichtzeichen, Schallsignale, Tafelzeichen. Richtige Antworten gehen automatisch weiter.</p>
         <div><button class="btn primary" id="picstart">Bilder-Training starten</button></div></section>
       <section class="panel" style="display:grid;gap:10px;align-content:start"><div class="eyebrow">Verwechslungsgefahr</div>
-        <p style="margin:0">${SIMILAR_GROUPS.length} Gruppen von Fragen mit gleichen Antworten, direkt nebeneinander. So siehst du, woran du sie unterscheidest.</p>
+        <p style="margin:0">${SIMILAR_GROUPS.length} Gruppen von Fragen mit gleichen Antworten, direkt nebeneinander (davon ${simGroups().length} noch nicht ganz sicher). So siehst du, woran du sie unterscheidest.</p>
         <div><button class="btn" id="simstart">Ähnliche Fragen vergleichen</button></div></section>
     </div>
   </div>`;
@@ -1142,28 +1161,46 @@ const SIMILAR_GROUPS = (() => {
   return [...groups.values()].filter(g => g.length > 1).sort((a, b) => a[0] - b[0]);
 })();
 let similar = null; // { i }
+let simOpenOnly = true;
+try { simOpenOnly = localStorage.getItem("sbfsee-simopen") !== "0"; } catch (e) {}
+// Gruppen, in denen noch mindestens eine Frage nicht als sicher markiert ist
+const simGroups = () => simOpenOnly ? SIMILAR_GROUPS.filter(g => g.some(n => mark(n) !== "g")) : SIMILAR_GROUPS;
 function vSimilar(m) {
-  const g = SIMILAR_GROUPS[similar.i];
+  const groups = simGroups();
+  if (!groups.length) {
+    m.innerHTML = `<div class="view"><section class="panel" style="display:grid;gap:12px;text-align:center;justify-items:center;padding:36px">
+      <div class="eyebrow">Verwechslungsgefahr</div><h3>Alle ähnlichen Fragen sind als sicher markiert.</h3>
+      <div class="row"><button class="btn" id="simall">Trotzdem alle Gruppen zeigen</button><button class="btn primary" id="simclose">Schließen</button></div></section></div>`;
+    $("#simall").onclick = () => { simOpenOnly = false; try { localStorage.setItem("sbfsee-simopen", "0"); } catch (e) {} similar.i = 0; render(); };
+    $("#simclose").onclick = () => { similar = null; render(); };
+    return;
+  }
+  similar.i = Math.min(similar.i, groups.length - 1);
+  const g = groups[similar.i];
   const all = g.flatMap(n => byN.get(n).a.map(normA));
   const shared = a => all.filter(x => x === normA(a)).length > 1;
   m.innerHTML = `<div class="view">
-    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Verwechslungsgefahr · Gruppe ${similar.i + 1} von ${SIMILAR_GROUPS.length}</div><h2>Ähnliche Fragen im Vergleich</h2></div>
+    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Verwechslungsgefahr · Gruppe ${similar.i + 1} von ${groups.length}</div><h2>Ähnliche Fragen im Vergleich</h2></div>
       <button class="btn small" id="simclose">Schließen</button></div>
+    <div class="seg" role="group" aria-label="Welche Gruppen"><button data-simopen="1" aria-pressed="${simOpenOnly}">Nur noch nicht sichere Gruppen</button><button data-simopen="0" aria-pressed="${!simOpenOnly}">Alle ${SIMILAR_GROUPS.length} Gruppen</button></div>
     <p class="muted" style="margin:0;max-width:70ch">Diese Fragen haben gleiche oder fast gleiche Antworten. Grün ist jeweils die richtige. Mit ↔ markierte Antworten kommen auch bei einer anderen Frage dieser Gruppe vor.</p>
     <div class="simgrid">${g.map(n => { const q = byN.get(n); return `<article class="panel" style="display:grid;gap:8px;align-content:start">
-        <div class="qmeta"><span class="mono">Nr. ${n}</span>${markPill(n)}</div>
+        <div class="qmeta" style="justify-content:space-between"><span class="row" style="gap:8px"><span class="mono">Nr. ${n}</span>${markPill(n)}</span>
+          ${inStack(n) ? `<span class="pill n">im Stapel</span>` : `<button class="btn small" data-simone="${n}">+ Stapel</button>`}</div>
         <b>${esc(q.q)}</b>${imgTag(q)}
         <ul class="simans">${q.a.map((a, k) => `<li class="${k === 0 ? "ok" : ""}">${k === 0 ? "✓" : "·"} ${esc(a)}${shared(a) ? ` <span class="muted">↔</span>` : ""}</li>`).join("")}</ul>
-        ${noteBox(n)}</article>`; }).join("")}</div>
+        <div>${markBar(n)}</div>${noteBox(n)}</article>`; }).join("")}</div>
     <div class="row" style="justify-content:space-between">
       <button class="btn" id="simprev" ${similar.i ? "" : "disabled"}>‹ Vorige Gruppe</button>
       <button class="btn" id="simadd">${g.every(inStack) ? "Alle im Stapel" : "Gruppe in den Lernstapel"}</button>
-      <button class="btn primary" id="simnext" ${similar.i < SIMILAR_GROUPS.length - 1 ? "" : "disabled"}>Nächste Gruppe ›</button></div>
+      <button class="btn primary" id="simnext" ${similar.i < groups.length - 1 ? "" : "disabled"}>Nächste Gruppe ›</button></div>
   </div>`;
   $("#simclose").onclick = () => { similar = null; render(); };
   $("#simprev").onclick = () => { similar.i--; render(); window.scrollTo(0, 0); };
   $("#simnext").onclick = () => { similar.i++; render(); window.scrollTo(0, 0); };
-  $("#simadd").onclick = () => { if (!g.every(inStack)) { addToStack(g); render(); } };
+  $("#simadd").onclick = () => { if (!g.every(inStack)) { const y = window.scrollY; addToStack(g); render(); window.scrollTo(0, y); } };
+  m.querySelectorAll("[data-simone]").forEach(b => b.onclick = () => { const y = window.scrollY; addToStack([+b.dataset.simone]); render(); window.scrollTo(0, y); });
+  m.querySelectorAll("[data-simopen]").forEach(b => b.onclick = () => { simOpenOnly = b.dataset.simopen === "1"; try { localStorage.setItem("sbfsee-simopen", simOpenOnly ? "1" : "0"); } catch (e) {} similar.i = 0; render(); });
 }
 
 /* ---------- Bilder-Training: schnell hintereinander nur Fragen mit Bild ---------- */

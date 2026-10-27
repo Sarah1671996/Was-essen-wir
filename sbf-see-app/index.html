@@ -245,7 +245,10 @@ nav.tabs .ts{display:none}
 .mapscroll{overflow:auto;-webkit-overflow-scrolling:touch}
 .mapscroll img{display:block;width:100%;max-width:none;height:auto;background:#fff}
 .mapview.zoom .mapscroll img{width:260%}
-.picklist{display:grid;gap:6px;max-height:440px;overflow:auto;padding-right:4px}
+.picklist{display:grid;gap:6px}
+.pickbar{position:sticky;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:2;display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;padding:10px 12px;border-radius:12px;background:var(--ink);color:var(--bg);box-shadow:0 6px 20px -8px rgba(0,0,0,.5)}
+.pickbar span{font-weight:700}
+@media (max-width:760px){.pickbar{bottom:calc(72px + env(safe-area-inset-bottom,0px))}}
 .pick{display:grid;grid-template-columns:22px auto 1fr auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;background:var(--surface)}
 .pick:hover{border-color:var(--ink)} .pick.there{opacity:.6;cursor:default}
 .pick input{width:18px;height:18px;margin:2px 0 0;accent-color:var(--accent)}
