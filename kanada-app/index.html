@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Sicherheitsrichtlinie: Code nur von dieser Seite, Firebase (gstatic) und Leaflet (unpkg).
+       Daten nur zu Firebase, Routen (OSRM), Ortssuche (Nominatim), Wetter (Open-Meteo) und Wechselkurs (Frankfurter). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://unpkg.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://unpkg.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com; connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://router.project-osrm.org https://nominatim.openstreetmap.org https://api.open-meteo.com https://archive-api.open-meteo.com https://api.frankfurter.dev; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="robots" content="noindex">
+  <title>Kanada-Reiseplaner</title>
+  <meta name="description" content="Kanada-Reise planen: Route, Tagesplan mit Fahrzeiten, Flüge mit Preiswächter, Unterkünfte und Vorschläge.">
+  <meta name="theme-color" content="#f6f1ea" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#14181b" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Kanada">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><span class="leaf" aria-hidden="true">🍁</span><h1 id="tripName">Kanada-Reiseplaner</h1></div>
+    <span class="syncbadge" id="syncBadge" hidden title="Wird mit deinen anderen Geräten abgeglichen">☁</span>
+  </header>
+
+  <nav class="nav" id="nav" aria-label="Bereiche" hidden>
+    <button data-tab="start"><span aria-hidden="true">🏠</span>Start</button>
+    <button data-tab="route"><span aria-hidden="true">🗺️</span>Route</button>
+    <button data-tab="tage"><span aria-hidden="true">🗓️</span>Tage</button>
+    <button data-tab="fluege"><span aria-hidden="true">✈️</span>Flüge</button>
+    <button data-tab="unterkunft"><span aria-hidden="true">🏡</span>Schlafen</button>
+    <button data-tab="mehr"><span aria-hidden="true">☰</span>Mehr</button>
+  </nav>
+
+  <main id="main" class="main"></main>
+
+  <dialog id="sheet" class="sheet" aria-labelledby="sheetTitle">
+    <div class="sheethead"><h2 id="sheetTitle"></h2><button class="iconbtn" id="sheetClose" aria-label="Schließen">✕</button></div>
+    <div id="sheetBody" class="sheetbody"></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

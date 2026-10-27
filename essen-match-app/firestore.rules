@@ -221,5 +221,17 @@ service cloud.firestore {
         && (!("st" in l()) || l().st is number);
       allow list, delete: if false;
     }
+
+    // Kanada-Reiseplaner: eine Reise pro Reisecode, damit Handy, PC und Mitreisende denselben Stand haben.
+    // Die Reise liegt als JSON-Text im Feld j. Nur mit dem 10-stelligen Code erreichbar; Auflisten und Löschen sind verboten.
+    match /reisen/{code} {
+      allow get: if request.auth != null;
+      allow create, update: if request.auth != null
+        && code.size() >= 10 && code.size() <= 40
+        && request.resource.data.keys().hasOnly(["j", "st"])
+        && request.resource.data.j is string && request.resource.data.j.size() <= 900000
+        && request.resource.data.st is number;
+      allow list, delete: if false;
+    }
   }
 }
