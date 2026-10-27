@@ -88,3 +88,8 @@ Nach Änderungen an den App-Dateien in `sw.js` die Version hochzählen (`kanada-
   Endet eine Wanderung nach Sonnenuntergang, steht beim Tag ein Hinweis.
 - **Ausgaben & Aufteilen** (Mehr): Betrag, Kategorie, wer bezahlt hat, für wen; die App rechnet aus, wer wem was schuldet,
   mit PayPal.Me-Link. Getankte Beträge erscheinen auf dem Dashboard neben der Sprit-Schätzung.
+- **Wann buchen?** (advice.js): Bei jedem beobachteten Flug eine Einschätzung „jetzt buchen / beobachten / warten“ aus den
+  eigenen Preis-Einträgen (Tiefstwert, Trend) und groben Erfahrungswerten (übliche Preisspanne je Saison, typisches
+  Buchungsfenster). Ebenso für Mietwagen (Preis pro Tag, Termine zum Nachvergleichen) und Unterkünfte (Preis pro Nacht).
+  Auf dem Dashboard ein Buchungs-Fahrplan mit Zeitfenstern. Es gibt keine frei zugänglichen historischen Preisdaten –
+  die Spannen sind Erfahrungswerte und sollten jährlich in advice.js angepasst werden.

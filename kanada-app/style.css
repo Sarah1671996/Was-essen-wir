@@ -335,3 +335,20 @@ label.inline { display: inline-flex; gap: 6px; align-items: center; color: var(-
 .chip.radio input { width: auto; min-height: 0; margin: 0; accent-color: var(--forest); }
 .chip.radio:has(input:checked) { background: var(--forest); color: #fff; border-color: transparent; }
 .st.tz { color: var(--lake); font-weight: 600; }
+/* Wann buchen? */
+.advice { margin: 10px 0; padding: 10px 12px; border-radius: 12px; background: var(--chip); }
+.advice.good { background: var(--good-bg); }
+.advice.warn { background: var(--warn-bg); }
+.advice p { margin: 2px 0; }
+.advice ul { margin: 6px 0; padding-left: 0; list-style: none; }
+.advice li { padding: 2px 0; }
+.muted { opacity: .8; }
+.range { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin: 8px 0 4px; }
+.range .track { grid-column: 1 / -1; position: relative; height: 10px; overflow: visible; background: linear-gradient(90deg, var(--good), #d9b44a, var(--danger)); opacity: .85; }
+.range .mark { position: absolute; top: -4px; width: 6px; height: 18px; margin-left: -3px; border-radius: 3px; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); }
+.range .small:last-child { text-align: right; }
+.plan { list-style: none; padding: 0; margin: 8px 0; display: grid; gap: 8px; }
+.plan li { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 8px 10px; border-radius: 12px; border: 1px solid var(--line); }
+.plan li.now { border-color: var(--forest); }
+.plan li.late { background: var(--warn-bg); border-color: transparent; }
+.plan li.done { opacity: .65; }

@@ -2,6 +2,7 @@ import { BASES, SIGHTS, TAGS, REGIONS, AIRPORTS, HOME_AIRPORTS, HOME_AP_POS, AIR
 import * as P from "./plan.js";
 import * as St from "./store.js";
 import { lodgingLinks, mapsPlace, mapsRoute } from "./links.js";
+import * as Adv from "./advice.js";
 
 /* ---------- kleine Helfer ---------- */
 const $ = s => document.querySelector(s);
@@ -243,6 +244,8 @@ function viewStart() {
       <p class="small">Kompaktwagen ca. 7–8, SUV ca. 9–11, Camper ca. 16–20 l/100 km. Benzin kostet in Kanada meist 1,50–1,95 CAD/l (in BC am teuersten).</p>
     </details>
   </section>
+
+  ${bookingPlanCard()}
 
   <section class="card">
     <h2>Stand der Planung</h2>
@@ -786,6 +789,7 @@ function viewCar() {
     <p class="small">${c.via ? `über ${esc(c.via)} · ` : ""}${esc(c.cls || "")}${c.cls ? " · " : ""}${total ? `${money(total)}${c.cur === "CAD" ? ` (${money(num(c.total), "CAD")})` : ""} · ${money(total / Math.max(1, P.daysBetween(d.pickDate, d.dropDate)))}/Tag` : "Preis fehlt"}</p>
     <p class="small">📍 ${esc(d.pickPlace)}, ${fmtD(d.pickDate)} ${esc(d.pickTime)} → ${esc(d.dropPlace)}, ${fmtD(d.dropDate)} ${esc(d.dropTime)}</p>
     ${c.cancelUntil ? `<p class="small ${dl != null && dl >= 0 && dl <= 7 ? "warntext" : ""}">${dl < 0 ? "Kostenlose Stornierung abgelaufen" : `Kostenlos stornierbar bis ${fmtD(c.cancelUntil)} (noch ${plural(dl, "Tag", "Tage")})`}</p>` : ""}
+    ${(() => { const ca = Adv.carAdvice(c, total, P.daysBetween(d.pickDate, d.dropDate), todayIso()); return `<div class="advice ${ca.tone}"><p><strong>${ca.tone === "warn" ? "⚠️" : "✅"} ${esc(ca.text)}</strong></p><ul class="plain small">${ca.reasons.map(r => `<li>${esc(r)}</li>`).join("")}${c.status === "gebucht" && c.cancelUntil && ca.checks.length ? `<li>Gute Termine zum Nachvergleichen: ${ca.checks.map(fmtShort).join(" und ")}.</li>` : ""}</ul><p class="small muted">Grobe Erfahrungswerte, keine Live-Daten.</p></div>`; })()}
     <div class="inscheck">
       <div class="sechead"><strong>Versicherung: ${ic.label}</strong><span class="small">${ic.score} / 100</span></div>
       <span class="track"><span style="width:${ic.score}%" class="${ic.score >= 70 ? "ok" : "bad"}"></span></span>
@@ -1118,6 +1122,7 @@ function flightCard(f) {
     ${f.times?.dep || f.code ? `<p class="small">${f.times?.dep ? `Hin ${f.times.dep} → ${f.times.arr || "?"}${f.times.flight ? ` (${esc(f.times.flight)})` : ""}` : ""}${f.times?.retDep ? ` · Zurück ${f.times.retDep} → ${f.times.retArr || "?"}${f.times.retFlight ? ` (${esc(f.times.retFlight)})` : ""}` : ""}${f.code ? ` · Buchungscode <strong>${esc(f.code)}</strong>` : ""}</p>` : ""}
     ${f.notes?.length ? `<ul class="plain small">${f.notes.map(n => `<li>${esc(n)}</li>`).join("")}</ul>` : ""}
     ${f.prices.length ? `<div class="pricerow"><div><span class="small">Zuletzt (${ago(last.at)})</span><strong>${money(last.p)}</strong></div><div><span class="small">Bisher günstigster</span><strong>${money(min)}</strong></div>${spark(f)}</div>` : ""}
+    ${f.booked ? "" : adviceBox(Adv.flightAdvice(f, todayIso(), pax().adults + pax().children))}
     ${linkBtns(AIRLINES.filter(al => f.airline ? al.id === f.airline : airlineFit(al, f.from, f.to)).map(al => ({ name: al.name, url: al.url })))}
     ${f.booked ? "" : `<form class="priceform" data-form="flight-price" data-id="${f.id}">
       <input name="p" inputmode="decimal" placeholder="Heutiger Preis in € (gesamt)" aria-label="Heutiger Preis" required>
@@ -1127,6 +1132,41 @@ function flightCard(f) {
       <button class="btn small ghost" data-act="flight-edit" data-id="${f.id}">Bearbeiten</button>
     </div>
   </article>`;
+}
+// Einschätzung „jetzt buchen oder warten?“ mit Preisspanne und Begründung
+function adviceBox(a) {
+  if (a.verdict === "vorbei") return "";
+  const icon = { buchen: "✅", warten: "⏳", beobachten: "👀", unbekannt: "ℹ️" }[a.verdict] || "ℹ️";
+  const mark = a.last != null ? Math.round(Math.max(0, Math.min(1, (a.last - a.range[0]) / (a.range[1] - a.range[0]))) * 100) : null;
+  return `<div class="advice ${a.tone}">
+    <p><strong>${icon} ${esc(a.text)}</strong></p>
+    ${mark != null ? `<div class="range" title="Wo dein Preis in der üblichen Spanne liegt"><span class="track"><span class="mark" style="left:${mark}%"></span></span>
+      <span class="small">${money(a.range[0])} günstig</span><span class="small">teuer ${money(a.range[1])}</span></div>` : ""}
+    <ul class="plain small">${a.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+    <p class="small muted">Aus ${a.n ? (a.n === 1 ? "deinem einen Eintrag" : `deinen ${a.n} Einträgen`) + " und " : ""}groben Erfahrungswerten für Kanada (keine Live-Daten der Airlines)${a.confidence ? ` · Sicherheit: ${a.confidence}` : ""}.</p>
+  </div>`;
+}
+// Buchungs-Fahrplan: was wann am besten gebucht wird, mit Stand
+function bookingPlanCard() {
+  const [a] = range();
+  if (!a) return "";
+  const t = todayIso();
+  const hasPark = stops().some(s => BASES.find(b => b.id === s.baseId)?.park);
+  const needBeds = stops().filter(s => P.daysBetween(s.from, s.to) > 0);
+  const done = {
+    "Flüge": T.flights.some(f => f.booked),
+    "Mietwagen": T.car?.status === "gebucht",
+    "Unterkünfte in Nationalpark-Orten": needBeds.length > 0 && needBeds.every(s => T.lodgings.some(l => l.stopId === s.id && l.status === "gebucht"))
+  };
+  const rows = Adv.bookingPlan(a, hasPark).map(x => {
+    const ok = done[x.what];
+    const state = ok ? "✓ erledigt" : x.until && t > x.until ? "⚠️ höchste Zeit" : x.from && t < x.from ? `ab ${fmtShort(x.from)}` : "👉 jetzt";
+    return `<li class="${ok ? "done" : state.startsWith("⚠️") ? "late" : state.startsWith("👉") ? "now" : ""}">
+      <span class="ai">${x.icon}</span><div><strong>${esc(x.what)}</strong>
+      <span class="small block">${x.from ? `${fmtShort(x.from)} – ` : "bis "}${fmtShort(x.until)} · ${esc(x.note)}</span></div><span class="tag">${state}</span></li>`;
+  }).join("");
+  return `<section class="card"><h2>📅 Wann am besten buchen?</h2><ul class="plan">${rows}</ul>
+    <p class="small muted">Typische Zeitfenster für eine Reise ab ${fmtShort(a)} (${Adv.SEASON_LABEL[Adv.season(a)]}). Grobe Erfahrungswerte – keine Garantie.</p></section>`;
 }
 function spark(f) {
   const ps = f.prices.slice(-20);
@@ -1186,6 +1226,7 @@ function lodgeCard(l, s) {
     <div class="sechead"><h3>${booked ? "🏡" : "⭐"} ${url ? `<a href="${esc(url)}" target="_blank" rel="noopener noreferrer">${esc(l.name)} ↗</a>` : esc(l.name)}</h3>
       <button class="linkbtn" data-act="lodge-edit" data-id="${l.id}">Bearbeiten</button></div>
     <p class="small">${esc(l.platform || "")}${l.platform ? " · " : ""}${fmtShort(l.checkIn)} – ${fmtShort(l.checkOut)}${total ? ` · ${money(total)} (${money(per)}/Nacht)` : ""}${l.cur === "CAD" ? ` · ${money(num(l.total), "CAD")}` : ""}</p>
+    ${(() => { if (!per) return ""; const la = Adv.lodgingAdvice(per / rate(), l.checkIn, !!BASES.find(b => b.id === s?.baseId)?.park); return `<p class="small">💶 ${money(per / rate(), "CAD")}/Nacht ist für ${Adv.SEASON_LABEL[la.season]} hier <strong class="${la.level === "teuer" ? "warntext" : la.level === "günstig" ? "goodtext" : ""}">${la.level}</strong> (üblich ca. ${la.range[0]}–${la.range[1]} CAD)</p>`; })()}
     ${l.cancelUntil ? `<p class="small ${dl != null && dl <= 7 && dl >= 0 ? "warntext" : ""}">${dl < 0 ? "Kostenlose Stornierung abgelaufen" : `Kostenlos stornierbar bis ${fmtD(l.cancelUntil)} (${dl === 0 ? "heute" : `noch ${plural(dl, "Tag", "Tage")}`})`}</p>` : ""}
     ${l.note ? `<p class="small">${esc(l.note)}</p>` : ""}
     ${booked && dl !== null && dl < 0 ? "" : booked ? `<details class="cheaper" ${best ? "open" : ""}>

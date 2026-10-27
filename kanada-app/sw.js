@@ -1,11 +1,11 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Kartenkacheln werden zusätzlich gemerkt, damit schon angesehene Karten unterwegs ohne Netz gehen.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "kanada-v11";
+const CACHE = "kanada-v12";
 const TILES = "kanada-tiles";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "plan.js", "data.js", "links.js", "store.js", "../essen-match-app/firebase-config.js",
-  "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
+  "advice.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
 ];
 
 self.addEventListener("install", e => {
