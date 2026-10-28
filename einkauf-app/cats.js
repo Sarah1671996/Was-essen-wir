@@ -51,8 +51,17 @@ export function guessCat(text, known = [], custom = []) {
   return "sonst";
 }
 
-// "2 Liter Milch" → { qty: "2 Liter", text: "Milch" }
+const UNIT = "(?:x|stk\\.?|stück|kg|g|gr|l|liter|ml|pck\\.?|packung(?:en)?|pkg|dosen?|flaschen?|becher|bund|netz|glas|gläser|tüten?|rollen?|kisten?|kästen?)";
+const NUM = "\\d+(?:[.,]\\d+)?";
+const QTY_FRONT = new RegExp(`^((?:x\\s*)?${NUM}\\s*${UNIT}?)\\s+(.+)$`, "i");
+const QTY_BACK = new RegExp(`^(.+?)\\s+((?:x\\s*)?${NUM}\\s*${UNIT}?)$`, "i");
+
+// Menge vorne oder hinten: "2 Liter Milch", "Maggi 2x", "Möhren 200g", "Milch 2" → { qty, text }
 export function splitQty(input) {
-  const m = input.trim().match(/^(\d+(?:[.,]\d+)?\s*(?:x|stk\.?|stück|kg|g|gr|l|liter|ml|pck\.?|packung(?:en)?|pkg|dosen?|flaschen?|becher|bund|netz|glas|gläser|tüten?|rollen?|kisten?|kästen?)?)\s+(.+)$/i);
-  return m ? { qty: m[1].trim(), text: m[2].trim() } : { qty: "", text: input.trim() };
+  const s = input.trim();
+  let m = s.match(QTY_FRONT);
+  if (m) return { qty: m[1].trim(), text: m[2].trim() };
+  m = s.match(QTY_BACK);
+  if (m) return { qty: m[2].trim().replace(/^x\s*(.+)$/i, "$1x"), text: m[1].trim() }; // "x2" → "2x"
+  return { qty: "", text: s };
 }

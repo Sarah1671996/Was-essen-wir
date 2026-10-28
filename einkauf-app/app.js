@@ -597,8 +597,10 @@ function itemRow(i) {
   const body = el("button", "itembody");
   body.setAttribute("aria-label", `${i.text} bearbeiten`);
   const line = el("span", "itemline");
-  if (i.qty) line.appendChild(el("span", "qty", i.qty));
-  line.appendChild(el("span", "itemtext", i.text));
+  // Menge steht rechts; ältere Einträge wie "Maggi 2x" werden beim Anzeigen auch aufgeteilt
+  const shown = i.qty ? { qty: i.qty, text: i.text } : splitQty(i.text);
+  line.appendChild(el("span", "itemtext", shown.text));
+  if (shown.qty) line.appendChild(el("span", "qty", shown.qty));
   body.appendChild(line);
   if (i.note) body.appendChild(el("span", "note", i.note));
   // Zusatzzeile nur, wenn sie etwas sagt: von jemand anderem, neu oder "gab's nicht" (eigene Einträge bleiben einzeilig)
@@ -891,11 +893,12 @@ $("#fCancel").onclick = () => $("#itemDlg").close();
 
 $("#itemForm").onsubmit = async e => {
   e.preventDefault();
-  const text = $("#fText").value.trim();
+  let text = $("#fText").value.trim(), qty = $("#fQty").value.trim();
   if (!text) return;
+  if (!qty) ({ qty, text } = splitQty(text)); // "Möhren 200g" im Namensfeld → Menge 200g
   const cat = $("#fCat").value;
   const data = {
-    text, qty: $("#fQty").value.trim(), note: $("#fNote").value.trim(), cat,
+    text, qty, note: $("#fNote").value.trim(), cat,
     urgent: $("#fUrgent").checked, photo: editPhoto || null, storeId: editStoreId
   };
   const ops = [{ type: "update", c: "items", id: editItem.id, data }];
