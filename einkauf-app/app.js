@@ -30,6 +30,8 @@ function el(tag, cls, text) {
   return e;
 }
 const guessCat = text => guessFrom(text, S.known, S.cats);
+// Was unter "Sonstiges" gelandet ist, wird mit der aktuellen Erkennung neu einsortiert (z. B. ältere "Entenbrust")
+const shownCat = i => catById(i.cat) && i.cat !== "sonst" ? i.cat : guessCat(i.text);
 // Alle Abteilungen: feste und selbst angelegte
 const cats = () => allCats(S.cats);
 const catById = id => cats().find(c => c.id === id);
@@ -502,7 +504,7 @@ function renderList() {
   // Dringendes ganz oben, der Rest nach Abteilungen in der Reihenfolge des Ladens
   const groups = [{ label: "❗ Dringend", list: open.filter(i => i.urgent) }, ...catsFor(s).map(cat => ({
     label: `${cat.emoji} ${cat.name}`,
-    list: open.filter(i => !i.urgent && (catById(i.cat) ? i.cat : "sonst") === cat.id)
+    list: open.filter(i => !i.urgent && shownCat(i) === cat.id)
   }))];
   for (const g of groups) {
     if (!g.list.length) continue;
@@ -901,7 +903,7 @@ function openItemDlg(i) {
   $("#fText").value = i.text;
   $("#fQty").value = i.qty || "";
   $("#fNote").value = i.note || "";
-  fillCatSelect(i.cat);
+  fillCatSelect(shownCat(i));
   $("#fUrgent").checked = !!i.urgent;
   $("#fError").textContent = "";
   $("#fMissing").hidden = i.done;
