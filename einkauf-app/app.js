@@ -86,6 +86,16 @@ function tripOf(m) {
 const myTrip = () => tripOf(S.members.find(m => m.id === S.uid) || {});
 const itemsOf = id => S.items.filter(i => i.storeId === id);
 const openOf = id => itemsOf(id).filter(i => !i.done);
+// Wer braucht den Eintrag (uid → eigene Menge)? Ohne "wants" nur die Person, die ihn eingetragen hat
+const wantsOf = i => i.wants && Object.keys(i.wants).length ? i.wants : { [i.by]: i.qty || "" };
+const forName = uid => uid === S.uid ? "dich" : (S.members.find(m => m.id === uid)?.name || "jemanden");
+// Gesamtmenge: "", "", "2x" → "4x"; sonst nebeneinander, z. B. "1l + 1"
+function sumQty(wants) {
+  const v = Object.values(wants).map(q => (q || "").trim());
+  if (v.length < 2) return v[0] || "";
+  if (v.every(q => /^(\d+\s*x?)?$/i.test(q))) return `${v.reduce((t, q) => t + (parseInt(q) || 1), 0)}x`;
+  return v.map(q => q || "1").join(" + ");
+}
 const sortedStores = () => [...S.stores].sort((a, b) => (a.order ?? a.createdAt ?? 0) - (b.order ?? b.createdAt ?? 0));
 
 /* ---------- Einrichtung ---------- */
@@ -606,10 +616,13 @@ function itemRow(i) {
   if (i.note) body.appendChild(el("span", "note", i.note));
   // Zusatzzeile nur, wenn sie etwas sagt: von jemand anderem, neu oder "gab's nicht" (eigene Einträge bleiben einzeilig)
   const meta = el("span", "itemmeta");
+  const wants = Object.entries(wantsOf(i));
+  if (wants.length > 1) meta.appendChild(el("span", "tag forall",
+    "für " + wants.map(([uid, q]) => forName(uid) + (q ? ` (${q})` : "")).join(" + ")));
   if (!i.done) {
     if (i.missing) meta.appendChild(el("span", "tag missing", `gab's nicht · ${when(i.missingAt)}`));
     if (isNew(i)) meta.appendChild(el("span", "tag new", "neu"));
-    if (i.by !== S.uid) meta.appendChild(document.createTextNode(`von ${nameOf(i.by)} · ${when(i.at)}`));
+    if (i.by !== S.uid && wants.length < 2) meta.appendChild(document.createTextNode(`von ${nameOf(i.by)} · ${when(i.at)}`));
   } else if (i.doneBy && i.doneBy !== S.uid) meta.appendChild(document.createTextNode(`von ${nameOf(i.doneBy)} besorgt`));
   if (meta.childNodes.length) body.appendChild(meta);
   body.onclick = () => openItemDlg(i);
@@ -663,14 +676,23 @@ const addItem = (raw, extra = {}) => addItems([raw], extra);
 
 // Mehrere Einträge auf einmal, z. B. "Milch, Eier, Brot" oder eine eingefügte WhatsApp-Liste
 async function addItems(raws, extra = {}) {
-  const open = new Set(openOf(S.current).map(i => norm(i.text)));
-  const ops = [], added = [], skipped = [];
+  const open = new Map(openOf(S.current).map(i => [norm(i.text), i]));
+  const ops = [], added = [], skipped = [], joined = [];
   const now = Date.now();
   for (const raw of raws) {
     const { qty, text } = splitQty(raw);
     if (!text) continue;
-    if (open.has(norm(text))) { skipped.push(text); continue; }
-    open.add(norm(text));
+    const have = open.get(norm(text));
+    if (have !== undefined) {
+      // Steht schon drauf: von mir → nichts tun; von jemand anderem → ich brauche es auch
+      if (!have || S.uid in wantsOf(have)) { skipped.push(text); continue; }
+      const wants = { ...wantsOf(have), [S.uid]: qty };
+      ops.push({ type: "update", c: "items", id: have.id, data: { wants, qty: sumQty(wants) } });
+      open.set(norm(text), null);
+      joined.push({ text, wants });
+      continue;
+    }
+    open.set(norm(text), null);
     const cat = extra.cat || guessCat(text);
     const at = now + added.length;
     const k = S.known.find(x => x.id === keyOf(text));
@@ -680,11 +702,15 @@ async function addItems(raws, extra = {}) {
     );
     added.push(text);
   }
-  if (skipped.length) toast(skipped.length === 1 ? `„${skipped[0]}“ steht schon drauf` : `Stand schon drauf: ${skipped.join(", ")}`);
+  if (skipped.length && !joined.length) toast(skipped.length === 1 ? `„${skipped[0]}“ steht schon drauf` : `Stand schon drauf: ${skipped.join(", ")}`);
   if (!ops.length) return;
   try {
     await house.batch(ops);
-    if (added.length > 1 && !skipped.length) toast(`${added.length} Einträge hinzugefügt`);
+    if (joined.length === 1 && !skipped.length) {
+      const { text, wants } = joined[0];
+      toast(`„${text}“ stand schon drauf, jetzt für ${Object.keys(wants).map(forName).join(" und ")} (${sumQty(wants)})`);
+    } else if (joined.length) toast(`Jetzt auch für dich: ${joined.map(j => j.text).join(", ")}` + (skipped.length ? ` · schon drauf: ${skipped.join(", ")}` : ""));
+    else if (added.length > 1 && !skipped.length) toast(`${added.length} Einträge hinzugefügt`);
   } catch (e) { console.error(e); fail("Speichern")(); }
 }
 
@@ -830,7 +856,7 @@ function renderOften() {
 }
 
 /* ---------- Eintrag-Dialog ---------- */
-let editItem = null, editPhoto = null, editStoreId = null;
+let editItem = null, editPhoto = null, editStoreId = null, editWants = {};
 // Abteilungs-Auswahl im Eintrag-Dialog, mit "Neue Abteilung …" am Ende
 function fillCatSelect(value) {
   const sel = $("#fCat");
@@ -859,9 +885,29 @@ function openItemDlg(i) {
   $("#fMissing").hidden = i.done;
   $("#fMissing").textContent = i.missing ? "Doch wieder suchen" : "Gab's nicht";
   $("#fMeta").textContent = `Eingetragen von ${nameOf(i.by)}, ${when(i.at)}` + (i.done ? ` · besorgt ${when(i.doneAt)}` : "");
+  editWants = { ...wantsOf(i) };
   renderPhoto();
   renderStoreChips();
+  renderWantChips();
   $("#itemDlg").showModal();
+}
+// "Für wen?": jede Person antippbar, mindestens eine bleibt
+function renderWantChips() {
+  const box = $("#fWants");
+  box.textContent = "";
+  $("#fWantsRow").hidden = S.members.length < 2;
+  S.members.forEach(m => {
+    const on = m.id in editWants;
+    const b = el("button", "chip" + (on ? " on" : ""), m.id === S.uid ? `${m.name} (du)` : m.name);
+    b.type = "button";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.onclick = () => {
+      if (on && Object.keys(editWants).length > 1) delete editWants[m.id];
+      else if (!on) editWants[m.id] = "";
+      renderWantChips();
+    };
+    box.appendChild(b);
+  });
 }
 function renderPhoto() {
   $("#fPhoto").hidden = !editPhoto;
@@ -897,9 +943,14 @@ $("#itemForm").onsubmit = async e => {
   let text = $("#fText").value.trim(), qty = $("#fQty").value.trim();
   if (!text) return;
   if (!qty) ({ qty, text } = splitQty(text)); // "Möhren 200g" im Namensfeld → Menge 200g
+  // Für mehrere Personen: Gesamtmenge neu rechnen, solange niemand die Menge von Hand geändert hat
+  const people = Object.keys(editWants);
+  const sameKeys = people.length === Object.keys(wantsOf(editItem)).length && people.every(u => u in wantsOf(editItem));
+  if (!sameKeys && qty === (editItem.qty || "")) qty = sumQty(editWants);
+  if (people.length === 1) editWants[people[0]] = qty;
   const cat = $("#fCat").value;
   const data = {
-    text, qty, note: $("#fNote").value.trim(), cat,
+    text, qty, note: $("#fNote").value.trim(), cat, wants: people.length > 1 ? editWants : null,
     urgent: $("#fUrgent").checked, photo: editPhoto || null, storeId: editStoreId
   };
   const ops = [{ type: "update", c: "items", id: editItem.id, data }];

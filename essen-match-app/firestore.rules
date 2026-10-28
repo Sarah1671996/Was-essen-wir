@@ -89,7 +89,8 @@ service cloud.firestore {
         allow read, delete: if signedIn();
         allow create, update: if signedIn() && open()
           && d().keys().hasOnly(["text", "qty", "note", "cat", "storeId", "done", "urgent", "by", "at", "photo",
-                                 "missing", "missingAt", "missingBy", "doneBy", "doneAt"])
+                                 "missing", "missingAt", "missingBy", "doneBy", "doneAt", "wants"])
+          && (!("wants" in d()) || d().wants == null || (d().wants is map && d().wants.size() <= 10))
           && needStr("text", 100) && str("qty", 30) && str("note", 200) && str("cat", 64) && needStr("storeId", 64)
           && flag("done") && flag("urgent") && flag("missing") && num("at") && num("missingAt") && num("doneAt")
           && idOrNull("by") && idOrNull("missingBy") && idOrNull("doneBy") && photoOk();

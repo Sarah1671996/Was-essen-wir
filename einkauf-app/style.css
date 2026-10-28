@@ -172,6 +172,7 @@ label { font-weight: 700; font-size: .9rem; color: var(--muted); margin-top: 6px
 .note { color: var(--ink); font-size: .88rem; opacity: .8; }
 .itemmeta { font-size: .78rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .itemmeta .tag { padding: 1px 8px; }
+.itemmeta .tag.forall { background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--ink); font-weight: 700; }
 .thumb {
   width: 42px; height: 42px; border-radius: 9px; flex: none; border: 0; padding: 0;
   background: var(--chip) center / cover no-repeat;
