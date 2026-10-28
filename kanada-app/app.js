@@ -124,6 +124,7 @@ function receiveRemote(R) {
   knownIds = idsOf(T);
   if (same) St.adopt(T); else St.save(T); // Eigene Änderungen waren dabei → zurückschicken
   repairAndTell();
+  setTimeout(locateMissing, 1500);
   render();
 }
 
@@ -579,7 +580,7 @@ function wishRow(s, w, dayOpts, start) {
   return `<li class="wish">
     <div class="thumb" data-photo="${esc(p.name)}" data-lat="${p.lat}" data-lng="${p.lng}" aria-hidden="true"></div>
     <div class="wishmain"><strong>${start != null ? `<span class="wtime">${P.hhmm(start)}</span> ` : ""}${esc(p.name)}</strong>
-      <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${tr.real ? "" : "≈ "}${P.dur(tr.min)} von ${esc(home.lodging || "der Unterkunft")}
+      <span class="small">${p.res ? "🎟️ " : ""}${p.when === "früh" ? "🌅 " : p.when === "abends" ? "🌇 " : ""}${tr.real ? "" : "≈ "}${P.dur(tr.min)} ${home.lodging ? `von ${esc(home.lodging)}` : `ab Ortsmitte ${esc(s.name)}${T.lodgings.some(l => l.stopId === s.id && l.status === "gebucht") ? ` <span class="warntext">(Lage der Unterkunft fehlt)</span>` : ""}`}
         · <a href="${esc(mapsRoute([home, p]))}" target="_blank" rel="noopener">Strecke in Google Maps ↗</a>${w.sid ? "" : ` · <a href="${mapsPlace(p)}" target="_blank" rel="noopener">📍 ${esc(p.place || "Ort ansehen")}</a>`}</span>
       <span class="small costedit">${costChip(p.c)}${p.cOwn ? ` <span class="tag">eigener Preis</span>` : p.cn ? ` ${esc(p.cn)}` : ""}
         <label class="inline">✎ <input class="mini" inputmode="decimal" data-change="wish-cost" data-id="${w.id}" value="${w.c == null ? "" : w.c === 0 ? "0" : numIn(w.c)}" placeholder="${base && typeof base.c === "number" && base.c > 0 ? base.c : "?"}" aria-label="Eintritt in CAD pro Person"> CAD p. P.</label>
@@ -1273,6 +1274,7 @@ function lodgeCard(l, s) {
       <button class="linkbtn" data-act="lodge-edit" data-id="${l.id}">Bearbeiten</button></div>
     <p class="small">${esc(l.platform || "")}${l.platform ? " · " : ""}${fmtShort(l.checkIn)} – ${fmtShort(l.checkOut)}${total ? ` · ${money(total)} (${money(per)}/Nacht)` : ""}${l.cur === "CAD" ? ` · ${money(num(l.total), "CAD")}` : ""}</p>
     ${(() => { if (!per) return ""; const la = Adv.lodgingAdvice(per / rate(), l.checkIn, !!BASES.find(b => b.id === s?.baseId)?.park); return `<p class="small">💶 ${money(per / rate(), "CAD")}/Nacht ist für ${Adv.SEASON_LABEL[la.season]} hier <strong class="${la.level === "teuer" ? "warntext" : la.level === "günstig" ? "goodtext" : ""}">${la.level}</strong> (üblich ca. ${la.range[0]}–${la.range[1]} CAD)</p>`; })()}
+    ${l.lat != null && !lodgeFar(l, s) ? `<p class="small goodtext">📍 Fahrzeiten im Tagesplan rechnen ab dieser Unterkunft${l.status !== "gebucht" ? " (sobald sie als gebucht markiert ist)" : ""}.</p>` : l.lat == null && (l.address || l.name) ? `<p class="small warntext">📍 ${locating && l.geoTried !== (l.address || l.name) ? "Suche die Adresse auf der Karte …" : "Adresse nicht auf der Karte gefunden – Fahrzeiten rechnen ab Ortsmitte. Unter „Bearbeiten“ → „📍 Lage suchen“ den richtigen Treffer wählen."}</p>` : ""}
     ${lodgeFar(l, s) ? `<p class="small warntext">📍 Die gespeicherte Lage liegt ${Math.round(P.km(l, s))} km von ${esc(s.name)} entfernt – vermutlich falsch gefunden. Bitte unter „Bearbeiten“ → „📍 Lage suchen“ korrigieren. Bis dahin rechnet die App ab ${esc(s.name)}.</p>` : ""}
     ${l.cancelUntil ? `<p class="small ${dl != null && dl <= 7 && dl >= 0 ? "warntext" : ""}">${dl < 0 ? "Kostenlose Stornierung abgelaufen" : `Kostenlos stornierbar bis ${fmtD(l.cancelUntil)} (${dl === 0 ? "heute" : `noch ${plural(dl, "Tag", "Tage")}`})`}</p>` : ""}
     ${l.note ? `<p class="small">${esc(l.note)}</p>` : ""}
@@ -1737,11 +1739,19 @@ function lodgeSheet(l, stopId, draft) {
       checkIn: fd.get("checkIn"), checkOut: fd.get("checkOut"), total: num(fd.get("total")), cur: fd.get("cur"),
       cancelUntil: fd.get("cancelUntil") || "", stopId: fd.get("stopId") || s?.id || "", note: String(fd.get("note") || "").slice(0, 300)
     };
-    if (data.lat == null) { delete data.lat; delete data.lng; }
-    if (isNew) T.lodgings.push({ id: St.newId(), offers: [], ...data });
-    else Object.assign(l, data);
+    // Adresse geändert, aber keinen neuen Treffer gewählt → alte Lage gilt nicht mehr, neu suchen
+    const addrChanged = !isNew && data.address !== (l.address || "") && data.lat === (l.lat ?? null);
+    if (data.lat == null || addrChanged) { data.lat = null; data.lng = null; }
+    const obj = isNew ? { id: St.newId(), offers: [], ...data } : Object.assign(l, data);
+    if (isNew) T.lodgings.push(obj);
     commit();
-    toast("Gespeichert");
+    if (obj.lat == null && (obj.address || obj.name)) {
+      toast("Gespeichert – suche die Adresse auf der Karte …");
+      locateLodging(obj).then(ok => {
+        commit();
+        toast(ok ? `📍 Lage von ${obj.name} gefunden – Fahrzeiten rechnen jetzt ab dort` : `📍 Adresse von ${obj.name} nicht gefunden – bitte „Lage suchen“ nutzen`);
+      });
+    } else toast("Gespeichert");
   }, body => {
     const f = body.querySelector("form"), out = body.querySelector("#addrList");
     body.querySelector("#addrSearch").onclick = async () => {
@@ -2450,6 +2460,36 @@ function demoTrip() {
 }
 
 /* ---------- Start ---------- */
+// Adresse einer Unterkunft auf der Karte suchen; Treffer müssen in der Nähe des Ortes liegen
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function locateLodging(l) {
+  const s = stopById(l.stopId);
+  const qs = [...new Set([l.address, l.address && s ? `${l.address}, ${s.name}` : "", l.name && s ? `${l.name}, ${s.name}` : ""].filter(Boolean))];
+  for (const [i, q] of qs.entries()) {
+    if (i) await sleep(1100); // Ortssuche erlaubt eine Anfrage pro Sekunde
+    try {
+      const hits = await geocode(q);
+      const hit = s ? hits.filter(h => P.km(h, s) <= 60).sort((a, b) => P.km(a, s) - P.km(b, s))[0] : hits[0];
+      if (hit) { l.lat = hit.lat; l.lng = hit.lng; l.geoQ = q; delete l.geoTried; return true; }
+    } catch {}
+  }
+  l.geoTried = l.address || l.name;
+  return false;
+}
+// Schon eingetragene Unterkünfte mit Adresse, aber ohne Lage, im Hintergrund nachsuchen
+let locating = false;
+async function locateMissing() {
+  if (locating || !T) return;
+  const todo = T.lodgings.filter(l => l.lat == null && (l.address || l.name) && l.geoTried !== (l.address || l.name));
+  if (!todo.length) return;
+  locating = true;
+  const found = [];
+  for (const l of todo) { if (await locateLodging(l)) found.push(l.name); await sleep(1100); }
+  locating = false;
+  commit();
+  if (found.length) toast(`📍 Lage gefunden: ${found.join(", ")} – Fahrzeiten rechnen jetzt ab der Unterkunft`);
+}
+
 function repairAndTell() {
   const fixed = repairWishes();
   if (fixed.length) { St.save(T); setTimeout(() => toast(`Korrigiert: ${fixed.join(", ")}`), 600); }
@@ -2457,7 +2497,7 @@ function repairAndTell() {
 St.onSync(receiveRemote, mode => { $("#syncBadge").hidden = mode !== "sync"; $("#syncBadge").classList.toggle("err", mode === "fehler"); });
 document.querySelectorAll(".nav button").forEach(b => b.onclick = () => ACT.tab({ tab: b.dataset.tab }));
 // Mit Reisecode erst nach dem Abgleich reparieren, sonst würde der lokale Stand den neueren vom anderen Gerät überschreiben
-if (T) { T = Object.assign(blankTrip(), T); if (!St.canSync || !St.savedCode()) repairAndTell(); }
+if (T) { T = Object.assign(blankTrip(), T); if (!St.canSync || !St.savedCode()) { repairAndTell(); setTimeout(locateMissing, 1500); } }
 render();
 if (St.canSync) {
   const fromLink = St.cleanCode(new URLSearchParams(location.search).get("code"));

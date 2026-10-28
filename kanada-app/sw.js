@@ -1,7 +1,7 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Kartenkacheln werden zusätzlich gemerkt, damit schon angesehene Karten unterwegs ohne Netz gehen.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "kanada-v18";
+const CACHE = "kanada-v19";
 const TILES = "kanada-tiles";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "plan.js", "data.js", "links.js", "store.js", "../essen-match-app/firebase-config.js",
