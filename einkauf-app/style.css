@@ -194,6 +194,8 @@ dialog {
 dialog::backdrop { background: rgba(20, 14, 6, .45); }
 .dlg { padding: 20px; display: grid; gap: 8px; }
 .dlg h2 { font-size: 1.5rem; margin-bottom: 4px; }
+/* Griff oben: zeigt, dass man den Dialog nach unten wegziehen kann */
+.grabber { justify-self: center; width: 44px; height: 5px; border-radius: 3px; background: var(--muted); opacity: .45; margin: -8px 0 2px; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .row2 label { margin-top: 0; }
 .dlgactions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 12px; }

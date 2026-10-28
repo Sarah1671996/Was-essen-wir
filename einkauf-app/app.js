@@ -721,15 +721,21 @@ function splitList(text, spoken = false) {
     .filter(Boolean);
 }
 
-$("#addForm").onsubmit = e => {
-  e.preventDefault();
+function addFromInput(refocus) {
   const v = $("#addInput").value.trim();
   if (!v) return;
   $("#addInput").value = "";
   hideSuggest();
   addItems(splitList(v));
-  $("#addInput").focus();
-};
+  if (refocus) $("#addInput").focus();
+}
+$("#addForm").onsubmit = e => { e.preventDefault(); addFromInput(true); };
+// Manche Handy-Tastaturen schicken beim ✓ kein Enter, sondern einen Zeilenumbruch oder schließen nur die Tastatur:
+// beides zählt auch als "übernehmen"
+$("#addInput").addEventListener("beforeinput", e => {
+  if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") { e.preventDefault(); addFromInput(true); }
+});
+$("#addInput").addEventListener("blur", () => addFromInput(false));
 $("#addInput").onpaste = e => {
   const text = e.clipboardData?.getData("text") || "";
   if (!/[\n,;]/.test(text.trim())) return; // ein einzelner Begriff wird ganz normal eingefügt
@@ -937,6 +943,39 @@ $("#fPhotoInput").onchange = $("#fGalleryInput").onchange = async e => {
 $("#fPhotoDel").onclick = () => { editPhoto = null; renderPhoto(); };
 $("#fPhoto").onclick = () => showPhoto(editPhoto);
 $("#fCancel").onclick = () => $("#itemDlg").close();
+// Schließen ohne "Abbrechen" speichert: Zurück-Taste, daneben tippen oder nach unten wischen
+const saveItemDlg = () => $("#itemForm").requestSubmit();
+$("#itemDlg").addEventListener("cancel", e => { e.preventDefault(); saveItemDlg(); });
+$("#itemDlg").addEventListener("click", e => { if (e.target === e.currentTarget) saveItemDlg(); });
+swipeDown($("#itemDlg"), saveItemDlg);
+
+// Dialog mit dem Finger nach unten ziehen; weit genug → onDone, sonst zurückschnappen
+function swipeDown(dlg, onDone) {
+  let y0 = null, dy = 0;
+  dlg.addEventListener("touchstart", e => {
+    const field = e.target.closest("input, textarea, select");
+    y0 = dlg.scrollTop <= 0 && !field ? e.touches[0].clientY : null;
+    dy = 0;
+  }, { passive: true });
+  dlg.addEventListener("touchmove", e => {
+    if (y0 === null) return;
+    dy = Math.max(0, e.touches[0].clientY - y0);
+    if (dlg.scrollTop > 0) { y0 = null; dy = 0; }
+    dlg.style.transform = dy ? `translateY(${dy}px)` : "";
+    dlg.style.opacity = dy ? String(Math.max(.4, 1 - dy / 500)) : "";
+  }, { passive: true });
+  const end = () => {
+    if (y0 === null) return;
+    const done = dy > 100;
+    y0 = null; dy = 0;
+    dlg.style.transition = "transform .18s, opacity .18s";
+    dlg.style.transform = ""; dlg.style.opacity = "";
+    setTimeout(() => { dlg.style.transition = ""; }, 200);
+    if (done) onDone();
+  };
+  dlg.addEventListener("touchend", end);
+  dlg.addEventListener("touchcancel", () => { dy = 0; end(); });
+}
 
 $("#itemForm").onsubmit = async e => {
   e.preventDefault();
