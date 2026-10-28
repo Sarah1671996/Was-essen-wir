@@ -192,6 +192,9 @@ dialog {
   width: min(560px, calc(100vw - 24px)); max-height: calc(100dvh - 24px); box-shadow: var(--shadow);
 }
 dialog::backdrop { background: rgba(20, 14, 6, .45); }
+/* Bei offenem Fenster kein "Ziehen zum Aktualisieren", damit Runterwischen das Fenster schließt statt neu zu laden */
+dialog { overscroll-behavior: contain; }
+html:has(dialog[open]), html:has(dialog[open]) body { overscroll-behavior-y: none; }
 .dlg { padding: 20px; display: grid; gap: 8px; }
 .dlg h2 { font-size: 1.5rem; margin-bottom: 4px; }
 /* Griff oben: zeigt, dass man den Dialog nach unten wegziehen kann */

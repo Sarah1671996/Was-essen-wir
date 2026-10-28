@@ -190,7 +190,8 @@ function setView(view, storeId = null, replace = false) {
   const url = location.pathname + location.search + hash;
   if (replace) history.replaceState({ v: view, s: storeId }, "", url);
   else history.pushState({ v: view, s: storeId }, "", url);
-  if (S.current) { $("#addInput").value = ""; hideSuggest(); }
+  // Angefangener Text bleibt pro Laden liegen, auch wenn die App zwischendurch geschlossen wird
+  if (S.current) { $("#addInput").value = ls.get("ek.draft." + S.current) || ""; hideSuggest(); }
   document.querySelectorAll(".scroll").forEach(s => { s.scrollTop = 0; });
 }
 function applyView(view, storeId) {
@@ -725,6 +726,7 @@ function addFromInput(refocus) {
   const v = $("#addInput").value.trim();
   if (!v) return;
   $("#addInput").value = "";
+  ls.del("ek.draft." + S.current);
   hideSuggest();
   addItems(splitList(v));
   if (refocus) $("#addInput").focus();
@@ -735,7 +737,20 @@ $("#addForm").onsubmit = e => { e.preventDefault(); addFromInput(true); };
 $("#addInput").addEventListener("beforeinput", e => {
   if (e.inputType === "insertLineBreak" || e.inputType === "insertParagraph") { e.preventDefault(); addFromInput(true); }
 });
-$("#addInput").addEventListener("blur", () => addFromInput(false));
+$("#addInput").addEventListener("blur", () => {
+  const store = S.current;
+  // Kurz abwarten: App-Wechsel oder Zurück zur Übersicht lassen den Text als Entwurf stehen
+  setTimeout(() => {
+    if (document.visibilityState !== "visible" || !document.hasFocus()) return;
+    if (document.activeElement === $("#addInput") || S.current !== store) return;
+    addFromInput(false);
+  }, 300);
+});
+$("#addInput").addEventListener("input", () => {
+  if (!S.current) return;
+  const v = $("#addInput").value;
+  v.trim() ? ls.set("ek.draft." + S.current, v) : ls.del("ek.draft." + S.current);
+});
 $("#addInput").onpaste = e => {
   const text = e.clipboardData?.getData("text") || "";
   if (!/[\n,;]/.test(text.trim())) return; // ein einzelner Begriff wird ganz normal eingefügt
@@ -759,7 +774,7 @@ if (Speech) {
     rec.onresult = e => {
       const r = e.results[e.results.length - 1];
       input.value = r[0].transcript;
-      if (r.isFinal) { input.value = ""; addItems(splitList(r[0].transcript, true)); }
+      if (r.isFinal) { input.value = ""; ls.del("ek.draft." + S.current); addItems(splitList(r[0].transcript, true)); }
     };
     rec.onerror = e => { if (e.error === "not-allowed") toast("Bitte erlaube den Zugriff aufs Mikrofon"); };
     rec.onend = () => { rec = null; btn.classList.remove("listening"); input.placeholder = "Was fehlt?"; };
@@ -787,6 +802,7 @@ $("#addInput").oninput = () => {
     b.onclick = () => {
       const { qty } = splitQty($("#addInput").value);
       $("#addInput").value = "";
+      ls.del("ek.draft." + S.current);
       hideSuggest();
       addItem((qty ? qty + " " : "") + k.text, { cat: k.cat });
       $("#addInput").focus();
@@ -953,17 +969,17 @@ swipeDown($("#itemDlg"), saveItemDlg);
 function swipeDown(dlg, onDone) {
   let y0 = null, dy = 0;
   dlg.addEventListener("touchstart", e => {
-    const field = e.target.closest("input, textarea, select");
-    y0 = dlg.scrollTop <= 0 && !field ? e.touches[0].clientY : null;
+    y0 = dlg.scrollTop <= 0 && !e.target.closest("select") ? e.touches[0].clientY : null;
     dy = 0;
   }, { passive: true });
   dlg.addEventListener("touchmove", e => {
     if (y0 === null) return;
-    dy = Math.max(0, e.touches[0].clientY - y0);
+    dy = Math.max(0, e.touches[0].clientY - y0 - 8); // ein kleines Zittern beim Antippen zählt nicht
     if (dlg.scrollTop > 0) { y0 = null; dy = 0; }
+    if (dy && e.cancelable) e.preventDefault(); // sonst lädt der Browser die Seite neu ("Ziehen zum Aktualisieren")
     dlg.style.transform = dy ? `translateY(${dy}px)` : "";
     dlg.style.opacity = dy ? String(Math.max(.4, 1 - dy / 500)) : "";
-  }, { passive: true });
+  }, { passive: false });
   const end = () => {
     if (y0 === null) return;
     const done = dy > 100;
