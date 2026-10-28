@@ -598,7 +598,8 @@ function itemRow(i) {
   body.setAttribute("aria-label", `${i.text} bearbeiten`);
   const line = el("span", "itemline");
   // Menge steht rechts; ältere Einträge wie "Maggi 2x" werden beim Anzeigen auch aufgeteilt
-  const shown = i.qty ? { qty: i.qty, text: i.text } : splitQty(i.text);
+  const p = splitQty(i.text);
+  const shown = { text: p.text, qty: [i.qty, p.qty].filter(Boolean).join(" · ") };
   line.appendChild(el("span", "itemtext", shown.text));
   if (shown.qty) line.appendChild(el("span", "qty", shown.qty));
   body.appendChild(line);
