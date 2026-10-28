@@ -89,7 +89,9 @@ const myTrip = () => tripOf(S.members.find(m => m.id === S.uid) || {});
 const itemsOf = id => S.items.filter(i => i.storeId === id);
 const openOf = id => itemsOf(id).filter(i => !i.done);
 // Wer braucht den Eintrag (uid → eigene Menge)? Ohne "wants" nur die Person, die ihn eingetragen hat
-const wantsOf = i => i.wants && Object.keys(i.wants).length ? i.wants : { [i.by]: i.qty || "" };
+const wantsOf = i => i.wants && Object.keys(i.wants).length ? i.wants : { [i.by]: i.qty || splitQty(i.text).qty };
+// Gleicher Eintrag? Ohne Menge, Groß/Klein, Satzzeichen und einfache Mehrzahl ("Möhre"/"Möhren", "Entenbrust 2x"/"entenbrust")
+const sameKey = text => norm(splitQty(text).text).replace(/[^\p{L}\p{N}]+/gu, "").replace(/(en|n|e|s)$/, "");
 const forName = uid => uid === S.uid ? "dich" : (S.members.find(m => m.id === uid)?.name || "jemanden");
 // Gesamtmenge: "", "", "2x" → "4x"; sonst nebeneinander, z. B. "1l + 1"
 function sumQty(wants) {
@@ -679,23 +681,27 @@ const addItem = (raw, extra = {}) => addItems([raw], extra);
 
 // Mehrere Einträge auf einmal, z. B. "Milch, Eier, Brot" oder eine eingefügte WhatsApp-Liste
 async function addItems(raws, extra = {}) {
-  const open = new Map(openOf(S.current).map(i => [norm(i.text), i]));
-  const ops = [], added = [], skipped = [], joined = [];
+  const open = new Map(openOf(S.current).map(i => [sameKey(i.text), i]));
+  const ops = [], added = [], skipped = [], joined = [], elsewhere = [];
   const now = Date.now();
   for (const raw of raws) {
     const { qty, text } = splitQty(raw);
     if (!text) continue;
-    const have = open.get(norm(text));
+    const key = sameKey(text);
+    const have = open.get(key);
     if (have !== undefined) {
       // Steht schon drauf: von mir → nichts tun; von jemand anderem → ich brauche es auch
       if (!have || S.uid in wantsOf(have)) { skipped.push(text); continue; }
       const wants = { ...wantsOf(have), [S.uid]: qty };
-      ops.push({ type: "update", c: "items", id: have.id, data: { wants, qty: sumQty(wants) } });
-      open.set(norm(text), null);
-      joined.push({ text, wants });
+      ops.push({ type: "update", c: "items", id: have.id, data: { wants, qty: sumQty(wants), text: splitQty(have.text).text } });
+      open.set(key, null);
+      joined.push({ text: splitQty(have.text).text, wants });
       continue;
     }
-    open.set(norm(text), null);
+    open.set(key, null);
+    // Steht es auf einer anderen Liste? Dann trotzdem hier eintragen, aber Bescheid sagen
+    const other = S.items.find(i => !i.done && i.storeId !== S.current && sameKey(i.text) === key);
+    if (other) elsewhere.push(`„${text}“ steht auch auf ${storeById(other.storeId)?.name || "einer anderen Liste"}`);
     const cat = extra.cat || guessCat(text);
     const at = now + added.length;
     const k = S.known.find(x => x.id === keyOf(text));
@@ -713,6 +719,7 @@ async function addItems(raws, extra = {}) {
       const { text, wants } = joined[0];
       toast(`„${text}“ stand schon drauf, jetzt für ${Object.keys(wants).map(forName).join(" und ")} (${sumQty(wants)})`);
     } else if (joined.length) toast(`Jetzt auch für dich: ${joined.map(j => j.text).join(", ")}` + (skipped.length ? ` · schon drauf: ${skipped.join(", ")}` : ""));
+    else if (elsewhere.length) toast(elsewhere.join(" · "));
     else if (added.length > 1 && !skipped.length) toast(`${added.length} Einträge hinzugefügt`);
   } catch (e) { console.error(e); fail("Speichern")(); }
 }
@@ -790,9 +797,9 @@ $("#addInput").oninput = () => {
   const q = norm(text);
   const box = $("#suggest");
   if (q.length < 2) return hideSuggest();
-  const openNow = new Set(openOf(S.current).map(i => norm(i.text)));
+  const openNow = new Set(openOf(S.current).map(i => sameKey(i.text)));
   const hits = S.known
-    .filter(k => !openNow.has(norm(k.text)) && norm(k.text) !== q && norm(k.text).includes(q))
+    .filter(k => !openNow.has(sameKey(k.text)) && norm(k.text) !== q && norm(k.text).includes(q))
     .sort((a, b) => (norm(b.text).startsWith(q) - norm(a.text).startsWith(q)) || b.count - a.count)
     .slice(0, 5);
   if (!hits.length) return hideSuggest();
@@ -847,9 +854,9 @@ $("#oftenClear").onclick = () => {
 
 function renderOften() {
   const id = S.current;
-  const openNow = new Set(openOf(id).map(i => norm(i.text)));
+  const openNow = new Set(openOf(id).map(i => sameKey(i.text)));
   const all = S.known
-    .filter(k => k.stores?.[id] && !openNow.has(norm(k.text)) && (k.count || 0) >= 2)
+    .filter(k => k.stores?.[id] && !openNow.has(sameKey(k.text)) && (k.count || 0) >= 2)
     .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, "de"));
   if (!all.length) oftenEditing = false;
   // Beim Bearbeiten immer alle zeigen
