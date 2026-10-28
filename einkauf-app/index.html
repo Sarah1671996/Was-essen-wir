@@ -86,7 +86,10 @@
   <section id="list" class="view" hidden>
     <header class="listtop" id="listTop">
       <button class="iconbtn back" id="backBtn" aria-label="Zurück zur Übersicht">‹</button>
-      <h1 id="listTitle"></h1>
+      <div class="listtitle">
+        <h1 id="listTitle"></h1>
+        <p id="listSub"></p>
+      </div>
       <button class="iconbtn adv" id="historyBtn" aria-label="Verlauf: was schon gekauft wurde">🕘</button>
       <button class="iconbtn adv" id="storeEditBtn" aria-label="Laden bearbeiten">✎</button>
     </header>
@@ -98,6 +101,8 @@
     </form>
     <div class="suggest" id="suggest" hidden></div>
     <div class="scroll" id="listScroll">
+      <div id="items"></div>
+      <!-- Vorschläge unter der Liste: erst kommt, was gekauft werden soll -->
       <div id="often" class="often" hidden>
         <div class="oftenhead">
           <p class="sectionlabel">Oft gekauft</p>
@@ -109,7 +114,6 @@
         <p class="small" id="oftenEditHint" hidden>Tippe auf einen Vorschlag, um ihn zu entfernen. <button class="linkbtn danger" id="oftenClear">Alle entfernen</button></p>
         <div class="chips" id="oftenChips"></div>
       </div>
-      <div id="items"></div>
       <button class="btn ghost wide adv" id="importBtn">📋 Liste aus anderer App übernehmen</button>
       <p class="small hint" id="swipeHint" hidden>Tipp: Zum Abhaken kannst du einen Eintrag auch nach rechts wischen.</p>
     </div>

@@ -478,6 +478,9 @@ function renderList() {
   box.textContent = "";
   const all = itemsOf(s.id);
   const open = all.filter(i => !i.done), done = all.filter(i => i.done);
+  $("#listSub").textContent = open.length || done.length
+    ? [open.length ? `${open.length} offen` : "alles besorgt", done.length ? `${done.length} im Wagen` : ""].filter(Boolean).join(" · ")
+    : "";
 
   if (!all.length) {
     box.appendChild(el("div", "notice", `Die Liste für ${s.name} ist leer. Schreib oben rein, was fehlt. Alle sehen es sofort.`));
@@ -598,14 +601,14 @@ function itemRow(i) {
   line.appendChild(el("span", "itemtext", i.text));
   body.appendChild(line);
   if (i.note) body.appendChild(el("span", "note", i.note));
+  // Zusatzzeile nur, wenn sie etwas sagt: von jemand anderem, neu oder "gab's nicht" (eigene Einträge bleiben einzeilig)
   const meta = el("span", "itemmeta");
-  if (i.urgent && !i.done) meta.appendChild(el("span", "tag urgent", "dringend"));
-  if (i.missing && !i.done) meta.appendChild(el("span", "tag missing", `gab's nicht · ${when(i.missingAt)}`));
-  if (isNew(i) && !i.done) meta.appendChild(el("span", "tag new", "neu"));
-  meta.appendChild(document.createTextNode(i.done
-    ? `${i.doneBy === S.uid ? "von dir" : "von " + nameOf(i.doneBy)} besorgt`
-    : `von ${nameOf(i.by)} · ${when(i.at)}`));
-  body.appendChild(meta);
+  if (!i.done) {
+    if (i.missing) meta.appendChild(el("span", "tag missing", `gab's nicht · ${when(i.missingAt)}`));
+    if (isNew(i)) meta.appendChild(el("span", "tag new", "neu"));
+    if (i.by !== S.uid) meta.appendChild(document.createTextNode(`von ${nameOf(i.by)} · ${when(i.at)}`));
+  } else if (i.doneBy && i.doneBy !== S.uid) meta.appendChild(document.createTextNode(`von ${nameOf(i.doneBy)} besorgt`));
+  if (meta.childNodes.length) body.appendChild(meta);
   body.onclick = () => openItemDlg(i);
   row.appendChild(body);
 

@@ -122,49 +122,60 @@ label { font-weight: 700; font-size: .9rem; color: var(--muted); margin-top: 6px
 
 /* ---------- Liste ---------- */
 .listtop {
-  display: flex; align-items: center; gap: 10px;
-  padding: calc(10px + env(safe-area-inset-top, 0px)) var(--gutter-r) 10px var(--gutter-l);
+  display: flex; align-items: center; gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) var(--gutter-r) 8px var(--gutter-l);
   background: var(--c); color: #fff;
 }
-.listtop h1 { flex: 1; font-size: 1.6rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.listtitle { flex: 1; min-width: 0; }
+.listtop h1 { font-size: 1.45rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.15; }
+#listSub { margin: 0; font-size: .82rem; font-weight: 600; opacity: .9; }
+#listSub:empty { display: none; }
 .listtop .iconbtn { background: rgba(255, 255, 255, .22); color: #fff; }
 .back { font-size: 2rem; line-height: 1; padding-bottom: 4px; }
 
-.addbar { display: flex; gap: 8px; padding: 12px var(--gutter-r) 6px var(--gutter-l); }
-.addbar input { flex: 1; min-width: 0; font-size: 1.1rem; min-height: 56px; }
-.btn.add { width: 56px; min-height: 56px; padding: 0; font-size: 1.8rem; flex: none; }
+.addbar { display: flex; gap: 8px; padding: 10px var(--gutter-r) 4px var(--gutter-l); }
+.addbar input { flex: 1; min-width: 0; font-size: 1.1rem; min-height: 52px; }
+.btn.add { width: 52px; min-height: 52px; padding: 0; font-size: 1.8rem; flex: none; }
 .suggest { display: flex; flex-wrap: wrap; gap: 8px; padding: 2px var(--gutter-r) 8px var(--gutter-l); }
 
-.sectionlabel { font-weight: 800; font-size: .85rem; color: var(--muted); margin: 18px 4px 8px; text-transform: uppercase; letter-spacing: .04em; }
-.often .chips .chip { border-style: dashed; }
-.items { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.item {
-  display: flex; align-items: center; gap: 4px; background: var(--surface); border-radius: 16px;
-  padding: 6px 10px 6px 6px; box-shadow: 0 1px 0 var(--line);
+.sectionlabel { font-weight: 800; font-size: .76rem; color: var(--muted); margin: 16px 6px 6px; text-transform: uppercase; letter-spacing: .05em; }
+.often .chips .chip { border-style: dashed; min-height: 40px; padding: 6px 12px; font-size: .95rem; }
+/* Eine Abteilung = eine Karte, Einträge durch feine Linien getrennt: mehr Einträge auf einen Blick */
+.items {
+  list-style: none; margin: 0; padding: 0; display: grid;
+  background: var(--surface); border-radius: 16px; overflow: hidden; box-shadow: 0 1px 0 var(--line);
 }
-.item.urgent { box-shadow: inset 4px 0 0 var(--urgent), 0 1px 0 var(--line); }
+.items > li + li { border-top: 1px solid var(--line); }
+.item {
+  display: flex; align-items: center; gap: 2px; background: var(--surface);
+  padding: 2px 10px 2px 0; min-height: 54px;
+}
+.item.urgent { box-shadow: inset 4px 0 0 var(--urgent); }
 /* Große Tippfläche, sichtbares Kästchen in der Mitte */
 .tick {
-  flex: none; width: 56px; height: 56px; border: 0; background: none; display: grid; place-items: center;
+  flex: none; width: 52px; height: 52px; border: 0; background: none; display: grid; place-items: center;
   color: #fff; position: relative;
 }
 .tick::before {
-  content: ""; position: absolute; width: 32px; height: 32px; border-radius: 10px;
+  content: ""; position: absolute; width: 28px; height: 28px; border-radius: 9px;
   border: 2.5px solid color-mix(in srgb, var(--c) 70%, var(--muted)); background: var(--surface);
 }
 .isdone .tick::before { background: var(--c); border-color: var(--c); }
-.isdone .tick::after { content: "✓"; position: relative; font-size: 1.15rem; font-weight: 800; }
-.itembody { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 8px 4px; display: grid; gap: 2px; }
+.isdone .tick::after { content: "✓"; position: relative; font-size: 1.05rem; font-weight: 800; }
+.itembody { flex: 1; min-width: 0; border: 0; background: none; text-align: left; padding: 10px 2px; display: grid; gap: 2px; }
 .itemline { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-.itemtext { font-size: 1.15rem; font-weight: 600; overflow-wrap: anywhere; }
+.itemtext { font-size: 1.08rem; font-weight: 600; overflow-wrap: anywhere; }
 .qty { font-weight: 800; color: var(--c); }
-.note { color: var(--ink); font-size: .92rem; opacity: .85; }
-.itemmeta { font-size: .8rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.note { color: var(--ink); font-size: .88rem; opacity: .8; }
+.itemmeta { font-size: .78rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.itemmeta .tag { padding: 1px 8px; }
 .thumb {
-  width: 52px; height: 52px; border-radius: 10px; flex: none; border: 0; padding: 0;
+  width: 42px; height: 42px; border-radius: 9px; flex: none; border: 0; padding: 0;
   background: var(--chip) center / cover no-repeat;
 }
-.items.done .item { background: transparent; box-shadow: none; }
+.items.done { background: transparent; box-shadow: none; }
+.items.done > li + li { border-top: 0; }
+.items.done .item { background: transparent; box-shadow: none; min-height: 44px; }
 .items.done .itemtext { text-decoration: line-through; color: var(--muted); font-weight: 500; }
 .items.done .qty { color: var(--muted); }
 .missing .itemtext { color: var(--missing); }
@@ -215,11 +226,11 @@ dialog::backdrop { background: rgba(20, 14, 6, .45); }
 .simple .adv { display: none !important; }
 
 /* ---------- Wischen zum Abhaken ---------- */
-.swipe { position: relative; border-radius: 16px; overflow: hidden; touch-action: pan-y; }
+.swipe { position: relative; overflow: hidden; touch-action: pan-y; }
 .swipe .item { position: relative; z-index: 1; transition: transform .18s ease; }
 .swipebg {
   position: absolute; inset: 0; display: flex; align-items: center; padding-left: 20px;
-  background: color-mix(in srgb, var(--c) 22%, var(--surface)); color: var(--c); font-weight: 800; border-radius: 16px;
+  background: color-mix(in srgb, var(--c) 22%, var(--surface)); color: var(--c); font-weight: 800;
 }
 .swipe.ready .swipebg { background: var(--c); color: #fff; }
 .items.done .swipe { overflow: visible; }
@@ -238,11 +249,13 @@ dialog::backdrop { background: rgba(20, 14, 6, .45); }
 .tripicon { font-size: 1.6rem; }
 .triptext { display: grid; gap: 2px; }
 .tripmsg { font-style: italic; }
-.tripbar { display: grid; gap: 8px; padding: 10px var(--gutter-r) 0 var(--gutter-l); }
+.tripbar { display: grid; gap: 6px; padding: 8px var(--gutter-r) 0 var(--gutter-l); }
 .tripbar:empty { display: none; }
 .triprow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .triprow .small { flex: 1 1 100%; }
-.triprow .btn { flex: 1; }
+.triprow .btn { flex: 1; min-height: 38px; padding: 4px 10px; }
+.tripbar .trip { padding: 8px 12px; }
+.tripbar .trip .tripicon { font-size: 1.3rem; }
 
 /* ---------- Mikrofon ---------- */
 .btn.mic { width: 56px; min-height: 56px; padding: 0; font-size: 1.4rem; flex: none; }
@@ -320,15 +333,16 @@ dialog::backdrop { background: rgba(20, 14, 6, .45); }
 .paybox:empty { display: none; }
 .btn.paypal { background: #0070ba; color: #fff; min-height: 60px; font-size: 1.08rem; width: 100%; }
 .prefix { align-self: center; color: var(--muted); font-weight: 600; }
-.oftenhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.oftenhead .sectionlabel { margin-bottom: 8px; }
+.oftenhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
+.oftenhead .linkbtn { font-size: .88rem; white-space: nowrap; }
+.oftenhead .sectionlabel { margin-bottom: 6px; white-space: nowrap; }
 .linkbtn { border: 0; background: none; color: var(--c); font-weight: 700; padding: 8px 4px; text-decoration: underline; }
 textarea {
   width: 100%; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--line);
   background: var(--surface); resize: vertical; min-height: 140px;
 }
 .chip.static { min-height: 34px; padding: 4px 12px; font-size: .88rem; }
-#importBtn { margin-top: 20px; }
+#importBtn { margin-top: 18px; min-height: 46px; font-size: .95rem; }
 
 /* Vorschläge bearbeiten */
 .oftenbtns { display: flex; gap: 12px; }
