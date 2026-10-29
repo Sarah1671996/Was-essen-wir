@@ -271,6 +271,18 @@
   </div>
 </dialog>
 
+<!-- Meine Einkaufszeit -->
+<dialog id="timeDlg">
+  <div class="dlg">
+    <h2>⏱ Meine Einkaufszeit</h2>
+    <p class="small">Gezählt wird von „Ich gehe jetzt zu …“ bis „Fertig eingekauft“. Wird nur dir angezeigt.</p>
+    <div id="timeBody"></div>
+    <div class="dlgactions">
+      <button class="btn" id="timeClose">Schließen</button>
+    </div>
+  </div>
+</dialog>
+
 <!-- Kassenbon -->
 <dialog id="receiptDlg">
   <form method="dialog" class="dlg" id="receiptForm">
@@ -362,6 +374,8 @@
       <input id="myName" maxlength="24">
       <button class="btn ghost" id="saveName">Ändern</button>
     </div>
+
+    <button class="btn ghost" id="timeBtn">⏱ Meine Einkaufszeit</button>
 
     <div class="adv">
       <label for="myPaypal">Dein PayPal.Me (optional)</label>

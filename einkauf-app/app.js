@@ -888,11 +888,11 @@ function renderOften() {
 
 /* ---------- Eintrag-Dialog ---------- */
 let editItem = null, editPhoto = null, editStoreId = null, editWants = {};
-// Abteilungs-Auswahl im Eintrag-Dialog, mit "Neue Abteilung …" am Ende
+// Abteilungs-Auswahl im Eintrag-Dialog in der Reihenfolge des Ladens, mit "Neue Abteilung …" am Ende
 function fillCatSelect(value) {
   const sel = $("#fCat");
   sel.textContent = "";
-  cats().forEach(c => { const o = el("option", "", `${c.emoji} ${c.name}`); o.value = c.id; sel.appendChild(o); });
+  catsFor(storeById(editStoreId)).forEach(c => { const o = el("option", "", `${c.emoji} ${c.name}`); o.value = c.id; sel.appendChild(o); });
   const add = el("option", "", "＋ Neue Abteilung …");
   add.value = "__new";
   sel.appendChild(add);
@@ -953,7 +953,7 @@ function renderStoreChips() {
     const b = el("button", "chip" + (s.id === editStoreId ? " on" : ""), s.name);
     b.type = "button";
     b.style.setProperty("--c", safeColor(s.color));
-    b.onclick = () => { editStoreId = s.id; renderStoreChips(); };
+    b.onclick = () => { editStoreId = s.id; renderStoreChips(); fillCatSelect($("#fCat").value); }; // Abteilungen in der Reihenfolge des neuen Ladens
     box.appendChild(b);
   });
 }
@@ -1095,8 +1095,12 @@ $("#finishForm").onsubmit = async e => {
   e.preventDefault();
   const s = storeById(S.current);
   const done = itemsOf(s.id).filter(i => i.done);
-  const trip = { ...(myTrip() || { at: Date.now() }), storeId: s.id, state: "fertig", doneAt: Date.now(), count: done.length, msg: $("#finishMsg").value.trim() };
+  const started = myTrip(), now = Date.now();
+  const trip = { ...(started || { at: now }), storeId: s.id, state: "fertig", doneAt: now, count: done.length, msg: $("#finishMsg").value.trim() };
   const ops = $("#finishClear").checked ? archiveOps(done).ops : [];
+  // Dauer merken, wenn vorher "Ich gehe jetzt …" getippt wurde (für "Meine Einkaufszeit")
+  if (started?.state === "los" && now - started.at >= 60000)
+    ops.push({ c: "trips", data: { by: S.uid, storeId: s.id, start: started.at, end: now, count: done.length } });
   try {
     await Promise.all([house.patch("members", S.uid, { trip }), ops.length ? house.batch(ops) : null]);
     $("#finishDlg").close();
@@ -1104,6 +1108,64 @@ $("#finishForm").onsubmit = async e => {
     if ($("#finishReceipt").checked) openReceiptDlg(null, s.id);
   } catch (err) { console.error(err); fail("Abschließen")(); }
 };
+
+/* ---------- Meine Einkaufszeit ---------- */
+function fmtDur(ms) {
+  const min = Math.max(1, Math.round(ms / 60000));
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h} Std${m ? ` ${m} Min` : ""}` : `${m} Min`;
+}
+async function openTimes() {
+  const body = $("#timeBody");
+  body.textContent = "Lädt …";
+  $("#timeDlg").showModal();
+  let trips;
+  try { trips = (await house.getAll("trips")).filter(t => t.by === S.uid).sort((a, b) => b.start - a.start); }
+  catch (e) { console.error(e); body.textContent = "Konnte nicht geladen werden."; return; }
+  body.textContent = "";
+  if (!trips.length) {
+    body.appendChild(el("p", "empty", "Noch keine Einkäufe gezählt. Tipp beim Losgehen auf „🛒 Ich gehe jetzt zu …“ und am Ende auf „✅ Fertig eingekauft“."));
+    return;
+  }
+  const monthKey = ts => { const d = new Date(ts); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
+  const months = new Map();
+  for (const t of trips) {
+    const k = monthKey(t.start), m = months.get(k) || { ms: 0, n: 0, ts: t.start };
+    m.ms += t.end - t.start; m.n++;
+    months.set(k, m);
+  }
+  // Großer Wert oben: dieser Monat
+  const cur = months.get(monthKey(Date.now())) || { ms: 0, n: 0 };
+  const hero = el("div", "timehero");
+  hero.append(el("span", "small", "Diesen Monat"), el("strong", "", cur.n ? fmtDur(cur.ms) : "noch nichts"));
+  if (cur.n) hero.appendChild(el("span", "small", `${cur.n} ${cur.n === 1 ? "Einkauf" : "Einkäufe"} · im Schnitt ${fmtDur(cur.ms / cur.n)}`));
+  body.appendChild(hero);
+
+  body.appendChild(el("p", "sectionlabel", "Pro Monat"));
+  const max = Math.max(...[...months.values()].map(m => m.ms));
+  const list = el("div", "timemonths");
+  [...months.values()].slice(0, 12).forEach(m => {
+    const row = el("div", "timemonth");
+    row.appendChild(el("span", "", new Date(m.ts).toLocaleDateString("de-DE", { month: "long", year: "numeric" })));
+    const bar = el("span", "timebar");
+    bar.style.setProperty("--w", `${Math.max(4, Math.round(m.ms / max * 100))}%`);
+    row.append(bar, el("strong", "", `${fmtDur(m.ms)} · ${m.n}×`));
+    list.appendChild(row);
+  });
+  body.appendChild(list);
+
+  body.appendChild(el("p", "sectionlabel", "Letzte Einkäufe"));
+  const last = el("div", "timemonths");
+  trips.slice(0, 15).forEach(t => {
+    const row = el("div", "timemonth");
+    const day = new Date(t.start).toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "numeric" });
+    row.append(el("span", "", `${storeById(t.storeId)?.name || "Laden"} · ${day}`), el("strong", "", fmtDur(t.end - t.start)));
+    last.appendChild(row);
+  });
+  body.appendChild(last);
+}
+$("#timeBtn").onclick = openTimes;
+$("#timeClose").onclick = () => $("#timeDlg").close();
 
 /* ---------- Verlauf ---------- */
 let historyFilter = null, historyData = [];
@@ -1481,7 +1543,7 @@ $("#importForm").onsubmit = async e => {
 };
 
 /* ---------- Neuer Code (z. B. wenn der Einladungslink weitergegeben wurde) ---------- */
-const HOUSE_COLS = ["stores", "items", "known", "history", "receipts", "categories"];
+const HOUSE_COLS = ["stores", "items", "known", "history", "receipts", "categories", "trips"];
 // Schreibvorgänge in Pakete teilen (Firestore: höchstens 500 pro Paket und etwa 10 MB)
 function chunks(ops) {
   const out = [];

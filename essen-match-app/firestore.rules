@@ -76,6 +76,16 @@ service cloud.firestore {
               && d().trip.get("msg", "") is string && d().trip.get("msg", "").size() <= 140));
       }
 
+      // Wie lange jemand einkaufen war: nur anlegen (für sich selbst) und löschen, nie ändern
+      match /trips/{id} {
+        allow read, delete: if signedIn();
+        allow create: if signedIn() && open()
+          && d().keys().hasOnly(["by", "storeId", "start", "end", "count"])
+          && d().by == request.auth.uid && idOrNull("storeId")
+          && d().start is number && d().end is number && d().end > d().start && d().end - d().start <= 43200000
+          && num("count");
+      }
+
       match /stores/{id} {
         allow read, delete: if signedIn();
         allow create, update: if signedIn() && open()
