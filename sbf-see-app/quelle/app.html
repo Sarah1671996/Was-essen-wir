@@ -1852,13 +1852,14 @@ const SCENARIOS = [
     start: { x: 22, y: -24, psi: 345, u: 1.0, T: 1 }, view: 80, follow: false, center: { x: 6, y: 4 },
     piers: [{ x1: -8, x2: 0, y1: -10, y2: 40 }], berth: { y1: 12, y2: 26 },
     moored: [{ x: 1.5, y: 33, psi: 0 }, { x: 1.5, y: 3, psi: 0 }] },
-  { id: "ablegen", title: "Ablegen", kurz: "Erst das Heck frei bekommen, dann voraus.",
+  { id: "ablegen", title: "Ablegen (Heck rauskurbeln)", kurz: "Ruder hart Bb, im Wechsel kurz voraus und zurück bis 45°, dann rückwärts raus.",
     brief: [
       "Du liegst mit Backbord am Steg, vor und hinter dir liegen andere Boote. Fahre hinaus, bis du <b>15 m vom Steg</b> entfernt bist, ohne anzustoßen.",
-      "<b>Wichtig:</b> Das Boot dreht um einen Punkt im vorderen Drittel. Wer vorwärts mit Ruder vom Steg weg losfährt, <b>schwenkt das Heck an den Steg</b>.",
-      "<b>Wie in der Fahrstunde:</b> Ruder hart Backbord (zum Steg) und <b>rückwärts einkuppeln</b>. Aus dem Stand wirkt zuerst der <b>Radeffekt</b>: Das Heck geht seitlich weg, erst dann nimmt das Boot Fahrt nach achtern auf. Ob das Heck nach Steuerbord oder Backbord geht, hängt von der Drehrichtung der Schraube ab (unten einstellbar).",
-      "Ist das Heck frei, <b>vorwärts einkuppeln</b>. Mit dem Ruder noch Backbord geht der Bug dabei etwas Richtung Steg, also das Ruder rechtzeitig zurücknehmen und erst mit Abstand weiter abdrehen.",
-      "In echt hilft man mit Leinen (Spring) und Fendern nach. Achte auf das Heck: Das Boot dreht um einen Punkt im vorderen Drittel."],
+      "<b>So wie in deiner Fahrstunde:</b> 1. Ruder <b>hart Backbord</b> (zum Steg) und dort lassen.",
+      "2. <b>Kurz Voraus 1</b>: Der Schraubenstrom trifft das Ruder, das Heck wird nach Steuerbord vom Steg weggedrückt, bevor das Boot Fahrt aufnimmt.",
+      "3. <b>Direkt Zurück 1</b> und kurz warten: Das stoppt die Vorausfahrt. Solange das Heck noch seitlich weggeht, warten. Sobald es anfängt nach hinten zu fahren, wieder <b>kurz voraus</b>.",
+      "4. So im Wechsel, bis das Boot etwa <b>45° vom Steg</b> weg zeigt (oben steht der Winkel). Dann <b>Ruder mittschiffs</b> und <b>rückwärts heraus</b>, bis du 15 m Abstand hast.",
+      "Der Bug darf dabei am Steg anliegen, dort hängt in echt ein Fender. Nur zu viel Gas führt zum Rumms. Die Drehrichtung der Schraube (unten) bestimmt, wohin das Heck rückwärts zieht."],
     start: { x: 1.5, y: 18, psi: 0, u: 0, T: 0 }, view: 60, follow: false, center: { x: 10, y: 16 },
     piers: [{ x1: -8, x2: 0, y1: -10, y2: 45 }],
     moored: [{ x: 1.5, y: 29, psi: 0 }, { x: 1.5, y: 5, psi: 0 }], leave: 15 },
@@ -1934,11 +1935,12 @@ function simStep(st, dt) {
   // Längsfahrt: Schub minus Widerstand
   // Schub folgt dem Hebel mit kurzer Verzögerung (Getriebe, Drehzahl); rückwärts zieht die Schraube schwächer
   if (b.thr === undefined) b.thr = b.T;
-  b.thr += (b.T - b.thr) * Math.min(1, dt / 0.8);
+  b.thr += (b.T - b.thr) * Math.min(1, dt / 0.4);
   const a = b.thr > 0 ? b.thr * 0.25 : b.thr * 0.16;
   b.u += (a - 0.05 * b.u - 0.07 * b.u * Math.abs(b.u)) * dt;
   // Drehung: Ruderwirkung braucht Anströmung (Fahrt oder Schraubenstrahl voraus)
-  const flow = b.u + (b.thr > 0 ? 0.45 * b.thr : 0);
+  // Schraubenstrom voraus trifft das Ruder: wirkt auch aus dem Stand kräftig („Ruder anblasen“), bei Fahrt weniger zusätzlich
+  const flow = b.u + (b.thr > 0 ? 1.4 * b.thr / (1 + Math.abs(b.u)) : 0);
   // Radeffekt rückwärts: aus dem Stand stark (Heck geht seitlich weg), mit zunehmender Fahrt achteraus schwächer.
   // Rechtsdrehende Schraube: Heck nach Backbord (Bug nach Steuerbord); linksdrehend umgekehrt.
   const walk = b.thr < 0 ? -0.085 * b.thr * (st.prop || 1) * Math.exp(-2 * Math.abs(b.u)) : 0;
@@ -1963,7 +1965,7 @@ function simStep(st, dt) {
       const v = pointVel(b, w, st.drift), vn = -(v[0] * hit.n[0] + v[1] * hit.n[1]);
       if (vn > 0.5) st.hardHit = true;
       b.x += hit.n[0] * hit.pen; b.y += hit.n[1] * hit.pen;
-      b.u *= 0.9; b.r *= 0.75;
+      b.u *= 0.995;
     }
   }
   // Ein Anstoßen zählt nur einmal, auch wenn der Rumpf kurz hintereinander mehrmals berührt
@@ -2031,12 +2033,12 @@ const CHECKS = {
     else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Spitzer Anlaufwinkel (20–30°), wenig Fahrt, kurz vor dem Steg Ruder Steuerbord und kurz rückwärts."] };
   },
   ablegen(st) {
-    const b = st.b, minX = Math.min(...hullLocal().map(p => toWorld(b, p)[0]));
-    st.msg = st.hardHit ? "Rumms!" : `Abstand zum Steg ${minX.toFixed(1).replace(".", ",")} m · Anstoßen: ${st.contacts}`;
-    if (st.hardHit) st.done = { ok: false, text: "Angestoßen", tips: ["Weniger Gas. Erst das Heck vom Steg weg bringen, dann voraus."] };
-    else if (minX >= st.sc.leave) st.done = { ok: st.contacts === 0, text: st.contacts ? `Abgelegt, aber ${st.contacts}× angestoßen` : `Sauber abgelegt nach ${Math.round(st.t)} s`,
-      tips: [st.contacts ? "Das Heck ist an den Steg oder ein anderes Boot gekommen. Erst das Heck frei bekommen, dann voraus mit wenig Ruder." : "Gut gemacht: Heck frei, ohne Berührung."], score: st.contacts ? null : Math.round(st.t) };
-    else if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Probier: Ruder Steuerbord, kurz Zurück 1, dann Ruder mittschiffs und Voraus 1."] };
+    const b = st.b, minX = Math.min(...hullLocal().map(p => toWorld(b, p)[0])), ang = Math.round(Math.abs(angDiff(b.psi * R2D, 0)));
+    st.msg = st.hardHit ? "Rumms!" : `Winkel zum Steg ${ang}° · Abstand ${minX.toFixed(1).replace(".", ",")} m`;
+    if (st.hardHit) st.done = { ok: false, text: "Zu hart angestoßen", tips: ["Nur kurz und mit wenig Gas einkuppeln (Voraus 1 / Zurück 1). Das Boot soll sich drehen, nicht Fahrt aufnehmen."] };
+    else if (minX >= st.sc.leave) st.done = { ok: true, text: `Abgelegt nach ${Math.round(st.t)} s`,
+      tips: [st.contacts ? "Der Bug lag beim Rauskurbeln am Steg an. Das ist normal, dafür hängt dort ein Fender." : "Sauber abgelegt, ohne Berührung.", "Merke: Heck rauskurbeln bis etwa 45°, dann rückwärts heraus."], score: Math.round(st.t) };
+    else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Ruder hart Backbord lassen, dann im Wechsel kurz Voraus 1 und Zurück 1, bis das Heck etwa 45° vom Steg weg zeigt. Dann Ruder mittschiffs und rückwärts heraus."] };
   },
   mob(st, dt) {
     const s = st.stats, b = st.b;
