@@ -231,9 +231,10 @@ const ICONS = {
   pruefung: '<path d="M7 3h10l4 4v14H3V3z"/><path d="M7 11h2M7 15h2M12 11h5M12 15h5"/>',
   drucken: '<path d="M6 9V3h12v6M6 18H4a1 1 0 0 1-1-1v-6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v6a1 1 0 0 1-1 1h-2"/><rect x="6" y="14" width="12" height="7"/>',
   katalog: '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5"/>',
-  nav: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>'
+  nav: '<circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/>',
+  praxis: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="2"/><path d="M12 4v6M12 14v6M4 12h6M14 12h6"/>'
 };
-const VIEWS = [["start", "Übersicht", "Start"], ["tag", "Tagesfragen", "Heute"], ["karten", "Karteikarten", "Karten"], ["pruefung", "Prüfung", "Prüfung"], ["nav", "Navigation", "Navi"], ["drucken", "Drucken", "Druck"], ["katalog", "Katalog", "Katalog"]];
+const VIEWS = [["start", "Übersicht", "Start"], ["tag", "Tagesfragen", "Heute"], ["karten", "Karteikarten", "Karten"], ["pruefung", "Prüfung", "Prüfung"], ["nav", "Navigation", "Navi"], ["praxis", "Praxis", "Praxis"], ["drucken", "Drucken", "Druck"], ["katalog", "Katalog", "Katalog"]];
 let view = (location.hash || "").slice(1);
 if (!VIEWS.some(v => v[0] === view)) view = "start";
 function go(v) { view = v; try { history.replaceState(null, "", "#" + v); } catch (e) {} render(); window.scrollTo(0, 0); }
@@ -245,12 +246,12 @@ window.addEventListener("hashchange", () => { const h = location.hash.slice(1); 
 
 /* Laufende Sitzungen nicht durch Sync-Updates zerstören */
 let flash = null, exam = null, quiz = null;
-const busy = () => (view === "karten" && ((flash && !flash.done) || pics)) || (view === "pruefung" && exam && !exam.done) || (view === "tag" && quiz);
+const busy = () => (view === "praxis" && sim && !sim.done) || (view === "karten" && ((flash && !flash.done) || pics)) || (view === "pruefung" && exam && !exam.done) || (view === "tag" && quiz);
 
 function render() {
   renderTabs();
   const m = $("#main");
-  ({ start: vStart, tag: vTag, karten: vKarten, pruefung: vPruefung, nav: vNav, drucken: vDrucken, katalog: vKatalog })[view](m);
+  ({ start: vStart, tag: vTag, karten: vKarten, pruefung: vPruefung, nav: vNav, praxis: vPraxis, drucken: vDrucken, katalog: vKatalog })[view](m);
 }
 
 /* ---------- Übersicht ---------- */
@@ -1466,6 +1467,381 @@ async function navPdf(t) {
   if (IN_ARTIFACT) { const dl = await claude.use("downloads").catch(() => null); if (!dl) { toast("Speichern ist in dieser Ansicht nicht möglich."); return; } try { await dl.save({ filename, data: blob }); toast("PDF gespeichert"); } catch (e) { toast("Speichern abgebrochen"); } return; }
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); toast("PDF gespeichert");
 }
+
+/* ---------- Praxis: Manöver-Simulator ----------
+   Vereinfachtes Motorboot (8 m, rechtsdrehende Schraube) von oben gesehen. Wichtigste Lernpunkte:
+   - Das Ruder bleibt stehen, wo du es hinstellst. Das Boot dreht verzögert und dreht weiter, solange Ruder liegt.
+   - Rechtzeitig mittschiffs und kurz Gegenruder geben, sonst schießt man über den Kurs hinaus („Rumeiern“).
+   - Das Boot dreht um einen Punkt im vorderen Drittel: das Heck schwenkt weit aus.
+   - Rückwärts zieht der Radeffekt das Heck nach Backbord; bei wenig Fahrt wirkt das Ruder kaum. */
+const SIM = { L: 8, B: 2.8, PIVOT: 0.3, RUD_MAX: 35, RUD_RATE: 22 };
+const D2R = Math.PI / 180, R2D = 180 / Math.PI, KN = 1.9438;
+const norm360 = a => ((a % 360) + 360) % 360;
+const angDiff = (a, b) => { let d = norm360(a - b); return d > 180 ? d - 360 : d; };
+const THROTTLE = { "-2": "Zurück 2", "-1": "Zurück 1", "0": "Neutral", "1": "Voraus 1", "2": "Voraus 2", "3": "Voraus 3" };
+
+const SCENARIOS = [
+  { id: "kurs", title: "Kurs ändern und halten", kurz: "Gegen das Rumeiern: rechtzeitig Ruder mittschiffs und Gegenruder.",
+    brief: [
+      "Du fährst mit 5 kn Kurs 000°. Ändere den Kurs auf <b>090°</b> und halte ihn 20 Sekunden lang auf ±5° genau.",
+      "<b>So geht's:</b> Ruder nach Steuerbord legen. Das Boot beginnt erst nach einem Moment zu drehen, dann aber immer schneller.",
+      "<b>Etwa 15–20° vor dem Zielkurs</b> das Ruder zurück auf <b>mittschiffs</b> (Anzeige grün). Das Boot dreht trotzdem noch weiter!",
+      "Dreht es zu weit, <b>kurz</b> Gegenruder geben und gleich wieder mittschiffs. Kleine Ruderbewegungen, dann abwarten.",
+      "Achte auf die <b>Drehrate</b>: Sie zeigt, wie schnell sich das Boot gerade dreht. Der orange Pfeil zeigt, wo der Bug in 3 Sekunden steht."],
+    start: { x: 0, y: 0, psi: 0, u: 2.6, T: 2 }, view: 110, follow: true, target: 90 },
+  { id: "aufstoppen", title: "Kursgerecht aufstoppen", kurz: "Anhalten, ohne vom Kurs abzukommen.",
+    brief: [
+      "Du fährst mit etwa 5 kn genau auf der gestrichelten Kurslinie. Bringe das Boot <b>zwischen den beiden gelben Tonnen</b> zum Stehen.",
+      "Dabei soll der Bug auf dem Kurs bleiben (±10°) und das Boot nicht mehr als 4 m neben der Linie stehen.",
+      "<b>So geht's:</b> Rechtzeitig auf Neutral, Fahrt auslaufen lassen, dann <b>Ruder mittschiffs</b> und <b>kurz und dosiert rückwärts</b> einkuppeln.",
+      "Rückwärts zieht der <b>Radeffekt</b> das Heck nach Backbord, der Bug wandert nach Steuerbord. Deshalb nur kurz rückwärts und mit wenig Gas. Bei wenig Fahrt hilft das Ruder kaum."],
+    start: { x: 0, y: 0, psi: 0, u: 2.5, T: 2 }, view: 90, follow: true, zone: { y1: 70, y2: 82, x: 4 } },
+  { id: "anlegen", title: "Anlegen (Backbord an den Steg)", kurz: "Spitzer Winkel, wenig Fahrt, rückwärts aufstoppen.",
+    brief: [
+      "Lege mit der <b>Backbordseite</b> am Steg an, im grün markierten Liegeplatz.",
+      "<b>So geht's:</b> Mit wenig Fahrt (Voraus 1) in einem <b>spitzen Winkel von etwa 20–30°</b> auf den Liegeplatz zufahren.",
+      "Kurz vor dem Steg auf Neutral, Ruder nach <b>Steuerbord</b>, damit der Bug parallel zum Steg schwenkt. Dann <b>kurz rückwärts</b>: Das stoppt das Boot, und der Radeffekt zieht das Heck nach Backbord an den Steg.",
+      "Ziel: parallel zum Steg (±12°), höchstens 1 m Abstand, Fahrt unter 0,3 kn. Anstoßen mit mehr als 1 kn zählt als Rumms."],
+    start: { x: 22, y: -24, psi: 345, u: 1.0, T: 1 }, view: 80, follow: false, center: { x: 6, y: 4 },
+    piers: [{ x1: -8, x2: 0, y1: -10, y2: 40 }], berth: { y1: 12, y2: 26 },
+    moored: [{ x: 1.5, y: 33, psi: 0 }, { x: 1.5, y: 3, psi: 0 }] },
+  { id: "ablegen", title: "Ablegen", kurz: "Erst das Heck frei bekommen, dann voraus.",
+    brief: [
+      "Du liegst mit Backbord am Steg, vor und hinter dir liegen andere Boote. Fahre hinaus, bis du <b>15 m vom Steg</b> entfernt bist, ohne anzustoßen.",
+      "<b>Wichtig:</b> Das Boot dreht um einen Punkt im vorderen Drittel. Wer vorwärts mit Ruder vom Steg weg losfährt, <b>schwenkt das Heck an den Steg</b>.",
+      "<b>Eine Möglichkeit:</b> Ruder Steuerbord und <b>kurz rückwärts</b>, damit das Heck vom Steg wegkommt. Dann Ruder mittschiffs und langsam voraus, erst mit Abstand weiter abdrehen.",
+      "In echt hilft man mit Leinen (Spring) und Fendern nach. Hier geht es nur um das Gefühl für das ausschwenkende Heck."],
+    start: { x: 1.5, y: 18, psi: 0, u: 0, T: 0 }, view: 60, follow: false, center: { x: 10, y: 16 },
+    piers: [{ x1: -8, x2: 0, y1: -10, y2: 45 }],
+    moored: [{ x: 1.5, y: 29, psi: 0 }, { x: 1.5, y: 5, psi: 0 }], leave: 15 },
+  { id: "mob", title: "Mensch über Bord", kurz: "Heck weg von der Person, Kreis fahren, mit Neutral ankommen.",
+    brief: [
+      "Du fährst mit 6 kn geradeaus. Irgendwann fällt eine Person über Bord. Die Seite wird angesagt.",
+      "<b>Sofort</b> das Ruder <b>zur Seite der Person</b> legen: So schwenkt das Heck mit der Schraube von ihr weg. (In echt zusätzlich: „Mensch über Bord“ rufen, Rettungsring werfen, Person nicht aus den Augen lassen.)",
+      "Dann in einem Kreis zurückfahren und <b>langsam</b> an die Person heranfahren. Kommt die Schraube der Person näher als 4 m, während sie dreht, ist das lebensgefährlich.",
+      "Ziel: Person höchstens 3 m neben dem Boot, Fahrt unter 0,5 kn und <b>Schalthebel auf Neutral</b>."],
+    start: { x: 0, y: 0, psi: 0, u: 3.0, T: 3 }, view: 130, follow: true }
+];
+
+let sim = null, simPick = null, simLoop = 0, simHelp = true, simBest = {};
+try { simBest = JSON.parse(localStorage.getItem("sbfsee-simbest") || "{}"); simHelp = localStorage.getItem("sbfsee-simhelp") !== "0"; } catch (e) {}
+
+function newSim(sc) {
+  const s = sc.start;
+  const st = {
+    sc, t: 0, done: null, steer: 0, lastSteer: 0, wheelChanges: 0, contacts: 0, hardHit: false, inContact: false,
+    b: { x: s.x, y: s.y, psi: s.psi * D2R, u: s.u, r: 0, delta: 0, T: s.T },
+    trail: [], msg: "", hold: 0, stats: {}
+  };
+  if (sc.id === "kurs") Object.assign(st.stats, { reached: false, maxOver: 0, inBand: 0, crossings: 0, lastSign: 0 });
+  if (sc.id === "mob") Object.assign(st.stats, { fallAt: 4 + Math.random() * 5, side: Math.random() < 0.5 ? 1 : -1, person: null, reactAt: null, propDanger: false, minDist: 1e9 });
+  return st;
+}
+
+/* Rumpf relativ zum Drehpunkt (vorne x = quer nach Steuerbord, y = voraus) */
+function hullLocal() {
+  const L = SIM.L, B = SIM.B / 2, f = SIM.PIVOT * L, a = L - f;
+  return [[0, f], [B, f - 1.6], [B, -a], [-B, -a], [-B, f - 1.6]];
+}
+const fwd = psi => [Math.sin(psi), Math.cos(psi)], stb = psi => [Math.cos(psi), -Math.sin(psi)];
+function toWorld(b, p) { const f = fwd(b.psi), s = stb(b.psi); return [b.x + p[0] * s[0] + p[1] * f[0], b.y + p[0] * s[1] + p[1] * f[1]]; }
+function pointVel(b, w) { const f = fwd(b.psi), ox = w[0] - b.x, oy = w[1] - b.y; return [b.u * f[0] + b.r * oy, b.u * f[1] - b.r * ox]; }
+
+function simStep(st, dt) {
+  const b = st.b, sc = st.sc;
+  // Ruder: bleibt stehen, wo es hingelegt wird
+  if (st.steer) { b.delta = Math.max(-SIM.RUD_MAX, Math.min(SIM.RUD_MAX, b.delta + st.steer * SIM.RUD_RATE * dt)); }
+  if (st.steer && st.steer !== st.lastSteer && st.lastSteer !== 0) st.wheelChanges++;
+  if (st.steer) st.lastSteer = st.steer;
+  // Längsfahrt: Schub minus Widerstand
+  const a = b.T > 0 ? b.T * 0.25 : b.T * 0.2;
+  b.u += (a - 0.05 * b.u - 0.07 * b.u * Math.abs(b.u)) * dt;
+  // Drehung: Ruderwirkung braucht Anströmung (Fahrt oder Schraubenstrahl voraus)
+  const flow = b.u + (b.T > 0 ? 0.45 * b.T : 0);
+  const walk = b.T < 0 ? -0.014 * b.T : 0; // Radeffekt rückwärts: Bug nach Steuerbord
+  b.r += (0.06 * (b.delta * D2R) * flow + walk - 0.5 * b.r) * dt;
+  b.psi += b.r * dt;
+  const f = fwd(b.psi); b.x += b.u * f[0] * dt; b.y += b.u * f[1] * dt;
+  st.t += dt;
+  // Kontakt mit Steg und anderen Booten
+  let touching = false;
+  const obstacles = (sc.piers || []).map(p => ({ type: "rect", ...p })).concat((sc.moored || []).map(m => ({ type: "boat", m })));
+  for (const lp of hullLocal()) {
+    const w = toWorld(b, lp);
+    for (const o of obstacles) {
+      const hit = o.type === "rect" ? rectHit(o, w) : boatHit(o.m, w);
+      if (!hit) continue;
+      touching = true;
+      const v = pointVel(b, w), vn = -(v[0] * hit.n[0] + v[1] * hit.n[1]);
+      if (vn > 0.5) st.hardHit = true;
+      b.x += hit.n[0] * hit.pen; b.y += hit.n[1] * hit.pen;
+      b.u *= 0.9; b.r *= 0.75;
+    }
+  }
+  if (touching && !st.inContact) st.contacts++;
+  st.inContact = touching;
+  if (!st.trail.length || Math.hypot(st.trail.at(-1)[0] - b.x, st.trail.at(-1)[1] - b.y) > 1.2) { st.trail.push([b.x, b.y]); if (st.trail.length > 400) st.trail.shift(); }
+  CHECKS[sc.id](st, dt);
+}
+function rectHit(o, w) {
+  if (w[0] < o.x1 || w[0] > o.x2 || w[1] < o.y1 || w[1] > o.y2) return null;
+  const d = [[w[0] - o.x1, [-1, 0]], [o.x2 - w[0], [1, 0]], [w[1] - o.y1, [0, -1]], [o.y2 - w[1], [0, 1]]].sort((a, b) => a[0] - b[0])[0];
+  return { pen: d[0] + 0.01, n: d[1] };
+}
+function boatHit(m, w) {
+  // anderes Boot als Rechteck in dessen Längsrichtung (liegt parallel zum Steg)
+  return rectHit({ x1: m.x - SIM.B / 2, x2: m.x + SIM.B / 2, y1: m.y - SIM.L / 2, y2: m.y + SIM.L / 2 }, w);
+}
+
+/* Auswertung je Übung: setzt st.msg (Hinweis) und st.done = { ok, text, tips[] } */
+const CHECKS = {
+  kurs(st, dt) {
+    const s = st.stats, err = angDiff(st.b.psi * R2D, st.sc.target);
+    if (!s.reached && Math.abs(err) < 5) s.reached = true;
+    if (s.reached) {
+      s.maxOver = Math.max(s.maxOver, err);
+      const sign = Math.sign(Math.round(err));
+      if (sign && s.lastSign && sign !== s.lastSign && Math.abs(err) > 2) s.crossings++;
+      if (sign) s.lastSign = sign;
+      s.inBand = Math.abs(err) <= 5 ? s.inBand + dt : 0;
+    }
+    st.msg = !s.reached ? `Noch ${Math.abs(Math.round(err))}° bis 090°` : Math.abs(err) <= 5 ? `Kurs halten … ${Math.max(0, 20 - s.inBand).toFixed(0)} s` : `Abweichung ${Math.round(err) > 0 ? "+" : ""}${Math.round(err)}°`;
+    if (s.inBand >= 20) {
+      const tips = [];
+      if (s.maxOver > 10) tips.push(`Du bist bis zu ${Math.round(s.maxOver)}° über den Zielkurs hinausgedreht. Ruder früher auf mittschiffs, etwa 15–20° vor dem Ziel.`);
+      if (st.wheelChanges > 6) tips.push(`${st.wheelChanges} Ruderwechsel: Das ist das Rumeiern. Kleine Ruderbewegung, dann 2–3 Sekunden abwarten, was das Boot macht.`);
+      if (!tips.length) tips.push("Sauber gesteuert: wenig Überschießen und ruhige Ruderbewegungen.");
+      st.done = { ok: true, text: `Kurs 090° gehalten nach ${Math.round(st.t)} s`, tips, score: Math.round(st.t) };
+    }
+    if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Achte auf die Drehrate: Wenn sie zum Ziel hin noch hoch ist, jetzt schon Ruder mittschiffs."] };
+  },
+  aufstoppen(st) {
+    const b = st.b, z = st.sc.zone, kn = Math.abs(b.u) * KN, err = angDiff(b.psi * R2D, 0);
+    st.msg = b.y < z.y1 - 40 ? "Weiter auf die gelben Tonnen zu" : b.y < z.y1 ? `Noch ${Math.round(z.y1 - b.y)} m bis zur Stoppzone` : b.y <= z.y2 ? `In der Zone: ${kn.toFixed(1).replace(".", ",")} kn` : "Über die Zone hinaus";
+    if (Math.abs(b.u) < 0.05 && b.y > 20) {
+      const inZone = b.y >= z.y1 && b.y <= z.y2, onLine = Math.abs(b.x) <= z.x, straight = Math.abs(err) <= 10;
+      const tips = [];
+      if (!inZone) tips.push(b.y < z.y1 ? "Zu früh gestoppt: länger auslaufen lassen." : "Zu spät: Früher auf Neutral, dann rechtzeitig kurz rückwärts.");
+      if (!straight) tips.push(`Der Bug ist ${Math.round(Math.abs(err))}° vom Kurs abgedreht. Rückwärts nur kurz und mit wenig Gas, Ruder mittschiffs.`);
+      if (!onLine) tips.push(`Du stehst ${Math.abs(b.x).toFixed(1).replace(".", ",")} m neben der Kurslinie.`);
+      const ok = inZone && onLine && straight;
+      if (ok) tips.push("Gut aufgestoppt: auf Position, auf Kurs, ohne Abdrehen.");
+      st.done = { ok, text: ok ? `Aufgestoppt nach ${Math.round(st.t)} s` : "Nicht ganz kursgerecht", tips, score: ok ? Math.round(st.t) : null };
+    }
+    if (b.y > z.y2 + 40 || st.t > 150) st.done = { ok: false, text: "Über die Stoppzone hinaus", tips: ["Rechtzeitig auf Neutral gehen: Ein Boot hat keine Bremse und läuft lange aus."] };
+  },
+  anlegen(st, dt) {
+    const b = st.b, sc = st.sc, kn = Math.abs(b.u) * KN, err = angDiff(b.psi * R2D, 0);
+    const xs = hullLocal().map(p => toWorld(b, p)), minX = Math.min(...xs.map(p => p[0])), cy = b.y - (SIM.L / 2 - SIM.PIVOT * SIM.L) * Math.cos(b.psi);
+    const good = Math.abs(err) <= 12 && minX <= 1.0 && kn < 0.3 && Math.abs(b.r) < 0.03 && cy >= sc.berth.y1 && cy <= sc.berth.y2;
+    st.hold = good ? st.hold + dt : 0;
+    st.msg = st.hardHit ? "Rumms! Zu schnell an den Steg." : good ? "Liegt gut … halten" : `Abstand ${Math.max(0, minX).toFixed(1).replace(".", ",")} m · Winkel ${Math.round(Math.abs(err))}° · ${kn.toFixed(1).replace(".", ",")} kn`;
+    if (st.hardHit) st.done = { ok: false, text: "Zu hart angelegt", tips: ["Langsamer anfahren (Voraus 1, dann Neutral) und mit kurzem Rückwärts aufstoppen, bevor der Rumpf den Steg berührt."] };
+    else if (st.hold > 1.5) st.done = { ok: true, text: `Angelegt nach ${Math.round(st.t)} s`, tips: [st.contacts > 2 ? "Angelegt, aber mehrmals am Steg angestoßen. Etwas früher aufstoppen." : "Sauber angelegt."], score: Math.round(st.t) };
+    else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Spitzer Anlaufwinkel (20–30°), wenig Fahrt, kurz vor dem Steg Ruder Steuerbord und kurz rückwärts."] };
+  },
+  ablegen(st) {
+    const b = st.b, minX = Math.min(...hullLocal().map(p => toWorld(b, p)[0]));
+    st.msg = st.hardHit ? "Rumms!" : `Abstand zum Steg ${minX.toFixed(1).replace(".", ",")} m · Anstoßen: ${st.contacts}`;
+    if (st.hardHit) st.done = { ok: false, text: "Angestoßen", tips: ["Weniger Gas. Erst das Heck vom Steg weg bringen, dann voraus."] };
+    else if (minX >= st.sc.leave) st.done = { ok: st.contacts === 0, text: st.contacts ? `Abgelegt, aber ${st.contacts}× angestoßen` : `Sauber abgelegt nach ${Math.round(st.t)} s`,
+      tips: [st.contacts ? "Das Heck ist an den Steg oder ein anderes Boot gekommen. Erst das Heck frei bekommen, dann voraus mit wenig Ruder." : "Gut gemacht: Heck frei, ohne Berührung."], score: st.contacts ? null : Math.round(st.t) };
+    else if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Probier: Ruder Steuerbord, kurz Zurück 1, dann Ruder mittschiffs und Voraus 1."] };
+  },
+  mob(st, dt) {
+    const s = st.stats, b = st.b;
+    if (!s.person && st.t >= s.fallAt) {
+      const off = toWorld(b, [s.side * (SIM.B / 2 + 0.8), -1]);
+      s.person = { x: off[0], y: off[1] }; s.fellAt = st.t;
+    }
+    if (!s.person) { st.msg = "Geradeaus fahren und aufpassen …"; return; }
+    if (s.reactAt === null && Math.sign(b.delta) === s.side && Math.abs(b.delta) >= 15) s.reactAt = st.t - s.fellAt;
+    const stern = toWorld(b, [0, -(SIM.L - SIM.PIVOT * SIM.L)]);
+    const dStern = Math.hypot(stern[0] - s.person.x, stern[1] - s.person.y);
+    if (dStern < 4 && b.T !== 0) s.propDanger = true;
+    const hull = hullLocal().map(p => toWorld(b, p));
+    const dHull = Math.min(...hull.map(p => Math.hypot(p[0] - s.person.x, p[1] - s.person.y)));
+    s.minDist = Math.min(s.minDist, dHull);
+    const kn = Math.abs(b.u) * KN, sideName = s.side > 0 ? "Steuerbord" : "Backbord";
+    st.msg = st.t - s.fellAt < 4 ? `MENSCH ÜBER BORD an ${sideName}!` : `Person ${dHull.toFixed(0)} m entfernt · ${kn.toFixed(1).replace(".", ",")} kn`;
+    if (s.propDanger) { st.done = { ok: false, text: "Schraube zu nah an der Person", tips: ["Nie mit drehender Schraube nah an die Person. Ruder sofort zur Seite der Person, später mit Neutral heranfahren."] }; return; }
+    if (dHull <= 3 && kn < 0.5 && b.T === 0) {
+      const tips = [];
+      if (s.reactAt === null || s.reactAt > 3) tips.push(`Das Ruder ging ${s.reactAt === null ? "nicht" : "erst nach " + s.reactAt.toFixed(1).replace(".", ",") + " s"} zur Seite der Person. Ziel: sofort, damit das Heck wegschwenkt.`);
+      else tips.push(`Schnell reagiert: Ruder nach ${s.reactAt.toFixed(1).replace(".", ",")} s zur richtigen Seite.`);
+      tips.push("Person sicher erreicht, Schalthebel auf Neutral.");
+      st.done = { ok: true, text: `Person erreicht nach ${Math.round(st.t - s.fellAt)} s`, tips, score: Math.round(st.t - s.fellAt) };
+    }
+    if (st.t - s.fellAt > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Ruder zur Seite der Person, Kreis fahren, mit wenig Fahrt zurück und rechtzeitig auf Neutral."] };
+  }
+};
+
+/* Zeichnen */
+function simDraw(cv, st) {
+  const ctx = cv.getContext("2d"), W = cv.width, H = cv.height, dpr = window.devicePixelRatio || 1, sc = st.sc, b = st.b;
+  const scale = Math.min(W, H) / sc.view;
+  const cx = sc.follow ? b.x : sc.center.x, cy = sc.follow ? b.y : sc.center.y;
+  const X = x => W / 2 + (x - cx) * scale, Y = y => H / 2 - (y - cy) * scale;
+  ctx.fillStyle = "#1d5f86"; ctx.fillRect(0, 0, W, H);
+  // Raster, damit man Fahrt und Drehung sieht
+  ctx.strokeStyle = "rgba(255,255,255,.07)"; ctx.lineWidth = 1;
+  const g = 10, x0 = Math.floor((cx - W / 2 / scale) / g) * g, y0 = Math.floor((cy - H / 2 / scale) / g) * g;
+  for (let x = x0; x < cx + W / 2 / scale; x += g) { ctx.beginPath(); ctx.moveTo(X(x), 0); ctx.lineTo(X(x), H); ctx.stroke(); }
+  for (let y = y0; y < cy + H / 2 / scale; y += g) { ctx.beginPath(); ctx.moveTo(0, Y(y)); ctx.lineTo(W, Y(y)); ctx.stroke(); }
+  // Kurslinie / Zone
+  if (sc.id === "aufstoppen") {
+    ctx.setLineDash([8 * dpr, 8 * dpr]); ctx.strokeStyle = "rgba(255,255,255,.5)"; ctx.beginPath(); ctx.moveTo(X(0), Y(-200)); ctx.lineTo(X(0), Y(400)); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = "rgba(255,214,0,.15)"; ctx.fillRect(X(-sc.zone.x), Y(sc.zone.y2), 2 * sc.zone.x * scale, (sc.zone.y2 - sc.zone.y1) * scale);
+    for (const yy of [sc.zone.y1, sc.zone.y2]) for (const xx of [-sc.zone.x - 2, sc.zone.x + 2]) buoy(ctx, X(xx), Y(yy), 0.9 * scale, "#ffd600");
+  }
+  if (sc.id === "kurs") {
+    ctx.save(); ctx.translate(X(b.x), Y(b.y)); ctx.rotate(sc.target * D2R);
+    ctx.setLineDash([6 * dpr, 6 * dpr]); ctx.strokeStyle = "rgba(120,255,160,.6)"; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -H); ctx.stroke(); ctx.restore(); ctx.setLineDash([]);
+  }
+  // Steg, Liegeplatz, andere Boote
+  for (const p of sc.piers || []) { ctx.fillStyle = "#8a6a45"; ctx.fillRect(X(p.x1), Y(p.y2), (p.x2 - p.x1) * scale, (p.y2 - p.y1) * scale); ctx.fillStyle = "#6f5436"; for (let y = p.y1; y < p.y2; y += 1.2) ctx.fillRect(X(p.x1), Y(y), (p.x2 - p.x1) * scale, 1); }
+  if (sc.berth) { ctx.fillStyle = "rgba(80,220,120,.25)"; ctx.fillRect(X(0), Y(sc.berth.y2), 3.5 * scale, (sc.berth.y2 - sc.berth.y1) * scale); }
+  for (const mb of sc.moored || []) drawBoat(ctx, X, Y, scale, { x: mb.x, y: mb.y + (SIM.L / 2 - SIM.PIVOT * SIM.L), psi: mb.psi * D2R, delta: 0 }, "#cfd8dc", "#90a4ae");
+  // Kielwasser
+  ctx.strokeStyle = "rgba(255,255,255,.35)"; ctx.lineWidth = 1.5 * dpr; ctx.beginPath();
+  st.trail.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]))); ctx.lineTo(X(b.x), Y(b.y)); ctx.stroke();
+  // Person im Wasser
+  if (sc.id === "mob" && st.stats.person) {
+    const p = st.stats.person, px = X(p.x), py = Y(p.y);
+    ctx.fillStyle = "#ff6d00"; ctx.beginPath(); ctx.arc(px, py, Math.max(5 * dpr, 0.9 * scale), 0, 7); ctx.fill();
+    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * dpr; ctx.beginPath(); ctx.arc(px, py, Math.max(9 * dpr, 1.6 * scale), 0, 7); ctx.stroke();
+    if (px < 0 || px > W || py < 0 || py > H) { // Richtung zur Person am Rand
+      const ang = Math.atan2(py - H / 2, px - W / 2), rr = Math.min(W, H) / 2 - 20 * dpr;
+      ctx.fillStyle = "#ff6d00"; ctx.beginPath(); ctx.arc(W / 2 + Math.cos(ang) * rr, H / 2 + Math.sin(ang) * rr, 7 * dpr, 0, 7); ctx.fill();
+    }
+  }
+  // Vorschau: wo zeigt der Bug in 3 s?
+  if (simHelp) {
+    const pre = b.psi + b.r * 3, len = SIM.L * 2.2 * scale;
+    ctx.strokeStyle = "rgba(255,160,60,.9)"; ctx.lineWidth = 2.5 * dpr; ctx.beginPath(); ctx.moveTo(X(b.x), Y(b.y)); ctx.lineTo(X(b.x) + Math.sin(pre) * len, Y(b.y) - Math.cos(pre) * len); ctx.stroke();
+  }
+  drawBoat(ctx, X, Y, scale, b, "#ffffff", "#0f2a3f");
+  // Maßstab
+  ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.font = `${11 * dpr}px system-ui`; ctx.fillRect(12 * dpr, H - 14 * dpr, 10 * scale, 3 * dpr); ctx.fillText("10 m", 12 * dpr, H - 20 * dpr);
+}
+function buoy(ctx, x, y, r, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.arc(x, y, Math.max(r, 4), 0, 7); ctx.fill(); ctx.strokeStyle = "#333"; ctx.lineWidth = 1; ctx.stroke(); }
+function drawBoat(ctx, X, Y, scale, b, fill, line) {
+  const pts = hullLocal().map(p => toWorld(b, p));
+  ctx.fillStyle = fill; ctx.strokeStyle = line; ctx.lineWidth = 2;
+  ctx.beginPath(); pts.forEach((p, i) => i ? ctx.lineTo(X(p[0]), Y(p[1])) : ctx.moveTo(X(p[0]), Y(p[1]))); ctx.closePath(); ctx.fill(); ctx.stroke();
+  // Ruderblatt am Heck
+  const st = toWorld(b, [0, -(SIM.L - SIM.PIVOT * SIM.L)]), ang = b.psi + Math.PI - b.delta * D2R, len = 1.4 * scale;
+  ctx.strokeStyle = "#e53935"; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(X(st[0]), Y(st[1])); ctx.lineTo(X(st[0]) + Math.sin(ang) * len, Y(st[1]) - Math.cos(ang) * len); ctx.stroke();
+  // Steuerstand
+  const c = toWorld(b, [0, -1.5]); ctx.fillStyle = line; ctx.beginPath(); ctx.arc(X(c[0]), Y(c[1]), Math.max(2, 0.45 * scale), 0, 7); ctx.fill();
+}
+
+/* Anzeigen unter dem Bild */
+function simHud(st) {
+  const b = st.b, d = Math.round(b.delta), rate = b.r * R2D, mid = Math.abs(b.delta) < 2;
+  const wheelDeg = b.delta / SIM.RUD_MAX * 270;
+  return `<div class="hudrow">
+    <div class="hudval"><span>Kurs</span><b class="mono">${String(Math.round(norm360(b.psi * R2D))).padStart(3, "0")}°</b></div>
+    <div class="hudval"><span>Fahrt</span><b class="mono">${(b.u * KN).toFixed(1).replace(".", ",")} kn</b></div>
+    <div class="hudval"><span>Drehrate</span><b class="mono" style="color:${Math.abs(rate) > 4 ? "var(--accent)" : "inherit"}">${rate > 0.3 ? "→ " : rate < -0.3 ? "← " : ""}${Math.abs(rate).toFixed(1).replace(".", ",")}°/s</b></div>
+    <div class="hudval"><span>Hebel</span><b>${THROTTLE[b.T]}</b></div>
+  </div>
+  <div class="rudder">
+    <div class="rudbar"><i class="rudmid"></i><i class="rudpos" style="left:${50 + b.delta / SIM.RUD_MAX * 50}%"></i></div>
+    <div class="rudtxt ${mid ? "mid" : ""}">${mid ? "Ruder MITTSCHIFFS" : `Ruder ${Math.abs(d)}° ${d > 0 ? "Steuerbord" : "Backbord"}`}</div>
+    <svg class="wheel" viewBox="-50 -50 100 100" style="transform:rotate(${wheelDeg}deg)" aria-hidden="true"><circle r="40" fill="none" stroke="currentColor" stroke-width="7"/><circle r="9" fill="currentColor"/>
+      ${[0, 60, 120, 180, 240, 300].map(a => `<line x1="0" y1="0" x2="${Math.sin(a * D2R) * 46}" y2="${-Math.cos(a * D2R) * 46}" stroke="${a === 0 ? "var(--accent)" : "currentColor"}" stroke-width="${a === 0 ? 7 : 5}" stroke-linecap="round"/>`).join("")}</svg>
+  </div>`;
+}
+
+function vPraxis(m) {
+  if (simLoop) { cancelAnimationFrame(simLoop); simLoop = 0; }
+  if (!simPick) {
+    m.innerHTML = `<div class="view">
+      <div><div class="eyebrow">Manöver üben</div><h2>Praxis-Simulator</h2></div>
+      <section class="panel" style="display:grid;gap:8px">
+        <p style="margin:0;max-width:70ch">Ein Motorboot von oben, vereinfacht, aber mit dem, was in der ersten Fahrstunde schwer ist: <b>Das Ruder bleibt liegen</b>, das Boot reagiert verzögert und dreht nach. Unten siehst du immer die <b>Ruderlage</b> und das Steuerrad mit der markierten Speiche (oben = mittschiffs).</p>
+        <p class="muted" style="margin:0;font-size:.88rem">Steuern: Tasten ← → für das Ruder (gedrückt halten), ↑ ↓ für den Schalthebel, oder die Knöpfe unter dem Bild. Ersetzt keine Fahrstunde, hilft aber beim Verstehen.</p>
+      </section>
+      <div class="navgrid">${SCENARIOS.map(s => `<button class="panel navcard" data-sim="${s.id}"><b>${s.title}</b><span class="muted">${s.kurz}</span>
+        ${simBest[s.id] ? `<span class="pill ok">bestanden${simBest[s.id] ? " · beste Zeit " + simBest[s.id] + " s" : ""}</span>` : `<span class="pill n">noch offen</span>`}</button>`).join("")}</div>
+      <details class="panel grundlagen"><summary><b>Warum eiert man am Anfang herum?</b></summary>
+        <p style="margin-top:10px">Beim Auto lenkt sich das Rad von selbst zurück, und das Auto folgt sofort. Beim Boot <b>bleibt das Ruder liegen</b>, und das Boot dreht erst verzögert, dann aber weiter, auch wenn man schon zurückdreht. Wer wartet, bis der Bug auf dem Ziel steht, ist zu spät dran. Dann steuert man kräftig gegen, das Boot schießt auf die andere Seite, und so weiter.</p>
+        <p><b>Die Lösung:</b> Kleine Ruderbewegungen. Rechtzeitig vor dem Ziel zurück auf mittschiffs. Dann kurz abwarten, was das Boot macht. Am Steuerrad hilft die markierte Speiche: Steht sie oben, ist das Ruder mittschiffs. In echten Booten gibt es oft einen Ruderlagenanzeiger.</p>
+      </details>
+    </div>`;
+    m.querySelectorAll("[data-sim]").forEach(b => b.onclick = () => { simPick = SCENARIOS.find(s => s.id === b.dataset.sim); sim = null; render(); window.scrollTo(0, 0); });
+    return;
+  }
+  const sc = simPick;
+  if (!sim) {
+    m.innerHTML = `<div class="view">
+      <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praxis-Simulator</div><h2>${sc.title}</h2></div><button class="btn small" id="simback">Alle Übungen</button></div>
+      <section class="panel" style="display:grid;gap:10px">${sc.brief.map(p => `<p style="margin:0;max-width:72ch">${p}</p>`).join("")}
+        <label class="row" style="gap:8px"><input type="checkbox" id="simhelp" ${simHelp ? "checked" : ""}> Hilfe anzeigen: oranger Pfeil zeigt, wo der Bug in 3 Sekunden steht</label>
+        <div><button class="btn primary" id="simgo">Los geht's</button></div></section>
+    </div>`;
+    $("#simback").onclick = () => { simPick = null; render(); };
+    $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
+    $("#simgo").onclick = () => { sim = newSim(sc); render(); };
+    return;
+  }
+  const st = sim;
+  m.innerHTML = `<div class="view simview">
+    <div class="row" style="justify-content:space-between"><b>${sc.title}</b><span class="row"><button class="btn small" id="simpause">${st.paused ? "Weiter" : "Pause"}</button><button class="btn small" id="simre">Neu starten</button><button class="btn small" id="simexit">Beenden</button></span></div>
+    <div class="simwrap"><canvas id="simcv"></canvas><div class="simmsg" id="simmsg"></div>
+      <div class="simresult" id="simres" hidden></div></div>
+    <div id="simhud"></div>
+    <div class="simctl">
+      <div class="steer"><button class="btn" id="rudl" aria-label="Ruder nach Backbord">◀ Backbord</button><button class="btn" id="rudr" aria-label="Ruder nach Steuerbord">Steuerbord ▶</button></div>
+      <div class="lever"><button class="btn" id="thrdown" aria-label="Hebel zurück">−</button><span class="mono" id="thrval"></span><button class="btn" id="thrup" aria-label="Hebel voraus">+</button><button class="btn small" id="thrn">Neutral</button></div>
+    </div>
+  </div>`;
+  const cv = $("#simcv"), wrap = cv.parentNode;
+  const size = () => { const dpr = window.devicePixelRatio || 1, w = wrap.clientWidth, h = Math.min(Math.round(window.innerHeight * (w < 520 ? 0.4 : 0.52)), Math.round(w * 0.85)); cv.style.height = h + "px"; cv.width = w * dpr; cv.height = h * dpr; };
+  size();
+  const hold = (el, dir) => {
+    const on = e => { e.preventDefault(); st.steer = dir; el.classList.add("on"); }, off = () => { if (st.steer === dir) st.steer = 0; el.classList.remove("on"); };
+    el.addEventListener("pointerdown", on); ["pointerup", "pointerleave", "pointercancel"].forEach(ev => el.addEventListener(ev, off));
+  };
+  hold($("#rudl"), -1); hold($("#rudr"), 1);
+  const setT = v => { st.b.T = Math.max(-2, Math.min(3, v)); };
+  $("#thrup").onclick = () => setT(st.b.T + 1); $("#thrdown").onclick = () => setT(st.b.T - 1); $("#thrn").onclick = () => setT(0);
+  $("#simre").onclick = () => { sim = newSim(sc); render(); };
+  $("#simexit").onclick = () => { sim = null; simPick = null; render(); };
+  $("#simpause").onclick = () => { st.paused = !st.paused; $("#simpause").textContent = st.paused ? "Weiter" : "Pause"; };
+  $("#simhud").innerHTML = simHud(st); $("#thrval").textContent = THROTTLE[st.b.T];
+  let last = performance.now(), hudT = 0;
+  const frame = now => {
+    if (!document.body.contains(cv) || sim !== st) { simLoop = 0; return; }
+    const dt = Math.min(0.05, (now - last) / 1000); last = now;
+    if (!st.paused && !st.done) { for (let i = 0; i < 4; i++) simStep(st, dt / 4); }
+    simDraw(cv, st);
+    if ((hudT += dt) > 0.08) { hudT = 0; $("#simhud").innerHTML = simHud(st); $("#thrval").textContent = THROTTLE[st.b.T]; $("#simmsg").textContent = st.msg; }
+    if (st.done && $("#simres").hidden) showSimResult(st);
+    simLoop = requestAnimationFrame(frame);
+  };
+  simLoop = requestAnimationFrame(frame);
+}
+function showSimResult(st) {
+  const d = st.done, box = $("#simres");
+  if (d.ok && d.score != null) { const best = simBest[st.sc.id]; if (!best || d.score < best) { simBest[st.sc.id] = d.score; try { localStorage.setItem("sbfsee-simbest", JSON.stringify(simBest)); } catch (e) {} } }
+  box.innerHTML = `<div class="eyebrow">${d.ok ? "Geschafft" : "Nicht geschafft"}</div><h3>${esc(d.text)}</h3>${d.tips.map(t => `<p style="margin:0">${esc(t)}</p>`).join("")}
+    <div class="row"><button class="btn primary" id="simagain">Nochmal</button><button class="btn" id="simlist">Andere Übung</button></div>`;
+  box.className = "simresult " + (d.ok ? "ok" : "no"); box.hidden = false;
+  $("#simagain").onclick = () => { sim = newSim(st.sc); render(); };
+  $("#simlist").onclick = () => { sim = null; simPick = null; render(); };
+}
+// Tastatur: Ruder gedrückt halten, Hebel schrittweise
+document.addEventListener("keydown", e => {
+  if (view !== "praxis" || !sim || sim.done || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (e.key === "ArrowLeft") { sim.steer = -1; e.preventDefault(); }
+  if (e.key === "ArrowRight") { sim.steer = 1; e.preventDefault(); }
+  if (e.key === "ArrowUp" && !e.repeat) { sim.b.T = Math.min(3, sim.b.T + 1); e.preventDefault(); }
+  if (e.key === "ArrowDown" && !e.repeat) { sim.b.T = Math.max(-2, sim.b.T - 1); e.preventDefault(); }
+  if (e.key === "n" || e.key === "0") sim.b.T = 0;
+});
+document.addEventListener("keyup", e => { if (sim && (e.key === "ArrowLeft" || e.key === "ArrowRight")) sim.steer = 0; });
 
 render();
 initSync();
