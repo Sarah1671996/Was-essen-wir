@@ -11,4 +11,4 @@ export const firebaseConfig = {
 
 // Öffentlicher Schlüssel für Push-Benachrichtigungen
 // (Firebase-Konsole → Projekteinstellungen → Cloud Messaging → Web-Push-Zertifikate)
-export const vapidKey = "";
+export const vapidKey = "BGvbQDfAJ7YzmSXAVfsbU9NrmGhZGJ__YFZWPd6UccKNeYd-4s1APk7gIjwLdf-PLDMAX2KhMugfPKfpi1DOy3s";
