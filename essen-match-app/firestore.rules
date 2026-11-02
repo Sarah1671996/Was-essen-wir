@@ -55,6 +55,14 @@ service cloud.firestore {
           && exists(/databases/$(database)/documents/rooms/$(room));
       }
 
+      // Verbindung zur Einkaufs-App anfragen: nur anlegen, der Server prüft den Code,
+      // speichert ihn außerhalb der Küche und löscht die Anfrage wieder
+      match /linkRequests/{id} {
+        allow create: if request.auth != null
+          && request.resource.data.by == request.auth.uid
+          && exists(/databases/$(database)/documents/rooms/$(room));
+      }
+
       // To-dos, die beide sehen (gemeinsam oder für eine bestimmte Person)
       match /todos/{id} {
         allow read, write: if request.auth != null

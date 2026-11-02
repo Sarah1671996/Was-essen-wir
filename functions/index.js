@@ -4,10 +4,11 @@ import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { getMessaging } from "firebase-admin/messaging";
 import { setGlobalOptions } from "firebase-functions/v2";
-import { onDocumentCreated, onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentCreated, onDocumentWritten, onDocumentUpdated, onDocumentDeleted } from "firebase-functions/v2/firestore";
 import { onSchedule } from "firebase-functions/v2/scheduler";
 import { logger } from "firebase-functions";
 import { weekOf, openChores, responsibleFor } from "./cleaning-logic.js";
+import { guessCat, splitQty, norm } from "./einkauf-cats.js";
 
 initializeApp();
 setGlobalOptions({ region: "europe-west3", maxInstances: 3 });
@@ -75,7 +76,8 @@ export const onMatch = onDocumentWritten("rooms/{room}/members/{uid}", async eve
   }
 });
 
-// 🛒 Neuer Eintrag auf der Einkaufsliste (nur an die, die das eingeschaltet haben)
+// 🛒 Neuer Eintrag auf der Einkaufsliste: Benachrichtigung (nur wer es eingeschaltet hat)
+// und, falls verbunden, auf die Liste der Einkaufs-App übertragen
 export const onShoppingAdded = onDocumentCreated("rooms/{room}/shopping/{id}", async event => {
   const item = event.data?.data();
   if (!item) return;
@@ -83,8 +85,127 @@ export const onShoppingAdded = onDocumentCreated("rooms/{room}/shopping/{id}", a
   const name = await memberName(room, item.by);
   const body = item.from ? `${name}: ${item.text} (für ${item.from})` : `${name}: ${item.text}`;
   const others = (await members(room)).filter(m => m.id !== item.by);
-  await Promise.all(others.map(m => notify(room, m.id, "shopping",
-    { title: "🛒 Neu auf der Einkaufsliste", body, tag: "shopping", tab: "shop" })));
+  await Promise.all([
+    ...others.map(m => notify(room, m.id, "shopping",
+      { title: "🛒 Neu auf der Einkaufsliste", body, tag: "shopping", tab: "shop" })),
+    pushToEinkauf(room, event.data.ref, item, name)
+  ]);
+});
+
+/* ---------- Brücke zur Einkaufs-App (households/<code>) ----------
+   bridges/<room>        { house, storeId, storeName }   Essens-Küche → Familienliste
+   bridgeHouses/<house>  { room, storeId }               Rückweg
+   Beide Sammlungen sind für Handys gesperrt (keine Regel); der Code der Familienliste
+   erreicht so nie das Handy des Partners. Verknüpft wird pro Eintrag über shopping.extId. */
+const bridgeOf = async room => (await db.doc(`bridges/${room}`).get()).data() || null;
+
+async function pushToEinkauf(room, ref, item, name) {
+  const bridge = await bridgeOf(room);
+  if (!bridge || item.extId || item.done) return;
+  const house = db.doc(`households/${bridge.house}`);
+  const [known, custom] = await Promise.all([
+    house.collection("known").get().then(s => s.docs.map(d => ({ id: d.id, ...d.data() }))),
+    house.collection("categories").get().then(s => s.docs.map(d => ({ id: d.id, ...d.data() })))
+  ]);
+  const { qty, text } = splitQty(item.text);
+  // Schon offen auf der Liste? Dann nur verknüpfen statt doppelt anlegen
+  const open = await house.collection("items").where("storeId", "==", bridge.storeId).where("done", "==", false).get();
+  const same = open.docs.find(d => norm(d.get("text") || "") === norm(text));
+  let extId = same?.id;
+  if (!extId) {
+    const note = `von ${name} (Essens-App)${item.from ? ", für " + item.from : ""}`.slice(0, 200);
+    const created = await house.collection("items").add({
+      text: text.slice(0, 100), qty: qty.slice(0, 30), note, cat: guessCat(text, known, custom),
+      storeId: bridge.storeId, done: false, urgent: false, by: null, at: Date.now()
+    });
+    extId = created.id;
+  }
+  await ref.update({ extId });
+  logger.info("einkauf übertragen", { room, linked: !!same });
+}
+
+// Abhaken/Löschen in der Essens-App → Einkaufs-App
+export const onShoppingChanged = onDocumentUpdated("rooms/{room}/shopping/{id}", async event => {
+  const before = event.data.before.data(), after = event.data.after.data();
+  if (!after.extId || before.done === after.done) return;
+  const bridge = await bridgeOf(event.params.room);
+  if (!bridge) return;
+  const ref = db.doc(`households/${bridge.house}/items/${after.extId}`);
+  const snap = await ref.get();
+  if (!snap.exists || snap.get("done") === !!after.done) return;
+  await ref.update(after.done ? { done: true, doneBy: null, doneAt: Date.now(), missing: false } : { done: false });
+});
+export const onShoppingRemoved = onDocumentDeleted("rooms/{room}/shopping/{id}", async event => {
+  const item = event.data?.data();
+  if (!item?.extId || item.done) return; // Erledigtes bleibt drüben, bis dort aufgeräumt wird
+  const bridge = await bridgeOf(event.params.room);
+  if (!bridge) return;
+  const ref = db.doc(`households/${bridge.house}/items/${item.extId}`);
+  const snap = await ref.get();
+  if (snap.exists && !snap.get("done")) await ref.delete();
+});
+
+// Abhaken/Löschen in der Einkaufs-App → Essens-App
+export const onEinkaufItem = onDocumentWritten("households/{house}/items/{id}", async event => {
+  const link = (await db.doc(`bridgeHouses/${event.params.house}`).get()).data();
+  if (!link) return;
+  const found = await db.collection(`rooms/${link.room}/shopping`).where("extId", "==", event.params.id).limit(1).get();
+  if (found.empty) return;
+  const ours = found.docs[0];
+  const after = event.data.after.exists ? event.data.after.data() : null;
+  if (!after) {
+    // Drüben gelöscht: abgehakt + aufgeräumt → bei uns abhaken, sonst ebenfalls entfernen
+    const wasDone = event.data.before.get("done");
+    if (wasDone) { if (!ours.get("done")) await ours.ref.update({ done: true, doneAt: Date.now(), doneBy: null }); }
+    else await ours.ref.delete();
+    return;
+  }
+  if (!!after.done !== !!ours.get("done")) {
+    await ours.ref.update(after.done
+      ? { done: true, doneAt: after.doneAt || Date.now(), doneBy: null, doneElsewhere: true }
+      : { done: false, doneElsewhere: false });
+  }
+});
+
+// Verbinden/Trennen: die App legt rooms/<room>/linkRequests/<id> { house, by } an
+export const onLinkRequest = onDocumentCreated("rooms/{room}/linkRequests/{id}", async event => {
+  const req = event.data?.data();
+  const { room } = event.params;
+  const status = db.doc(`rooms/${room}/meta/einkauf`);
+  try {
+    const old = await bridgeOf(room);
+    if (!req?.house) { // Trennen
+      if (old) await Promise.all([db.doc(`bridges/${room}`).delete(), db.doc(`bridgeHouses/${old.house}`).delete()]);
+      await status.set({ connected: false, at: Date.now(), by: req?.by || null });
+      return;
+    }
+    const house = String(req.house).trim().toLowerCase();
+    const hs = await db.doc(`households/${house}`).get();
+    if (!hs.exists || hs.get("closedAt")) {
+      await status.set({ connected: !!old, storeName: old?.storeName || null, error: "Diesen Code gibt es in der Einkaufs-App nicht.", at: Date.now() });
+      return;
+    }
+    const stores = (await hs.ref.collection("stores").get()).docs;
+    const store = stores.find(s => norm(s.get("name") || "").includes("kaufland"));
+    if (!store) {
+      await status.set({ connected: !!old, storeName: old?.storeName || null, error: "In der Einkaufs-App gibt es keine Kaufland-Liste.", at: Date.now() });
+      return;
+    }
+    if (old && old.house !== house) await db.doc(`bridgeHouses/${old.house}`).delete();
+    const bridge = { house, storeId: store.id, storeName: store.get("name") };
+    await Promise.all([
+      db.doc(`bridges/${room}`).set(bridge),
+      db.doc(`bridgeHouses/${house}`).set({ room, storeId: store.id })
+    ]);
+    await status.set({ connected: true, storeName: bridge.storeName, at: Date.now(), by: req.by || null });
+    // Was schon offen auf unserer Liste steht, gleich mit übertragen
+    const open = await db.collection(`rooms/${room}/shopping`).where("done", "==", false).get();
+    for (const d of open.docs) {
+      if (!d.get("extId")) await pushToEinkauf(room, d.ref, d.data(), await memberName(room, d.get("by")));
+    }
+  } finally {
+    await event.data?.ref.delete();
+  }
 });
 
 // ✎ Jemand legt für eine andere Person ein To-do an (private To-dos liegen woanders und lösen nichts aus)

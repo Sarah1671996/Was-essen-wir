@@ -61,6 +61,9 @@
       <button role="tab" data-sub="match">Matches <b class="pill" id="matchCount"></b></button>
       <button role="tab" data-sub="dishes">Gerichte</button>
     </div>
+    <section id="view-home" class="view" hidden>
+      <div class="scroll" id="homeCards"></div>
+    </section>
     <section id="view-swipe" class="view">
       <div class="filterbar" id="filterBar" role="group" aria-label="Kategorie" hidden></div>
       <div class="deck" id="deck"></div>
@@ -142,6 +145,14 @@
             <select id="todoFor" aria-label="Für wen?"></select>
             <input id="todoDue" type="date" aria-label="Fällig am (optional)" style="max-width:9.5rem">
           </div>
+          <select id="todoRepeat" aria-label="Wiederholen">
+            <option value="">einmalig</option>
+            <option value="d1">🔁 jeden Tag</option>
+            <option value="d3">🔁 alle 3 Tage</option>
+            <option value="w1">🔁 jede Woche</option>
+            <option value="w2">🔁 alle 2 Wochen</option>
+            <option value="m1">🔁 jeden Monat</option>
+          </select>
           <label class="toggle" id="todoPrivWrap"><input type="checkbox" id="todoPriv"> 🔒 Nur für mich sichtbar</label>
           <button class="btn" type="submit">Hinzufügen</button>
         </form>
@@ -166,6 +177,7 @@
   </main>
 
   <nav class="tabbar" role="tablist">
+    <button role="tab" data-tab="home" aria-selected="false"><span class="ti">⌂</span>Heute</button>
     <button role="tab" data-tab="essen" aria-selected="true"><span class="ti">♥</span>Essen<b class="badge" id="essenCount"></b></button>
     <button role="tab" data-tab="shop" aria-selected="false"><span class="ti">☑</span>Einkauf<b class="badge" id="shopCount"></b></button>
     <button role="tab" data-tab="clean" aria-selected="false"><span class="ti">✧</span>Putzen<b class="badge" id="cleanCount"></b></button>
@@ -282,6 +294,8 @@
       <button class="btn" id="inviteShare">Teilen</button>
     </div>
     <p class="small">Code: <b id="roomCode" class="mono"></b></p>
+    <label>Einkaufs-App verbinden</label>
+    <div class="stack" id="linkBox"></div>
     <label>Benachrichtigungen auf diesem Handy</label>
     <div class="stack" id="pushBox"></div>
     <label for="nameEdit">Dein Name</label>

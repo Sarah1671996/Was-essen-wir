@@ -176,6 +176,8 @@ function enterRoom() {
     room.watch(privateTodos(), list => { S.myTodos = list.map(t => ({ ...t, priv: true })); renderTodos(); }, { field: "at" }, onErr),
     room.watch("meta", list => {
       S.round = list.find(x => x.id === "round")?.n || 0;
+      S.einkauf = list.find(x => x.id === "einkauf") || null;
+      if ($("#roomDlg").open) renderLinkBox();
       S.roundLoaded = true;
       checkRound();
       renderAll();
@@ -452,8 +454,8 @@ function shopRow(item) {
     .catch(() => toast("Konnte nicht speichern"));
   const txt = el("div", "txt");
   const who = item.done
-    ? `abgehakt von ${item.doneBy === S.uid ? "dir" : nameOf(item.doneBy)}`
-    : `${nameOf(item.by)}${item.from ? " · für " + item.from : ""}`;
+    ? (item.doneElsewhere || !item.doneBy ? "in der Einkaufs-App abgehakt" : `abgehakt von ${item.doneBy === S.uid ? "dir" : nameOf(item.doneBy)}`)
+    : `${nameOf(item.by)}${item.from ? " · für " + item.from : ""}${item.extId ? ` · ↗ auch bei ${S.einkauf?.storeName || "Kaufland"}` : ""}`;
   txt.append(el("div", "t", item.text), el("div", "s", who));
   const del = el("button", "iconbtn", "✕");
   del.setAttribute("aria-label", "Eintrag löschen");
@@ -462,6 +464,7 @@ function shopRow(item) {
   return r;
 }
 function renderShopping() {
+  homeLater();
   const open = S.shopping.filter(i => !i.done), done = S.shopping.filter(i => i.done);
   $("#shopCount").textContent = open.length || "";
   const list = $("#shopList"), doneList = $("#shopDone");
@@ -899,7 +902,55 @@ function openRoom() {
   renderResetBox();
   renderListBox();
   renderPushBox();
+  renderLinkBox();
   $("#roomDlg").showModal();
+}
+
+/* ---------- Verbindung zur Einkaufs-App ---------- */
+function renderLinkBox() {
+  const box = $("#linkBox");
+  if (!box || box.dataset.busy) return;
+  box.textContent = "";
+  const st = S.einkauf;
+  if (!store.pushToken) { // Demo-Modus ohne Firebase
+    box.appendChild(el("p", "small", "Nur mit Firebase verfügbar."));
+    return;
+  }
+  if (st?.connected) {
+    box.appendChild(el("p", "small", `✓ Verbunden: Neue Einträge landen automatisch auf der ${st.storeName || "Kaufland"}-Liste der Einkaufs-App. Abhaken wird in beide Richtungen übernommen.`));
+    const b = el("button", "btn ghost", "Verbindung trennen");
+    b.onclick = () => {
+      if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Wirklich trennen?"; return; }
+      sendLink("");
+    };
+    box.appendChild(b);
+  } else {
+    box.appendChild(el("p", "small", "Gib den Code deiner Einkaufs-App ein (dort unter ⚙ → Code). Dann landet alles, was hier auf die Einkaufsliste kommt, auch auf der Kaufland-Liste. Der Code wird nur auf dem Server gespeichert, nicht auf den anderen Handys."));
+    const row = el("div", "joinrow");
+    const inp = el("input"); inp.id = "linkCode"; inp.maxLength = 40; inp.placeholder = "Code der Einkaufs-App";
+    inp.autocomplete = "off"; inp.setAttribute("autocapitalize", "off"); inp.spellcheck = false;
+    const b = el("button", "btn", "Verbinden");
+    b.onclick = () => { if (inp.value.trim()) sendLink(inp.value.trim()); };
+    row.append(inp, b);
+    box.appendChild(row);
+  }
+  if (st?.error) box.appendChild(el("p", "error", st.error));
+}
+async function sendLink(house) {
+  const box = $("#linkBox");
+  box.dataset.busy = "1";
+  box.textContent = "";
+  box.appendChild(el("p", "small", house ? "Verbinde …" : "Trenne …"));
+  try {
+    await room.add("linkRequests", { house, by: S.uid, at: Date.now() });
+  } catch { toast("Das hat nicht geklappt"); }
+  // Der Server antwortet über meta/einkauf; spätestens nach 20 s wieder bedienbar
+  setTimeout(() => { delete box.dataset.busy; renderLinkBox(); }, 20000);
+  const was = S.einkauf?.at || 0;
+  const check = setInterval(() => {
+    if ((S.einkauf?.at || 0) > was) { clearInterval(check); delete box.dataset.busy; renderLinkBox(); }
+  }, 500);
+  setTimeout(() => clearInterval(check), 20000);
 }
 
 // Alte Beispielgerichte gegen die aktuelle Startliste tauschen. Selbst angelegte oder
@@ -1014,7 +1065,8 @@ function showTab(t) {
   $("#essenSeg").hidden = !essen;
   const sub = t === "wish" ? "dishes" : t; // Wünsche gehören zu „Gerichte“
   document.querySelectorAll("#essenSeg button").forEach(b => b.setAttribute("aria-selected", b.dataset.sub === sub));
-  for (const v of ["swipe", "match", "dishes", "shop", "clean", "todo", "wish"]) $("#view-" + v).hidden = v !== t;
+  for (const v of ["home", "swipe", "match", "dishes", "shop", "clean", "todo", "wish"]) $("#view-" + v).hidden = v !== t;
+  if (t === "home") renderHome();
   ls.set("em.tab", t);
 }
 document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -1037,11 +1089,89 @@ function renderAll() {
   renderTodos();
   renderPeople();
   if (!$("#listNotice").dataset.confirming) renderListBox($("#listNotice"));
+  homeLater();
+}
+
+/* ---------- Heute: alles auf einen Blick ---------- */
+let homeTimer = null;
+function homeLater() { // nach Datenänderungen neu zeichnen, aber nur wenn sichtbar
+  if ($("#view-home").hidden) return;
+  clearTimeout(homeTimer);
+  homeTimer = setTimeout(renderHome, 60);
+}
+function homeCard({ icon, title, num, lines = [], tab, hot }) {
+  const c = el("button", "hcard" + (hot ? " hot" : ""));
+  const head = el("div", "hhead");
+  head.append(el("span", "hicon", icon), el("span", "htitle", title));
+  if (num !== undefined && num !== null) head.appendChild(el("span", "hnum", String(num)));
+  c.appendChild(head);
+  lines.filter(Boolean).forEach(l => {
+    const p = el("div", "hlist");
+    if (typeof l === "string") p.textContent = l; else p.append(...l);
+    c.appendChild(p);
+  });
+  c.onclick = () => showTab(tab);
+  return c;
+}
+function renderHome() {
+  if (!room) return;
+  const box = $("#homeCards");
+  box.textContent = "";
+  const h = new Date().getHours();
+  const hi = h < 11 ? "Guten Morgen" : h < 17 ? "Hallo" : "Guten Abend";
+  box.appendChild(el("div", "hello", `${hi}, ${S.name || "du"}!`));
+  box.appendChild(el("p", "small", new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long" }) + ` · KW ${weekOf().week}`));
+
+  // Putzen
+  const wk = weekOf();
+  const who = responsibleFor(S.cleaning, wk);
+  const open = S.chores.filter(c => choreState(c, wk).state === "due");
+  box.appendChild(homeCard({
+    icon: "✧", tab: "clean", hot: who === S.uid && open.length,
+    title: !who ? "Putzplan einrichten" : who === S.uid ? "Du bist mit Putzen dran" : `${memberName(who)} ist mit Putzen dran`,
+    num: who ? open.length || "✓" : null,
+    lines: [who ? (open.length ? "Offen: " + open.map(c => c.title).join(", ") : "Alles erledigt für diese Woche") : "Leg fest, wer in welchen Wochen dran ist"]
+  }));
+
+  // To-dos (meine + gemeinsame), Fälliges zuerst
+  const today = todayKey();
+  const mine = [...S.todos, ...S.myTodos].filter(t => !t.done && (t.for === S.uid || !t.for));
+  const urgent = mine.filter(t => t.due && t.due <= today).sort((a, b) => a.due.localeCompare(b.due));
+  const rest = mine.filter(t => !t.due || t.due > today);
+  const todoLine = urgent.length
+    ? urgent.slice(0, 3).flatMap((t, i) => [i ? ", " : "", t.due < today ? Object.assign(el("span", "late"), { textContent: t.text }) : t.text])
+    : rest.slice(0, 3).map(t => t.text).join(", ") || "Nichts zu tun 🎉";
+  box.appendChild(homeCard({
+    icon: "✎", tab: "todo", hot: urgent.length, num: mine.length,
+    title: urgent.length ? `${urgent.length} To-do${urgent.length > 1 ? "s" : ""} für heute` : "Deine To-dos",
+    lines: [todoLine]
+  }));
+
+  // Essen
+  const both = S.dishes.filter(d => S.myVotes[d.id] === 1 && likersOf(d.id).length);
+  const left = S.dishes.filter(d => !(d.id in S.myVotes)).length;
+  box.appendChild(homeCard({
+    icon: "♥", tab: both.length ? "match" : "swipe", num: both.length,
+    title: both.length ? "Eure Matches" : "Was essen wir?",
+    lines: [
+      both.length ? both.slice(0, 3).map(d => d.name).join(", ") + (both.length > 3 ? " …" : "") : "Noch keine Matches",
+      left ? `Noch ${left} Gerichte zu swipen` : ""
+    ]
+  }));
+
+  // Einkauf
+  const shop = S.shopping.filter(i => !i.done);
+  box.appendChild(homeCard({
+    icon: "☑", tab: "shop", num: shop.length,
+    title: "Einkaufsliste",
+    lines: [shop.length ? shop.slice(0, 5).map(i => i.text).join(", ") + (shop.length > 5 ? " …" : "") : "Alles da"]
+  }));
 }
 
 /* ---------- Putzplan ---------- */
 const memberName = uid => uid ? (uid === S.uid ? "Du" : (S.members.find(m => m.id === uid)?.name || "Jemand")) : null;
 function renderCleaning() {
+  homeLater();
   if (!room) return;
   const wk = weekOf();
   const next = weekOf(Date.now() + 7 * 864e5);
@@ -1209,7 +1339,23 @@ function fmtDue(key) {
   if (diff === 1) return "morgen";
   return "bis " + d.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "numeric" });
 }
+// Wiederkehrende To-dos: "d3" = alle 3 Tage, "w2" = alle 2 Wochen, "m1" = jeden Monat
+const REPEAT_TEXT = { d1: "jeden Tag", d3: "alle 3 Tage", w1: "jede Woche", w2: "alle 2 Wochen", m1: "jeden Monat" };
+function addInterval(key, rep) {
+  const d = new Date(key + "T12:00:00");
+  const n = Number(rep.slice(1));
+  if (rep[0] === "d") d.setDate(d.getDate() + n);
+  else if (rep[0] === "w") d.setDate(d.getDate() + 7 * n);
+  else d.setMonth(d.getMonth() + n);
+  return d.toLocaleDateString("sv-SE");
+}
+function nextDue(t) {
+  let next = addInterval(t.due || todayKey(), t.repeat);
+  while (next <= todayKey()) next = addInterval(next, t.repeat); // überfällige springen in die Zukunft
+  return next;
+}
 function renderTodos() {
+  homeLater();
   if (!room) return;
   const all = [...S.todos, ...S.myTodos];
   const others_ = S.members.filter(m => m.id !== S.uid);
@@ -1280,14 +1426,26 @@ function todoRow(t) {
   const r = el("div", "row" + (t.done ? " done" : ""));
   const c = el("button", "check", t.done ? "✓" : "");
   c.setAttribute("aria-label", t.done ? "Wieder offen" : "Erledigt");
-  c.onclick = () => room.update(todoCol(t), t.id, t.done
-    ? { done: false, doneBy: null, doneAt: null }
-    : { done: true, doneBy: S.uid, doneAt: Date.now() }).catch(() => toast("Konnte nicht speichern"));
+  c.onclick = () => {
+    if (t.repeat && !t.done) {
+      // Wiederkehrend: nicht abhaken, sondern auf den nächsten Termin setzen
+      const due = nextDue(t);
+      room.update(todoCol(t), t.id, { due, lastDone: Date.now(), lastDoneBy: S.uid })
+        .then(() => toast(`Erledigt ✓ Nächstes Mal ${fmtDue(due).replace(/^bis /, "am ")}`))
+        .catch(() => toast("Konnte nicht speichern"));
+      return;
+    }
+    room.update(todoCol(t), t.id, t.done
+      ? { done: false, doneBy: null, doneAt: null }
+      : { done: true, doneBy: S.uid, doneAt: Date.now() }).catch(() => toast("Konnte nicht speichern"));
+  };
   const txt = el("div", "txt");
   const forLabel = !t.for ? "👥 Uns beide" : t.for === S.uid ? "🙋 Für dich" : `👤 Für ${memberName(t.for)}`;
   const parts = [forLabel];
   if (t.by && t.by !== S.uid) parts.push(`von ${memberName(t.by)}`);
   if (t.priv) parts.push("🔒 privat");
+  if (t.repeat) parts.push(`🔁 ${REPEAT_TEXT[t.repeat] || "wiederkehrend"}`);
+  if (t.repeat && t.lastDone) parts.push(`zuletzt ${fmtDate(t.lastDone)}${t.lastDoneBy && t.lastDoneBy !== S.uid ? " von " + memberName(t.lastDoneBy) : ""}`);
   if (t.done && t.doneBy) parts.push(`erledigt von ${t.doneBy === S.uid ? "dir" : memberName(t.doneBy)}`);
   txt.append(el("div", "t", t.text), el("div", "s", parts.join(" · ")));
   r.append(c, txt);
@@ -1308,11 +1466,15 @@ $("#todoForm").addEventListener("submit", async e => {
   if (!text) return;
   const forUid = $("#todoFor").value || null;
   const priv = forUid === S.uid && $("#todoPriv").checked;
-  const data = { text, for: forUid, by: S.uid, at: Date.now(), due: $("#todoDue").value || null, done: false };
+  const repeat = $("#todoRepeat").value || null;
+  // Wiederkehrende brauchen einen ersten Termin; ohne Angabe: heute
+  const due = $("#todoDue").value || (repeat ? todayKey() : null);
+  const data = { text, for: forUid, by: S.uid, at: Date.now(), due, repeat, done: false };
   $("#todoText").value = "";
   try {
     await room.add(priv ? privateTodos() : "todos", data);
     $("#todoDue").value = "";
+    $("#todoRepeat").value = "";
     if (forUid && forUid !== S.uid) toast(`To-do für ${memberName(forUid)} angelegt`);
   } catch { $("#todoText").value = text; toast("Konnte nicht speichern"); }
 });
@@ -1397,7 +1559,7 @@ async function initPush() {
 }
 
 // Benachrichtigungen öffnen die App mit #clean, #match oder #shop direkt im passenden Reiter
-const TABS = ["essen", "swipe", "match", "dishes", "shop", "clean", "todo", "wish"];
+const TABS = ["home", "essen", "swipe", "match", "dishes", "shop", "clean", "todo", "wish"];
 const hashTab = () => TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : null;
 window.addEventListener("hashchange", () => { if (hashTab()) showTab(hashTab()); });
 showTab(hashTab() || ls.get("em.tab") || "swipe");
