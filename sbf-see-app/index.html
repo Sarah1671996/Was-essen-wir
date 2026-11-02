@@ -235,6 +235,10 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 @media (orientation:portrait){.fsportrait{display:block;position:absolute;left:50%;top:40%;transform:translateX(-50%);background:rgba(10,22,32,.8);padding:8px 14px;border-radius:99px;font-weight:700;pointer-events:none;white-space:nowrap;z-index:2}}
 .fsresult{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,460px);max-height:90vh;overflow:auto;display:grid;gap:8px;background:var(--surface);color:var(--ink);border-radius:14px;padding:16px 18px;border-top:6px solid var(--sb);z-index:6}
 .fsresult.no{border-top-color:var(--bb)}
+.fslook{position:absolute;right:max(10px,env(safe-area-inset-right,0px));bottom:max(10px,env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:1fr 1fr;gap:6px;z-index:3}
+.fslook .fsbtn{padding:8px 10px}
+.fsbtn.on{background:#ff7a3d;border-color:#ff7a3d}
+.simfs.camfar .fslook{right:auto;left:calc(max(12px,env(safe-area-inset-left,0px)) + 90px)}
 .simfs.camfar .fswheelbox{left:auto;right:max(12px,env(safe-area-inset-right,0px));transform:none}
 .simfs.camfar .fswheel{width:min(32vh,36vw,180px)}
 .simfs.camfar .fswheel{height:min(32vh,36vw,180px)}

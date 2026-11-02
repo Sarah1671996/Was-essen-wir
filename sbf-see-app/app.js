@@ -1509,8 +1509,9 @@ const SCENARIOS = [
     brief: [
       "Du liegst mit Backbord am Steg, vor und hinter dir liegen andere Boote. Fahre hinaus, bis du <b>15 m vom Steg</b> entfernt bist, ohne anzustoßen.",
       "<b>Wichtig:</b> Das Boot dreht um einen Punkt im vorderen Drittel. Wer vorwärts mit Ruder vom Steg weg losfährt, <b>schwenkt das Heck an den Steg</b>.",
-      "<b>Eine Möglichkeit:</b> Ruder Steuerbord und <b>kurz rückwärts</b>, damit das Heck vom Steg wegkommt. Dann Ruder mittschiffs und langsam voraus, erst mit Abstand weiter abdrehen.",
-      "In echt hilft man mit Leinen (Spring) und Fendern nach. Hier geht es nur um das Gefühl für das ausschwenkende Heck."],
+      "<b>Wie in der Fahrstunde:</b> Ruder hart Backbord (zum Steg) und <b>rückwärts einkuppeln</b>. Aus dem Stand wirkt zuerst der <b>Radeffekt</b>: Das Heck geht seitlich weg, erst dann nimmt das Boot Fahrt nach achtern auf. Ob das Heck nach Steuerbord oder Backbord geht, hängt von der Drehrichtung der Schraube ab (unten einstellbar).",
+      "Ist das Heck frei, <b>vorwärts einkuppeln</b>. Mit dem Ruder noch Backbord geht der Bug dabei etwas Richtung Steg, also das Ruder rechtzeitig zurücknehmen und erst mit Abstand weiter abdrehen.",
+      "In echt hilft man mit Leinen (Spring) und Fendern nach. Achte auf das Heck: Das Boot dreht um einen Punkt im vorderen Drittel."],
     start: { x: 1.5, y: 18, psi: 0, u: 0, T: 0 }, view: 60, follow: false, center: { x: 10, y: 16 },
     piers: [{ x1: -8, x2: 0, y1: -10, y2: 45 }],
     moored: [{ x: 1.5, y: 29, psi: 0 }, { x: 1.5, y: 5, psi: 0 }], leave: 15 },
@@ -1530,7 +1531,7 @@ try { simBest = JSON.parse(localStorage.getItem("sbfsee-simbest") || "{}"); simH
 const WIND_LEVELS = [["0", "Kein Wind", 0], ["6", "Leicht (6 kn, Bft 2)", 6], ["12", "Mittel (12 kn, Bft 4)", 12], ["18", "Frisch (18 kn, Bft 5)", 18]];
 const CUR_LEVELS = [["0", "Keine Strömung", 0], ["0.5", "0,5 kn", 0.5], ["1", "1 kn", 1], ["1.5", "1,5 kn", 1.5]];
 const DIRS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
-let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall" };
+let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall", prop: "rechts" };
 try { Object.assign(simEnv, JSON.parse(localStorage.getItem("sbfsee-simenv") || "{}")); } catch (e) {}
 const dirName = deg => DIRS[Math.round(norm360(deg) / 45) % 8];
 function makeEnv() {
@@ -1555,7 +1556,8 @@ function newSim(sc) {
   const s = sc.start;
   const st = {
     sc, t: 0, done: null, steer: 0, lastSteer: 0, wheelChanges: 0, contacts: 0, hardHit: false, inContact: false,
-    b: { x: s.x, y: s.y, psi: s.psi * D2R, u: s.u, r: 0, delta: 0, T: s.T },
+    b: { x: s.x, y: s.y, psi: s.psi * D2R, u: s.u, r: 0, delta: 0, T: s.T, thr: s.T },
+    prop: simEnv.prop === "links" ? -1 : 1,
     trail: [], msg: "", hold: 0, stats: {}, env: makeEnv(), drift: [0, 0]
   };
   if (sc.id === "kurs") Object.assign(st.stats, { reached: false, maxOver: 0, inBand: 0, crossings: 0, lastSign: 0 });
@@ -1583,11 +1585,16 @@ function simStep(st, dt) {
   const want = st.wheel / WHEEL_MAX * SIM.RUD_MAX;
   b.delta += Math.max(-45 * dt, Math.min(45 * dt, want - b.delta));
   // Längsfahrt: Schub minus Widerstand
-  const a = b.T > 0 ? b.T * 0.25 : b.T * 0.2;
+  // Schub folgt dem Hebel mit kurzer Verzögerung (Getriebe, Drehzahl); rückwärts zieht die Schraube schwächer
+  if (b.thr === undefined) b.thr = b.T;
+  b.thr += (b.T - b.thr) * Math.min(1, dt / 0.8);
+  const a = b.thr > 0 ? b.thr * 0.25 : b.thr * 0.16;
   b.u += (a - 0.05 * b.u - 0.07 * b.u * Math.abs(b.u)) * dt;
   // Drehung: Ruderwirkung braucht Anströmung (Fahrt oder Schraubenstrahl voraus)
-  const flow = b.u + (b.T > 0 ? 0.45 * b.T : 0);
-  const walk = b.T < 0 ? -0.014 * b.T : 0; // Radeffekt rückwärts: Bug nach Steuerbord
+  const flow = b.u + (b.thr > 0 ? 0.45 * b.thr : 0);
+  // Radeffekt rückwärts: aus dem Stand stark (Heck geht seitlich weg), mit zunehmender Fahrt achteraus schwächer.
+  // Rechtsdrehende Schraube: Heck nach Backbord (Bug nach Steuerbord); linksdrehend umgekehrt.
+  const walk = b.thr < 0 ? -0.085 * b.thr * (st.prop || 1) * Math.exp(-2 * Math.abs(b.u)) : 0;
   // Wind dreht den Bug nach Lee (stärker, wenn das Boot langsam ist)
   const env = st.env || { windKn: 0, curKn: 0 }, Wms = env.windKn / KN;
   const windYaw = Wms ? 0.0005 * Wms * Wms * Math.sin((env.windFrom + 180) * D2R - b.psi) / (1 + b.u * b.u) : 0;
@@ -1612,7 +1619,9 @@ function simStep(st, dt) {
       b.u *= 0.9; b.r *= 0.75;
     }
   }
-  if (touching && !st.inContact) st.contacts++;
+  // Ein Anstoßen zählt nur einmal, auch wenn der Rumpf kurz hintereinander mehrmals berührt
+  if (touching && !st.inContact && st.t - (st.lastTouch || -9) > 1) st.contacts++;
+  if (touching) st.lastTouch = st.t;
   st.inContact = touching;
   if (!st.trail.length || Math.hypot(st.trail.at(-1)[0] - b.x, st.trail.at(-1)[1] - b.y) > 1.2) { st.trail.push([b.x, b.y]); if (st.trail.length > 400) st.trail.shift(); }
   CHECKS[sc.id](st, dt);
@@ -1815,6 +1824,7 @@ function vPraxis(m) {
         <label class="field">Wind<select id="envwind">${WIND_LEVELS.map(([k, l]) => `<option value="${k}" ${simEnv.wind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         <label class="field">aus Richtung<select id="envwdir">${["zufall", ...DIRS].map(d => `<option value="${d}" ${simEnv.windDir === d ? "selected" : ""}>${d === "zufall" ? "zufällig" : d}</option>`).join("")}</select></label>
         <label class="field">Strömung<select id="envcur">${CUR_LEVELS.map(([k, l]) => `<option value="${k}" ${simEnv.cur === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        <label class="field">Schraube<select id="envprop"><option value="rechts" ${simEnv.prop !== "links" ? "selected" : ""}>rechtsdrehend: rückwärts Heck nach Bb</option><option value="links" ${simEnv.prop === "links" ? "selected" : ""}>linksdrehend: rückwärts Heck nach Stb</option></select></label>
         <label class="field">setzt nach<select id="envcdir">${["zufall", ...DIRS].map(d => `<option value="${d}" ${simEnv.curDir === d ? "selected" : ""}>${d === "zufall" ? "zufällig" : d}</option>`).join("")}</select></label>
       </div>
       <p class="muted" style="margin:0;font-size:.85rem">Wind treibt das Boot seitlich ab und drückt den Bug nach Lee, besonders bei wenig Fahrt. Strömung versetzt Boot und Person gleichermaßen. Tipp: Gegen Wind oder Strom anlegen und an die Person heranfahren, dann hast du mehr Kontrolle.</p>
@@ -1823,8 +1833,8 @@ function vPraxis(m) {
   </div>`;
   $("#simback").onclick = () => { simPick = null; render(); };
   $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
-  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
-  ["#envwind", "#envwdir", "#envcur", "#envcdir"].forEach(id => $(id).onchange = envSave);
+  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value, prop: $("#envprop").value }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
+  ["#envwind", "#envwdir", "#envcur", "#envcdir", "#envprop"].forEach(id => $(id).onchange = envSave);
   $("#simgo").onclick = () => startSimFullscreen(sc);
 }
 
@@ -1849,6 +1859,7 @@ function runSim(sc, has3d) {
     </div>
     <div class="fsinfo"><b class="fsmsg"></b><span class="fsdata mono"></span></div>
     <canvas class="fsmini"></canvas>
+    <div class="fslook" role="group" aria-label="Blickrichtung">${[[-90, "◀ Bb"], [0, "Voraus"], [180, "Achtern"], [90, "Stb ▶"]].map(([y, l]) => `<button class="fsbtn" data-look="${y}">${l}</button>`).join("")}</div>
     <div class="fslever" aria-label="Schalthebel">${[3, 2, 1, 0, -1, -2].map(v => `<span class="lstop ${v === 0 ? "n" : ""}" data-t="${v}">${v > 0 ? "V" + v : v < 0 ? "Z" + -v : "N"}</span>`).join("")}<i class="lknob"></i></div>
     <div class="fsrudder"><span class="rudlabel">Ruderlage</span><div class="rudbar"><i class="rudmid"></i><i class="rudpos"></i></div><span class="rudtxt"></span></div>
     <div class="fswheelbox">
@@ -1897,7 +1908,8 @@ function runSim(sc, has3d) {
   // Umsehen in der 3D-Ansicht: über das Bild wischen
   let look = null;
   c3.addEventListener("pointerdown", e => { look = { x: e.clientX, yaw: st.lookYaw || 0 }; c3.setPointerCapture(e.pointerId); });
-  c3.addEventListener("pointermove", e => { if (look) st.lookYaw = Math.max(-170, Math.min(170, look.yaw - (e.clientX - look.x) * 0.3)); });
+  c3.addEventListener("pointermove", e => { if (look) st.lookYaw = Math.max(-180, Math.min(180, look.yaw - (e.clientX - look.x) * 0.3)); });
+  o.querySelectorAll("[data-look]").forEach(bt => bt.onclick = e => { e.stopPropagation(); st.lookYaw = +bt.dataset.look; if (simCam !== "cockpit") { simCam = "cockpit"; applyCam(); } });
   ["pointerup", "pointercancel"].forEach(ev => c3.addEventListener(ev, () => look = null));
   c3.addEventListener("dblclick", () => st.lookYaw = 0);
 
@@ -1938,6 +1950,7 @@ function runSim(sc, has3d) {
       q(".fsmsg").textContent = st.msg;
       q(".fsdata").textContent = `${(b.u * KN).toFixed(1).replace(".", ",")} kn · Drehung ${(b.r * R2D).toFixed(1).replace(".", ",")}°/s · ${THROTTLE[b.T]}${envText(st.env) ? " · " + envText(st.env) : ""}`;
       lever.querySelectorAll(".lstop").forEach(s => s.classList.toggle("on", +s.dataset.t === b.T));
+      o.querySelectorAll("[data-look]").forEach(bt => bt.classList.toggle("on", simCam === "cockpit" && Math.abs((st.lookYaw || 0) - +bt.dataset.look) < 1));
     }
     if (st.done && q(".fsresult").hidden) {
       const d = st.done, box = q(".fsresult");
@@ -2028,7 +2041,7 @@ function build3D(canvas, sc, st) {
       const p = toWorld(b, [0, -20]), t = toWorld(b, [0, 6]);
       camera.position.copy(V(p[0], p[1], 9)); camera.lookAt(V(t[0], t[1], 0));
     } else {
-      const p = toWorld(b, [0, -1.0]), yaw = b.psi + (st.lookYaw || 0) * D2R;
+      const look = st.lookYaw || 0, yaw = b.psi + look * D2R, p = toWorld(b, [0, Math.abs(look) > 120 ? -0.6 : -1.0]);
       camera.position.copy(V(p[0], p[1], 2.5)); camera.lookAt(V(p[0] + Math.sin(yaw) * 40, p[1] + Math.cos(yaw) * 40, 0.6));
     }
     renderer.render(scene, camera);
