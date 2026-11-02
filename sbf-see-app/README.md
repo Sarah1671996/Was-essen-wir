@@ -47,7 +47,7 @@ Für die Lösungswege nennt die App die Seite in `bootspruefung_de_sbfs_navigati
 
 ## Praxis-Simulator
 
-Vereinfachtes 8-m-Motorboot (rechtsdrehende Schraube) ohne Wind und Strömung, Vollbild im Querformat.
+Vereinfachtes 8-m-Motorboot (rechtsdrehende Schraube) mit einstellbarem Wind und Strömung, Vollbild im Querformat.
 Fahrphysik und Auswertung der Übungen stehen in `quelle/app.html` (`SCENARIOS`, `simStep`, `CHECKS`), die 3D-Ansicht in `build3D`.
 
 ## Lernstand und Sicherheit

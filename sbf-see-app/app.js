@@ -1526,12 +1526,37 @@ const SCENARIOS = [
 let sim = null, simPick = null, simLoop = 0, simHelp = true, simBest = {};
 try { simBest = JSON.parse(localStorage.getItem("sbfsee-simbest") || "{}"); simHelp = localStorage.getItem("sbfsee-simhelp") !== "0"; } catch (e) {}
 
+/* Wind und Strömung: einstellbar, Richtung fest oder zufällig */
+const WIND_LEVELS = [["0", "Kein Wind", 0], ["6", "Leicht (6 kn, Bft 2)", 6], ["12", "Mittel (12 kn, Bft 4)", 12], ["18", "Frisch (18 kn, Bft 5)", 18]];
+const CUR_LEVELS = [["0", "Keine Strömung", 0], ["0.5", "0,5 kn", 0.5], ["1", "1 kn", 1], ["1.5", "1,5 kn", 1.5]];
+const DIRS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
+let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall" };
+try { Object.assign(simEnv, JSON.parse(localStorage.getItem("sbfsee-simenv") || "{}")); } catch (e) {}
+const dirName = deg => DIRS[Math.round(norm360(deg) / 45) % 8];
+function makeEnv() {
+  const pick = d => d === "zufall" ? Math.floor(Math.random() * 8) * 45 : DIRS.indexOf(d) * 45;
+  const w = WIND_LEVELS.find(x => x[0] === simEnv.wind) || WIND_LEVELS[0], c = CUR_LEVELS.find(x => x[0] === simEnv.cur) || CUR_LEVELS[0];
+  // Wind kommt AUS windFrom, Strömung setzt NACH curTo (beides in Grad)
+  return { windKn: w[2], windFrom: pick(simEnv.windDir), curKn: c[2], curTo: pick(simEnv.curDir) };
+}
+function envText(env) {
+  const p = [];
+  if (env.windKn) p.push(`Wind ${env.windKn} kn aus ${dirName(env.windFrom)}`);
+  if (env.curKn) p.push(`Strom ${String(env.curKn).replace(".", ",")} kn nach ${dirName(env.curTo)}`);
+  return p.join(" · ");
+}
+// Versatz über Grund durch Wind (Abdrift) und Strömung in m/s
+function envDrift(env, factor = 1) {
+  const W = env.windKn / KN, down = (env.windFrom + 180) * D2R, cs = env.curKn / KN, to = env.curTo * D2R, wd = 0.009 * W * W * factor;
+  return [Math.sin(down) * wd + Math.sin(to) * cs, Math.cos(down) * wd + Math.cos(to) * cs];
+}
+
 function newSim(sc) {
   const s = sc.start;
   const st = {
     sc, t: 0, done: null, steer: 0, lastSteer: 0, wheelChanges: 0, contacts: 0, hardHit: false, inContact: false,
     b: { x: s.x, y: s.y, psi: s.psi * D2R, u: s.u, r: 0, delta: 0, T: s.T },
-    trail: [], msg: "", hold: 0, stats: {}
+    trail: [], msg: "", hold: 0, stats: {}, env: makeEnv(), drift: [0, 0]
   };
   if (sc.id === "kurs") Object.assign(st.stats, { reached: false, maxOver: 0, inBand: 0, crossings: 0, lastSign: 0 });
   if (sc.id === "mob") Object.assign(st.stats, { fallAt: 4 + Math.random() * 5, side: Math.random() < 0.5 ? 1 : -1, person: null, reactAt: null, propDanger: false, minDist: 1e9 });
@@ -1545,7 +1570,7 @@ function hullLocal() {
 }
 const fwd = psi => [Math.sin(psi), Math.cos(psi)], stb = psi => [Math.cos(psi), -Math.sin(psi)];
 function toWorld(b, p) { const f = fwd(b.psi), s = stb(b.psi); return [b.x + p[0] * s[0] + p[1] * f[0], b.y + p[0] * s[1] + p[1] * f[1]]; }
-function pointVel(b, w) { const f = fwd(b.psi), ox = w[0] - b.x, oy = w[1] - b.y; return [b.u * f[0] + b.r * oy, b.u * f[1] - b.r * ox]; }
+function pointVel(b, w, drift = [0, 0]) { const f = fwd(b.psi), ox = w[0] - b.x, oy = w[1] - b.y; return [b.u * f[0] + b.r * oy + drift[0], b.u * f[1] - b.r * ox + drift[1]]; }
 
 function simStep(st, dt) {
   const b = st.b, sc = st.sc;
@@ -1563,9 +1588,14 @@ function simStep(st, dt) {
   // Drehung: Ruderwirkung braucht Anströmung (Fahrt oder Schraubenstrahl voraus)
   const flow = b.u + (b.T > 0 ? 0.45 * b.T : 0);
   const walk = b.T < 0 ? -0.014 * b.T : 0; // Radeffekt rückwärts: Bug nach Steuerbord
-  b.r += (0.06 * (b.delta * D2R) * flow + walk - 0.5 * b.r) * dt;
+  // Wind dreht den Bug nach Lee (stärker, wenn das Boot langsam ist)
+  const env = st.env || { windKn: 0, curKn: 0 }, Wms = env.windKn / KN;
+  const windYaw = Wms ? 0.0005 * Wms * Wms * Math.sin((env.windFrom + 180) * D2R - b.psi) / (1 + b.u * b.u) : 0;
+  b.r += (0.06 * (b.delta * D2R) * flow + walk + windYaw - 0.5 * b.r) * dt;
   b.psi += b.r * dt;
-  const f = fwd(b.psi); b.x += b.u * f[0] * dt; b.y += b.u * f[1] * dt;
+  // Abdrift: bei Fahrt etwas weniger, weil der Rumpf seitlich „greift“
+  st.drift = env.windKn || env.curKn ? envDrift(env, 1 / (1 + 0.6 * Math.abs(b.u))) : [0, 0];
+  const f = fwd(b.psi); b.x += (b.u * f[0] + st.drift[0]) * dt; b.y += (b.u * f[1] + st.drift[1]) * dt;
   st.t += dt;
   // Kontakt mit Steg und anderen Booten
   let touching = false;
@@ -1576,7 +1606,7 @@ function simStep(st, dt) {
       const hit = o.type === "rect" ? rectHit(o, w) : boatHit(o.m, w);
       if (!hit) continue;
       touching = true;
-      const v = pointVel(b, w), vn = -(v[0] * hit.n[0] + v[1] * hit.n[1]);
+      const v = pointVel(b, w, st.drift), vn = -(v[0] * hit.n[0] + v[1] * hit.n[1]);
       if (vn > 0.5) st.hardHit = true;
       b.x += hit.n[0] * hit.pen; b.y += hit.n[1] * hit.pen;
       b.u *= 0.9; b.r *= 0.75;
@@ -1659,6 +1689,7 @@ const CHECKS = {
       s.person = { x: off[0], y: off[1] }; s.fellAt = st.t;
     }
     if (!s.person) { st.msg = "Geradeaus fahren und aufpassen …"; return; }
+    if (st.env.windKn || st.env.curKn) { const pd = envDrift(st.env, 0.25); s.person.x += pd[0] * dt; s.person.y += pd[1] * dt; }
     if (s.reactAt === null && Math.sign(b.delta) === s.side && Math.abs(b.delta) >= 15) s.reactAt = st.t - s.fellAt;
     const stern = toWorld(b, [0, -(SIM.L - SIM.PIVOT * SIM.L)]);
     const dStern = Math.hypot(stern[0] - s.person.x, stern[1] - s.person.y);
@@ -1726,6 +1757,12 @@ function simDraw(cv, st, opt = {}) {
     ctx.strokeStyle = "rgba(255,160,60,.9)"; ctx.lineWidth = 2.5 * dpr; ctx.beginPath(); ctx.moveTo(X(b.x), Y(b.y)); ctx.lineTo(X(b.x) + Math.sin(pre) * len, Y(b.y) - Math.cos(pre) * len); ctx.stroke();
   }
   drawBoat(ctx, X, Y, scale, b, "#ffffff", "#0f2a3f");
+  // Wind- und Strömungspfeil oben rechts
+  const arrow = (ox, deg, color, label) => { const a = deg * D2R, l = 16 * dpr; ctx.save(); ctx.translate(ox, 30 * dpr); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 3 * dpr;
+    ctx.beginPath(); ctx.moveTo(-Math.sin(a) * l, Math.cos(a) * l); ctx.lineTo(Math.sin(a) * l, -Math.cos(a) * l); ctx.stroke();
+    ctx.beginPath(); ctx.arc(Math.sin(a) * l, -Math.cos(a) * l, 4 * dpr, 0, 7); ctx.fill(); ctx.font = `bold ${10 * dpr}px system-ui`; ctx.textAlign = "center"; ctx.fillText(label, 0, 28 * dpr); ctx.restore(); };
+  if (st.env && st.env.windKn) arrow(W - 26 * dpr, st.env.windFrom + 180, "#ffffff", "Wind");
+  if (st.env && st.env.curKn) arrow(W - 70 * dpr, st.env.curTo, "#7fe3ff", "Strom");
   // Maßstab
   ctx.fillStyle = "rgba(255,255,255,.8)"; ctx.font = `${11 * dpr}px system-ui`; ctx.fillRect(12 * dpr, H - 14 * dpr, 10 * scale, 3 * dpr); ctx.fillText("10 m", 12 * dpr, H - 20 * dpr);
 }
@@ -1774,11 +1811,20 @@ function vPraxis(m) {
   m.innerHTML = `<div class="view">
     <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praxis-Simulator</div><h2>${sc.title}</h2></div><button class="btn small" id="simback">Alle Übungen</button></div>
     <section class="panel" style="display:grid;gap:10px">${sc.brief.map(p => `<p style="margin:0;max-width:72ch">${p}</p>`).join("")}
+      <div class="row" style="gap:12px;align-items:end">
+        <label class="field">Wind<select id="envwind">${WIND_LEVELS.map(([k, l]) => `<option value="${k}" ${simEnv.wind === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        <label class="field">aus Richtung<select id="envwdir">${["zufall", ...DIRS].map(d => `<option value="${d}" ${simEnv.windDir === d ? "selected" : ""}>${d === "zufall" ? "zufällig" : d}</option>`).join("")}</select></label>
+        <label class="field">Strömung<select id="envcur">${CUR_LEVELS.map(([k, l]) => `<option value="${k}" ${simEnv.cur === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+        <label class="field">setzt nach<select id="envcdir">${["zufall", ...DIRS].map(d => `<option value="${d}" ${simEnv.curDir === d ? "selected" : ""}>${d === "zufall" ? "zufällig" : d}</option>`).join("")}</select></label>
+      </div>
+      <p class="muted" style="margin:0;font-size:.85rem">Wind treibt das Boot seitlich ab und drückt den Bug nach Lee, besonders bei wenig Fahrt. Strömung versetzt Boot und Person gleichermaßen. Tipp: Gegen Wind oder Strom anlegen und an die Person heranfahren, dann hast du mehr Kontrolle.</p>
       <label class="row" style="gap:8px"><input type="checkbox" id="simhelp" ${simHelp ? "checked" : ""}> Hilfen anzeigen: Minikarte mit Pfeil, wo der Bug in 3 Sekunden steht</label>
       <div class="row"><button class="btn primary" id="simgo">Los geht's (Vollbild)</button><span class="muted" style="font-size:.85rem">Handy dafür quer halten.</span></div></section>
   </div>`;
   $("#simback").onclick = () => { simPick = null; render(); };
   $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
+  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
+  ["#envwind", "#envwdir", "#envcur", "#envcdir"].forEach(id => $(id).onchange = envSave);
   $("#simgo").onclick = () => startSimFullscreen(sc);
 }
 
@@ -1804,8 +1850,8 @@ function runSim(sc, has3d) {
     <div class="fsinfo"><b class="fsmsg"></b><span class="fsdata mono"></span></div>
     <canvas class="fsmini"></canvas>
     <div class="fslever" aria-label="Schalthebel">${[3, 2, 1, 0, -1, -2].map(v => `<span class="lstop ${v === 0 ? "n" : ""}" data-t="${v}">${v > 0 ? "V" + v : v < 0 ? "Z" + -v : "N"}</span>`).join("")}<i class="lknob"></i></div>
+    <div class="fsrudder"><span class="rudlabel">Ruderlage</span><div class="rudbar"><i class="rudmid"></i><i class="rudpos"></i></div><span class="rudtxt"></span></div>
     <div class="fswheelbox">
-      <div class="fsrudder"><div class="rudbar"><i class="rudmid"></i><i class="rudpos"></i></div><span class="rudtxt"></span></div>
       <svg class="fswheel" viewBox="-60 -60 120 120" aria-label="Steuerrad"><circle r="48" fill="none" stroke="#3b2a1c" stroke-width="12"/><circle r="48" fill="none" stroke="#7a5a3a" stroke-width="7"/>
         ${[0, 60, 120, 180, 240, 300].map(a => `<line x1="0" y1="0" x2="${Math.sin(a * D2R) * 56}" y2="${-Math.cos(a * D2R) * 56}" stroke="${a === 0 ? "#ff7a3d" : "#7a5a3a"}" stroke-width="${a === 0 ? 9 : 7}" stroke-linecap="round"/>`).join("")}
         <circle r="13" fill="#3b2a1c"/><circle r="6" fill="#ff7a3d"/></svg>
@@ -1890,7 +1936,7 @@ function runSim(sc, has3d) {
       q(".rudtxt").textContent = mid ? "Ruder mittschiffs" : `Ruder ${Math.abs(d)}° ${d > 0 ? "Stb" : "Bb"}`;
       q(".rudtxt").classList.toggle("mid", mid);
       q(".fsmsg").textContent = st.msg;
-      q(".fsdata").textContent = `${(b.u * KN).toFixed(1).replace(".", ",")} kn · Drehung ${(b.r * R2D).toFixed(1).replace(".", ",")}°/s · ${THROTTLE[b.T]}`;
+      q(".fsdata").textContent = `${(b.u * KN).toFixed(1).replace(".", ",")} kn · Drehung ${(b.r * R2D).toFixed(1).replace(".", ",")}°/s · ${THROTTLE[b.T]}${envText(st.env) ? " · " + envText(st.env) : ""}`;
       lever.querySelectorAll(".lstop").forEach(s => s.classList.toggle("on", +s.dataset.t === b.T));
     }
     if (st.done && q(".fsresult").hidden) {
@@ -1965,12 +2011,19 @@ function build3D(canvas, sc, st) {
   // Ufer als Hintergrund im Hafen
   if (sc.piers) box(400, 6, 30, 0x7c9a6a, -40, 200, 3);
   let person = null;
+  // Windfahne an der Bugstange: zeigt, wohin der Wind weht
+  const fg = new T.PlaneGeometry(0.45, 0.28); fg.translate(0.225, 0, 0);
+  const flag = new T.Mesh(fg, new T.MeshLambertMaterial({ color: 0xd32f2f, side: T.DoubleSide })); scene.add(flag);
   const update = (st, cam) => {
     const b = st.b;
     place(own, b.x, b.y, b.psi);
     if (st.stats.person && !person) { person = new T.Group(); const head = new T.Mesh(new T.SphereGeometry(0.3, 12, 10), new T.MeshLambertMaterial({ color: 0xf1c27d })); head.position.y = 0.35; person.add(head);
       const ring = new T.Mesh(new T.TorusGeometry(0.55, 0.14, 8, 18), new T.MeshLambertMaterial({ color: 0xff6d00 })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.1; person.add(ring); scene.add(person); }
     if (person) { person.position.copy(V(st.stats.person.x, st.stats.person.y, Math.sin(performance.now() / 500) * 0.08)); }
+    const tip = toWorld(b, [0, SIM.PIVOT * SIM.L - 0.3]); flag.position.copy(V(tip[0], tip[1], 2.35));
+    flag.rotation.y = st.env.windKn ? -((st.env.windFrom + 180) * D2R) + Math.PI / 2 + Math.sin(performance.now() / 160) * 0.15 : -b.psi - Math.PI / 2;
+    flag.visible = st.env.windKn > 0;
+    if (st.env.curKn) { tex.offset.x += Math.sin(st.env.curTo * D2R) * st.env.curKn / KN * 0.016 / 10; tex.offset.y += Math.cos(st.env.curTo * D2R) * st.env.curKn / KN * 0.016 / 10; }
     if (cam === "chase") {
       const p = toWorld(b, [0, -20]), t = toWorld(b, [0, 6]);
       camera.position.copy(V(p[0], p[1], 9)); camera.lookAt(V(t[0], t[1], 0));

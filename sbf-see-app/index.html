@@ -217,7 +217,7 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 .ttarget{position:absolute;top:0;bottom:0;width:5px;margin-left:-2.5px;background:#4ddc7c;opacity:.9}
 .cmark{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:#ff7a3d}
 .cval{font-size:13px;background:rgba(10,22,32,.8);padding:1px 6px;border-radius:5px}
-.fsinfo{position:absolute;top:calc(max(8px,env(safe-area-inset-top,0px)) + 58px);left:50%;transform:translateX(-50%);width:min(60vw,560px);text-align:center;display:grid;gap:2px;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.8);z-index:2}
+.fsinfo{position:absolute;top:calc(max(8px,env(safe-area-inset-top,0px)) + 58px);left:50%;transform:translateX(-50%);width:min(44vw,520px);text-align:center;display:grid;gap:2px;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.8);z-index:2}
 .fsinfo b{font-size:1rem} .fsinfo span{font-size:.8rem}
 .fsmini{position:absolute;right:max(10px,env(safe-area-inset-right,0px));top:calc(max(8px,env(safe-area-inset-top,0px)) + 46px);border-radius:10px;border:2px solid rgba(255,255,255,.55);z-index:2}
 .fslever{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));height:min(60vh,300px);width:76px;display:flex;flex-direction:column;justify-content:space-between;background:rgba(10,22,32,.75);border-radius:14px;padding:12px 8px;touch-action:none;cursor:ns-resize;z-index:3}
@@ -227,7 +227,8 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 .lknob{position:absolute;left:10px;width:26px;height:26px;margin-top:-13px;border-radius:50%;background:#ff7a3d;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:top .12s;pointer-events:none}
 .fswheelbox{position:absolute;left:50%;bottom:max(4px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:grid;justify-items:center;gap:4px;z-index:3}
 .fswheel{width:min(40vh,56vw,240px);height:min(40vh,56vw,240px);touch-action:none;cursor:grab;filter:drop-shadow(0 4px 10px rgba(0,0,0,.55))}
-.fsrudder{display:grid;justify-items:center;gap:3px;width:min(40vh,56vw,240px);background:rgba(10,22,32,.7);border-radius:10px;padding:6px 10px}
+.fsrudder{position:absolute;left:max(10px,env(safe-area-inset-left,0px));top:calc(max(8px,env(safe-area-inset-top,0px)) + 46px);display:grid;justify-items:center;gap:3px;width:min(30vw,210px);background:rgba(10,22,32,.75);border-radius:10px;padding:6px 10px;z-index:3}
+.rudlabel{font-size:.65rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:rgba(255,255,255,.7)}
 .fsrudder .rudbar{width:100%;height:12px}
 .fsrudder .rudtxt{color:#fff;font-size:13px} .fsrudder .rudtxt.mid{color:#4ddc7c}
 .fsportrait{display:none}
@@ -235,7 +236,7 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 .fsresult{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,460px);max-height:90vh;overflow:auto;display:grid;gap:8px;background:var(--surface);color:var(--ink);border-radius:14px;padding:16px 18px;border-top:6px solid var(--sb);z-index:6}
 .fsresult.no{border-top-color:var(--bb)}
 .simfs.camfar .fswheelbox{left:auto;right:max(12px,env(safe-area-inset-right,0px));transform:none}
-.simfs.camfar .fswheel,.simfs.camfar .fsrudder{width:min(32vh,36vw,180px)}
+.simfs.camfar .fswheel{width:min(32vh,36vw,180px)}
 .simfs.camfar .fswheel{height:min(32vh,36vw,180px)}
 .simwrap{position:relative;border-radius:12px;overflow:hidden;background:#1d5f86;touch-action:none}
 .simwrap canvas{display:block;width:100%}
