@@ -1010,7 +1010,7 @@ $("#roomClose").onclick = () => $("#roomDlg").close();
 $("#inviteShare").onclick = async () => {
   const url = inviteUrl();
   if (navigator.share) {
-    try { await navigator.share({ title: "Was essen wir?", text: "Komm in meine Küche und swipe mit!", url }); return; } catch (e) { if (e.name === "AbortError") return; }
+    try { await navigator.share({ title: "Planer", text: "Komm in unseren Planer!", url }); return; } catch (e) { if (e.name === "AbortError") return; }
   }
   try { await navigator.clipboard.writeText(url); toast("Link kopiert"); }
   catch { $("#inviteLink").select(); toast("Link markiert, jetzt kopieren"); }

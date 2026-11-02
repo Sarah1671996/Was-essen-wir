@@ -1,6 +1,6 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "essen-v14";
+const CACHE = "essen-v15";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "store.js", "firebase-config.js", "starter-dishes.js",
   "cleaning-logic.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
@@ -11,7 +11,7 @@ self.addEventListener("push", e => {
   let p = {};
   try { p = e.data ? e.data.json() : {}; } catch { p = { data: { body: e.data && e.data.text() } }; }
   const d = { ...(p.notification || {}), ...(p.data || {}) };
-  e.waitUntil(self.registration.showNotification(d.title || "Was essen wir?", {
+  e.waitUntil(self.registration.showNotification(d.title || "Planer", {
     body: d.body || "",
     tag: d.tag || undefined,
     renotify: !!d.tag,

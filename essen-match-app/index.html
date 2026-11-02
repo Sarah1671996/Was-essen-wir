@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Was essen wir?</title>
-  <meta name="description" content="Zu zweit durch Gerichte swipen und sehen, worauf ihr beide Lust habt.">
+  <title>Planer</title>
+  <meta name="description" content="Euer gemeinsamer Planer: Essen, Einkauf, Putzplan und To-dos.">
   <meta name="theme-color" content="#1f6b45">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Was essen wir?">
+  <meta name="apple-mobile-web-app-title" content="Planer">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
@@ -23,9 +23,9 @@
 <!-- Einrichtung: Name + Küche anlegen oder beitreten -->
 <div class="setup" id="setup" hidden>
   <div class="setup-inner">
-    <div class="logo" aria-hidden="true">🍽️</div>
-    <h1>Was essen wir?</h1>
-    <p class="lead">Ihr swipt beide durch Gerichte. Was euch beiden schmeckt, landet bei den Matches.</p>
+    <div class="logo" aria-hidden="true"><svg class="house" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z"/></svg></div>
+    <h1>Planer</h1>
+    <p class="lead">Euer gemeinsamer Planer: was ihr esst, was ihr einkauft, wer putzt und was sonst noch zu tun ist.</p>
 
     <label for="setupName">Wie heißt du?</label>
     <input id="setupName" maxlength="24" autocomplete="given-name" placeholder="Dein Vorname">
@@ -51,7 +51,7 @@
 <!-- Haupt-App -->
 <div class="app" id="app" hidden>
   <header class="top">
-    <h1>Was essen wir?</h1>
+    <h1 class="brand"><svg class="house" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z"/></svg><span>Planer</span></h1>
     <button class="people" id="peopleBtn" aria-label="Küche und Einstellungen"><span class="avatars" id="avatars"></span><span class="peoplelabel">Küche ⚙</span></button>
   </header>
 

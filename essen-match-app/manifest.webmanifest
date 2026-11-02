@@ -1,7 +1,7 @@
 {
-  "name": "Was essen wir?",
-  "short_name": "Essen?",
-  "description": "Zu zweit durch Gerichte swipen und sehen, worauf ihr beide Lust habt.",
+  "name": "Planer",
+  "short_name": "Planer",
+  "description": "Euer gemeinsamer Planer: Essen, Einkauf, Putzplan und To-dos.",
   "lang": "de",
   "start_url": "./",
   "scope": "./",
