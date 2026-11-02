@@ -19,6 +19,7 @@ const ls = {
 const S = {
   uid: null, code: null, name: "",
   dishes: [], members: [], wishes: [], shopping: [], chores: [], cleaning: {},
+  todos: [], myTodos: [], // gemeinsame bzw. private To-dos
   myVotes: {}, history: [], salt: ls.get("em.salt") || "1",
   votesLoaded: false,
   // Runden: Wer "Neue Runde" startet, erhöht round. Jedes Handy leert dann seine eigenen Swipes.
@@ -171,6 +172,8 @@ function enterRoom() {
     room.watch("shopping", list => { S.shopping = list; renderShopping(); }, { field: "at" }, onErr),
     room.watch("chores", list => { S.chores = list; renderCleaning(); }, { field: "createdAt" }, onErr),
     room.watch("cleaning", list => { S.cleaning = list.find(x => x.id === "config") || {}; renderCleaning(); }, null, onErr),
+    room.watch("todos", list => { S.todos = list; renderTodos(); }, { field: "at" }, onErr),
+    room.watch(privateTodos(), list => { S.myTodos = list.map(t => ({ ...t, priv: true })); renderTodos(); }, { field: "at" }, onErr),
     room.watch("meta", list => {
       S.round = list.find(x => x.id === "round")?.n || 0;
       S.roundLoaded = true;
@@ -993,7 +996,7 @@ $("#leaveBtn").onclick = () => {
   unsubs.forEach(u => u()); unsubs = [];
   ls.del("em.code");
   S.code = null; S.myVotes = {}; S.history = []; S.members = []; S.dishes = []; S.wishes = []; S.shopping = [];
-  S.chores = []; S.cleaning = {};
+  S.chores = []; S.cleaning = {}; S.todos = []; S.myTodos = [];
   S.round = 0; S.myRound = 0;
   $("#roomDlg").close();
   showSetup();
@@ -1001,8 +1004,9 @@ $("#leaveBtn").onclick = () => {
 
 /* ---------- Tabs & Rendern ---------- */
 function showTab(t) {
-  document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-  for (const v of ["swipe", "match", "dishes", "shop", "clean", "wish"]) $("#view-" + v).hidden = v !== t;
+  const active = t === "wish" ? "dishes" : t; // Wünsche gehören zum Reiter „Gerichte“
+  document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === active));
+  for (const v of ["swipe", "match", "dishes", "shop", "clean", "todo", "wish"]) $("#view-" + v).hidden = v !== t;
   ls.set("em.tab", t);
 }
 document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -1021,6 +1025,7 @@ function renderAll() {
   renderWishes();
   renderShopping();
   renderCleaning();
+  renderTodos();
   renderPeople();
   if (!$("#listNotice").dataset.confirming) renderListBox($("#listNotice"));
 }
@@ -1181,9 +1186,136 @@ $("#choreDelete").onclick = async () => {
   try { await room.remove("chores", choreId); $("#choreDlg").close(); } catch { toast("Löschen hat nicht geklappt"); }
 };
 
+/* ---------- To-dos ---------- */
+// Gemeinsam sichtbare To-dos liegen in "todos" (for: null = uns beide, sonst die Person),
+// private nur unter private/<eigene id>/todos, das kann das Handy des anderen gar nicht lesen.
+const privateTodos = () => `private/${S.uid}/todos`;
+const todoCol = t => t.priv ? privateTodos() : "todos";
+let todoFilter = ls.get("em.todoFilter") || "alle";
+const todayKey = () => new Date().toLocaleDateString("sv-SE"); // JJJJ-MM-TT
+function fmtDue(key) {
+  const d = new Date(key + "T12:00:00");
+  const diff = Math.round((new Date(key) - new Date(todayKey())) / 864e5);
+  if (diff === 0) return "heute";
+  if (diff === 1) return "morgen";
+  return "bis " + d.toLocaleDateString("de-DE", { weekday: "short", day: "numeric", month: "numeric" });
+}
+function renderTodos() {
+  if (!room) return;
+  const all = [...S.todos, ...S.myTodos];
+  const others_ = S.members.filter(m => m.id !== S.uid);
+
+  // Für-wen-Auswahl im Formular
+  const sel = $("#todoFor");
+  if (document.activeElement !== sel) {
+    const keep = sel.value;
+    sel.textContent = "";
+    sel.appendChild(new Option("👥 Uns beide", ""));
+    sel.appendChild(new Option("🙋 Mich", S.uid));
+    others_.forEach(m => sel.appendChild(new Option(`👤 ${m.name}`, m.id)));
+    sel.value = [...sel.options].some(o => o.value === keep) ? keep : "";
+  }
+  $("#todoPrivWrap").hidden = sel.value !== S.uid;
+
+  // Filter
+  const filters = [["alle", "Alle"], ["mine", "Meine"], ...others_.map(m => [m.id, m.name]), ["shared", "Gemeinsam"]];
+  if (!filters.some(f => f[0] === todoFilter)) todoFilter = "alle";
+  const match = t => todoFilter === "alle" ? true
+    : todoFilter === "mine" ? t.for === S.uid
+      : todoFilter === "shared" ? !t.for
+        : t.for === todoFilter;
+  const bar = $("#todoFilter");
+  bar.textContent = "";
+  filters.forEach(([key, label]) => {
+    const n = all.filter(t => !t.done).filter(t => key === "alle" || (key === "mine" ? t.for === S.uid : key === "shared" ? !t.for : t.for === key)).length;
+    const b = el("button", "fchip", `${label} · ${n}`);
+    b.setAttribute("aria-pressed", key === todoFilter);
+    b.onclick = () => { todoFilter = key; ls.set("em.todoFilter", key); renderTodos(); };
+    bar.appendChild(b);
+  });
+
+  const mineOpen = all.filter(t => !t.done && (t.for === S.uid || !t.for)).length;
+  $("#todoCount").textContent = mineOpen || "";
+
+  const shown = all.filter(match);
+  const open = shown.filter(t => !t.done)
+    .sort((a, b) => (a.due || "9999") .localeCompare(b.due || "9999") || a.at - b.at);
+  const done = shown.filter(t => t.done).sort((a, b) => (b.doneAt || 0) - (a.doneAt || 0));
+
+  const list = $("#todoList");
+  list.textContent = "";
+  if (!open.length) list.appendChild(el("div", "notice", all.length ? "Hier ist alles erledigt 🎉" : "Noch keine To-dos. Trag oben das erste ein, für euch beide, für dich oder für deinen Schatz."));
+  open.forEach(t => list.appendChild(todoRow(t)));
+
+  const dl = $("#todoDone");
+  dl.textContent = "";
+  if (done.length) {
+    const head = el("div", "toolbar");
+    head.style.alignItems = "center";
+    const lbl = el("div", "sectlabel", `Erledigt (${done.length})`);
+    lbl.style.flex = "1";
+    const clear = el("button", "btn mini ghost", "Erledigte löschen");
+    clear.onclick = async () => {
+      try {
+        const shared = done.filter(t => !t.priv).map(t => t.id), priv = done.filter(t => t.priv).map(t => t.id);
+        if (shared.length) await room.replace("todos", shared, []);
+        if (priv.length) await room.replace(privateTodos(), priv, []);
+      } catch { toast("Löschen hat nicht geklappt"); }
+    };
+    head.append(lbl, clear);
+    dl.appendChild(head);
+    done.slice(0, 30).forEach(t => dl.appendChild(todoRow(t)));
+  }
+}
+function todoRow(t) {
+  const r = el("div", "row" + (t.done ? " done" : ""));
+  const c = el("button", "check", t.done ? "✓" : "");
+  c.setAttribute("aria-label", t.done ? "Wieder offen" : "Erledigt");
+  c.onclick = () => room.update(todoCol(t), t.id, t.done
+    ? { done: false, doneBy: null, doneAt: null }
+    : { done: true, doneBy: S.uid, doneAt: Date.now() }).catch(() => toast("Konnte nicht speichern"));
+  const txt = el("div", "txt");
+  const forLabel = !t.for ? "👥 Uns beide" : t.for === S.uid ? "🙋 Für dich" : `👤 Für ${memberName(t.for)}`;
+  const parts = [forLabel];
+  if (t.by && t.by !== S.uid) parts.push(`von ${memberName(t.by)}`);
+  if (t.priv) parts.push("🔒 privat");
+  if (t.done && t.doneBy) parts.push(`erledigt von ${t.doneBy === S.uid ? "dir" : memberName(t.doneBy)}`);
+  txt.append(el("div", "t", t.text), el("div", "s", parts.join(" · ")));
+  r.append(c, txt);
+  if (t.due && !t.done) {
+    const late = t.due < todayKey();
+    r.appendChild(el("span", "due" + (late ? " late" : ""), late ? "überfällig" : fmtDue(t.due)));
+  }
+  const del = el("button", "iconbtn", "✕");
+  del.setAttribute("aria-label", "To-do löschen");
+  del.onclick = () => room.remove(todoCol(t), t.id).catch(() => toast("Löschen hat nicht geklappt"));
+  r.appendChild(del);
+  return r;
+}
+$("#todoFor").addEventListener("change", () => { $("#todoPrivWrap").hidden = $("#todoFor").value !== S.uid; });
+$("#todoForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const text = $("#todoText").value.trim();
+  if (!text) return;
+  const forUid = $("#todoFor").value || null;
+  const priv = forUid === S.uid && $("#todoPriv").checked;
+  const data = { text, for: forUid, by: S.uid, at: Date.now(), due: $("#todoDue").value || null, done: false };
+  $("#todoText").value = "";
+  try {
+    await room.add(priv ? privateTodos() : "todos", data);
+    $("#todoDue").value = "";
+    if (forUid && forUid !== S.uid) toast(`To-do für ${memberName(forUid)} angelegt`);
+  } catch { $("#todoText").value = text; toast("Konnte nicht speichern"); }
+});
+$("#wishBtn").onclick = () => showTab("wish");
+$("#wishBack").onclick = () => showTab("dishes");
+
 /* ---------- Benachrichtigungen ---------- */
-const PUSH_DEFAULTS = { cleaning: true, match: true, round: true, shopping: false };
-const PUSH_LABELS = { cleaning: "Putzplan (wenn ich dran bin)", match: "Neues Match", round: "Neue Runde", shopping: "Andere setzen etwas auf die Einkaufsliste" };
+const PUSH_DEFAULTS = { cleaning: true, todo: true, match: true, round: true, shopping: false };
+const PUSH_LABELS = {
+  cleaning: "Putzplan (wenn ich dran bin)", todo: "Jemand legt mir ein To-do an",
+  match: "Neues Match", round: "Neue Runde", shopping: "Andere setzen etwas auf die Einkaufsliste"
+};
 const pushSupported = () => "Notification" in window && "serviceWorker" in navigator && !!store?.pushToken && !!vapidKey;
 async function registerPush() {
   const reg = await navigator.serviceWorker.ready;
@@ -1256,7 +1388,7 @@ async function initPush() {
 }
 
 // Benachrichtigungen öffnen die App mit #clean, #match oder #shop direkt im passenden Reiter
-const TABS = ["swipe", "match", "dishes", "shop", "clean", "wish"];
+const TABS = ["swipe", "match", "dishes", "shop", "clean", "todo", "wish"];
 const hashTab = () => TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : null;
 window.addEventListener("hashchange", () => { if (hashTab()) showTab(hashTab()); });
 showTab(hashTab() || ls.get("em.tab") || "swipe");

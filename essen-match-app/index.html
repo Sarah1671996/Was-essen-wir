@@ -77,7 +77,10 @@
           <input id="dishSearch" type="search" placeholder="Gericht suchen" aria-label="Gericht suchen">
           <button class="btn" id="newDishBtn">+ Neu</button>
         </div>
-        <button class="btn ghost" id="cookBtn">🥕 Was kann ich mit meinen Zutaten kochen?</button>
+        <div class="joinrow">
+          <button class="btn ghost" id="cookBtn" style="flex:1">🥕 Was kann ich kochen?</button>
+          <button class="btn ghost" id="wishBtn">💭 Wünsche <b class="pill" id="wishCount"></b></button>
+        </div>
         <div id="dishList" class="list"></div>
       </div>
     </section>
@@ -126,8 +129,26 @@
       </div>
     </section>
 
+    <section id="view-todo" class="view" hidden>
+      <div class="scroll">
+        <form id="todoForm" class="panel">
+          <input id="todoText" maxlength="120" placeholder="Neues To-do …" aria-label="Neues To-do" autocomplete="off">
+          <div class="joinrow">
+            <select id="todoFor" aria-label="Für wen?"></select>
+            <input id="todoDue" type="date" aria-label="Fällig am (optional)" style="max-width:9.5rem">
+          </div>
+          <label class="toggle" id="todoPrivWrap"><input type="checkbox" id="todoPriv"> 🔒 Nur für mich sichtbar</label>
+          <button class="btn" type="submit">Hinzufügen</button>
+        </form>
+        <div class="filterbar" id="todoFilter" role="group" aria-label="Filter"></div>
+        <div id="todoList" class="list"></div>
+        <div id="todoDone" class="list"></div>
+      </div>
+    </section>
+
     <section id="view-wish" class="view" hidden>
       <div class="scroll">
+        <button class="btn ghost" id="wishBack" style="justify-self:start">← Zurück zu den Gerichten</button>
         <form id="wishForm" class="panel">
           <label for="wishText">Worauf hast du Lust? Ein neues Gericht, ein Restaurant, irgendwas mit Käse …</label>
           <textarea id="wishText" maxlength="300" placeholder="Ich hätte Lust auf …"></textarea>
@@ -145,7 +166,7 @@
     <button role="tab" data-tab="dishes" aria-selected="false"><span class="ti">☰</span>Gerichte</button>
     <button role="tab" data-tab="shop" aria-selected="false"><span class="ti">☑</span>Einkauf<b class="badge" id="shopCount"></b></button>
     <button role="tab" data-tab="clean" aria-selected="false"><span class="ti">✧</span>Putzen<b class="badge" id="cleanCount"></b></button>
-    <button role="tab" data-tab="wish" aria-selected="false"><span class="ti">✎</span>Wünsche<b class="badge" id="wishCount"></b></button>
+    <button role="tab" data-tab="todo" aria-selected="false"><span class="ti">✎</span>To-dos<b class="badge" id="todoCount"></b></button>
   </nav>
 </div>
 

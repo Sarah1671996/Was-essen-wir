@@ -15,7 +15,7 @@ const db = getFirestore();
 
 const APP_URL = "https://sarah1671996.github.io/Was-essen-wir/essen-match-app/";
 // Gleiche Standardwerte wie in der App (PUSH_DEFAULTS in app.js)
-const PUSH_DEFAULTS = { cleaning: true, match: true, round: true, shopping: false };
+const PUSH_DEFAULTS = { cleaning: true, todo: true, match: true, round: true, shopping: false };
 const DEAD_TOKEN = ["messaging/registration-token-not-registered", "messaging/invalid-registration-token", "messaging/invalid-argument"];
 
 async function memberName(room, uid) {
@@ -85,6 +85,16 @@ export const onShoppingAdded = onDocumentCreated("rooms/{room}/shopping/{id}", a
   const others = (await members(room)).filter(m => m.id !== item.by);
   await Promise.all(others.map(m => notify(room, m.id, "shopping",
     { title: "🛒 Neu auf der Einkaufsliste", body, tag: "shopping", tab: "shop" })));
+});
+
+// ✎ Jemand legt für eine andere Person ein To-do an (private To-dos liegen woanders und lösen nichts aus)
+export const onTodoAdded = onDocumentCreated("rooms/{room}/todos/{id}", async event => {
+  const todo = event.data?.data();
+  if (!todo?.for || todo.for === todo.by) return;
+  const { room } = event.params;
+  const name = await memberName(room, todo.by);
+  const due = todo.due ? ` (bis ${todo.due.split("-").reverse().join(".")})` : "";
+  await notify(room, todo.for, "todo", { title: `✎ Neues To-do von ${name}`, body: todo.text + due, tag: "todo", tab: "todo" });
 });
 
 // 🔄 Neue Runde gestartet

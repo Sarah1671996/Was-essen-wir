@@ -214,6 +214,10 @@ select {
 .toggle { display: flex; align-items: center; gap: 10px; font-size: .92rem; color: var(--ink); font-weight: 500; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--basil); flex: none; }
 .tabbar button { font-size: .68rem; }
+.pill { font-size: .72rem; background: var(--basil); color: var(--basil-ink); border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
+.pill:empty { display: none; }
+.row .due { font-size: .78rem; color: var(--muted); white-space: nowrap; }
+.row .due.late { color: var(--no); font-weight: 700; }
 .panel h3 { font: 700 1.05rem var(--body); margin: 0; }
 details summary { cursor: pointer; font-weight: 600; color: var(--basil); }
 details ul, details ol { margin: 6px 0 0; padding-left: 1.3em; display: grid; gap: 3px; }
