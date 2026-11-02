@@ -271,6 +271,7 @@ html:has(dialog[open]), html:has(dialog[open]) body { overscroll-behavior-y: non
 .triprow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .triprow .small { flex: 1 1 100%; }
 .triprow .btn { flex: 1; min-height: 38px; padding: 4px 10px; }
+.triprow .prospekt { flex: 0 0 auto; text-decoration: none; }
 .tripbar .trip { padding: 8px 12px; }
 .tripbar .trip .tripicon { font-size: 1.3rem; }
 

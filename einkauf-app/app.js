@@ -555,8 +555,31 @@ function renderTripBar(s) {
       .catch(fail("Speichern"));
     row.appendChild(go);
   }
+  const url = prospektUrl(s.name);
+  if (url) {
+    const p = el("a", "btn ghost small prospekt", "📰 Prospekt");
+    Object.assign(p, { href: url, target: "_blank", rel: "noopener" });
+    row.appendChild(p);
+  }
   bar.appendChild(row);
 }
+
+// Aktuelle Angebote der bekannten Ketten (offizielle Seiten); bei "Aldi" ohne Nord/Süd beide über marktguru
+const PROSPEKTE = [
+  [/aldi\s*(süd|sued)/, "https://www.aldi-sued.de/angebote"],
+  [/aldi\s*nord/, "https://www.aldi-nord.de/angebote.html"],
+  [/aldi/, "https://www.marktguru.de/search/aldi"],
+  [/kaufland/, "https://filiale.kaufland.de/angebote.html"],
+  [/netto/, "https://www.netto-online.de/filialangebote"],
+  [/edeka/, "https://www.edeka.de/angebote/"],
+  [/rewe/, "https://www.rewe.de/angebote/"],
+  [/lidl/, "https://www.lidl.de/c/online-prospekte/s10005610"],
+  [/penny/, "https://www.penny.de/angebote"],
+  [/norma/, "https://www.marktguru.de/r/norma"],
+  [/rossmann/, "https://www.rossmann.de/de/angebote/c/angebote"],
+  [/^dm\b|\bdm$/, "https://www.dm.de/angebote"]
+];
+const prospektUrl = name => PROSPEKTE.find(([re]) => re.test(norm(name)))?.[1] || null;
 
 // Nach rechts wischen = abhaken (bzw. bei Erledigtem: wieder auf die Liste)
 function swipeable(li, row, onSwipe) {
