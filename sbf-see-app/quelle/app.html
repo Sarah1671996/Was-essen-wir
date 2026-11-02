@@ -193,6 +193,40 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 
 .confirm{border:2px solid var(--accent);background:var(--accent-soft)}
 .simview{gap:12px}
+.simopen,.simopen body{overflow:hidden}
+.simfs{position:fixed;inset:0;z-index:60;background:#0b1620;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;color:#fff}
+.fs3d,.fs2d{position:absolute;inset:0;display:block}
+.fstop{position:absolute;top:max(8px,env(safe-area-inset-top,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px));display:flex;justify-content:space-between;align-items:flex-start;gap:8px;z-index:3}
+.fsbtn{background:rgba(10,22,32,.7);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:999px;padding:7px 12px;font:inherit;font-weight:700;font-size:.85rem;cursor:pointer;white-space:nowrap}
+.compasswrap{display:grid;justify-items:center;gap:2px}
+.compass{position:relative;width:min(38vw,360px);height:30px;overflow:hidden;background:rgba(10,22,32,.7);border-radius:8px}
+.ctape{position:absolute;left:50%;top:0;bottom:0}
+.tk{position:absolute;top:0;padding-top:9px;transform:translateX(-50%);font-size:11px;font-weight:700;line-height:1;color:#fff}
+.tk::before{content:"";position:absolute;left:50%;top:0;width:1px;height:6px;background:rgba(255,255,255,.55)}
+.tk.big::before{height:8px;background:#fff}
+.ttarget{position:absolute;top:0;bottom:0;width:5px;margin-left:-2.5px;background:#4ddc7c;opacity:.9}
+.cmark{position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;background:#ff7a3d}
+.cval{font-size:13px;background:rgba(10,22,32,.8);padding:1px 6px;border-radius:5px}
+.fsinfo{position:absolute;top:calc(max(8px,env(safe-area-inset-top,0px)) + 58px);left:50%;transform:translateX(-50%);width:min(60vw,560px);text-align:center;display:grid;gap:2px;pointer-events:none;text-shadow:0 1px 3px rgba(0,0,0,.8);z-index:2}
+.fsinfo b{font-size:1rem} .fsinfo span{font-size:.8rem}
+.fsmini{position:absolute;right:max(10px,env(safe-area-inset-right,0px));top:calc(max(8px,env(safe-area-inset-top,0px)) + 46px);border-radius:10px;border:2px solid rgba(255,255,255,.55);z-index:2}
+.fslever{position:absolute;left:max(12px,env(safe-area-inset-left,0px));bottom:max(12px,env(safe-area-inset-bottom,0px));height:min(60vh,300px);width:76px;display:flex;flex-direction:column;justify-content:space-between;background:rgba(10,22,32,.75);border-radius:14px;padding:12px 8px;touch-action:none;cursor:ns-resize;z-index:3}
+.fslever::before{content:"";position:absolute;left:20px;top:16px;bottom:16px;width:6px;border-radius:3px;background:rgba(255,255,255,.25)}
+.lstop{display:block;text-align:right;font-weight:700;font-size:13px;color:rgba(255,255,255,.6);position:relative;z-index:1}
+.lstop.n{color:#ffd600} .lstop.on{color:#fff;font-size:15px}
+.lknob{position:absolute;left:10px;width:26px;height:26px;margin-top:-13px;border-radius:50%;background:#ff7a3d;box-shadow:0 2px 6px rgba(0,0,0,.5);transition:top .12s;pointer-events:none}
+.fswheelbox{position:absolute;left:50%;bottom:max(4px,env(safe-area-inset-bottom,0px));transform:translateX(-50%);display:grid;justify-items:center;gap:4px;z-index:3}
+.fswheel{width:min(40vh,56vw,240px);height:min(40vh,56vw,240px);touch-action:none;cursor:grab;filter:drop-shadow(0 4px 10px rgba(0,0,0,.55))}
+.fsrudder{display:grid;justify-items:center;gap:3px;width:min(40vh,56vw,240px);background:rgba(10,22,32,.7);border-radius:10px;padding:6px 10px}
+.fsrudder .rudbar{width:100%;height:12px}
+.fsrudder .rudtxt{color:#fff;font-size:13px} .fsrudder .rudtxt.mid{color:#4ddc7c}
+.fsportrait{display:none}
+@media (orientation:portrait){.fsportrait{display:block;position:absolute;left:50%;top:40%;transform:translateX(-50%);background:rgba(10,22,32,.8);padding:8px 14px;border-radius:99px;font-weight:700;pointer-events:none;white-space:nowrap;z-index:2}}
+.fsresult{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,460px);max-height:90vh;overflow:auto;display:grid;gap:8px;background:var(--surface);color:var(--ink);border-radius:14px;padding:16px 18px;border-top:6px solid var(--sb);z-index:6}
+.fsresult.no{border-top-color:var(--bb)}
+.simfs.camfar .fswheelbox{left:auto;right:max(12px,env(safe-area-inset-right,0px));transform:none}
+.simfs.camfar .fswheel,.simfs.camfar .fsrudder{width:min(32vh,36vw,180px)}
+.simfs.camfar .fswheel{height:min(32vh,36vw,180px)}
 .simwrap{position:relative;border-radius:12px;overflow:hidden;background:#1d5f86;touch-action:none}
 .simwrap canvas{display:block;width:100%}
 .simmsg{position:absolute;left:10px;right:10px;top:10px;color:#fff;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.6);pointer-events:none}
@@ -1858,9 +1892,13 @@ function pointVel(b, w) { const f = fwd(b.psi), ox = w[0] - b.x, oy = w[1] - b.y
 function simStep(st, dt) {
   const b = st.b, sc = st.sc;
   // Ruder: bleibt stehen, wo es hingelegt wird
-  if (st.steer) { b.delta = Math.max(-SIM.RUD_MAX, Math.min(SIM.RUD_MAX, b.delta + st.steer * SIM.RUD_RATE * dt)); }
-  if (st.steer && st.steer !== st.lastSteer && st.lastSteer !== 0) st.wheelChanges++;
-  if (st.steer) st.lastSteer = st.steer;
+  if (st.wheel === undefined) { st.wheel = 0; st.prevWheel = 0; st.lastDir = 0; }
+  if (st.steer) st.wheel = Math.max(-WHEEL_MAX, Math.min(WHEEL_MAX, st.wheel + st.steer * 160 * dt));
+  const dw = st.wheel - st.prevWheel;
+  if (Math.abs(dw) > 0.3) { const dir = Math.sign(dw); if (st.lastDir && dir !== st.lastDir) st.wheelChanges++; st.lastDir = dir; }
+  st.prevWheel = st.wheel;
+  const want = st.wheel / WHEEL_MAX * SIM.RUD_MAX;
+  b.delta += Math.max(-45 * dt, Math.min(45 * dt, want - b.delta));
   // Längsfahrt: Schub minus Widerstand
   const a = b.T > 0 ? b.T * 0.25 : b.T * 0.2;
   b.u += (a - 0.05 * b.u - 0.07 * b.u * Math.abs(b.u)) * dt;
@@ -1985,10 +2023,11 @@ const CHECKS = {
 };
 
 /* Zeichnen */
-function simDraw(cv, st) {
+function simDraw(cv, st, opt = {}) {
   const ctx = cv.getContext("2d"), W = cv.width, H = cv.height, dpr = window.devicePixelRatio || 1, sc = st.sc, b = st.b;
-  const scale = Math.min(W, H) / sc.view;
-  const cx = sc.follow ? b.x : sc.center.x, cy = sc.follow ? b.y : sc.center.y;
+  const view = opt.view || sc.view, follow = opt.follow != null ? opt.follow : sc.follow;
+  const scale = Math.min(W, H) / view;
+  const cx = follow ? b.x : sc.center.x, cy = follow ? b.y : sc.center.y;
   const X = x => W / 2 + (x - cx) * scale, Y = y => H / 2 - (y - cy) * scale;
   ctx.fillStyle = "#1d5f86"; ctx.fillRect(0, 0, W, H);
   // Raster, damit man Fahrt und Drehung sieht
@@ -2044,105 +2083,252 @@ function drawBoat(ctx, X, Y, scale, b, fill, line) {
   const c = toWorld(b, [0, -1.5]); ctx.fillStyle = line; ctx.beginPath(); ctx.arc(X(c[0]), Y(c[1]), Math.max(2, 0.45 * scale), 0, 7); ctx.fill();
 }
 
-/* Anzeigen unter dem Bild */
-function simHud(st) {
-  const b = st.b, d = Math.round(b.delta), rate = b.r * R2D, mid = Math.abs(b.delta) < 2;
-  const wheelDeg = b.delta / SIM.RUD_MAX * 270;
-  return `<div class="hudrow">
-    <div class="hudval"><span>Kurs</span><b class="mono">${String(Math.round(norm360(b.psi * R2D))).padStart(3, "0")}°</b></div>
-    <div class="hudval"><span>Fahrt</span><b class="mono">${(b.u * KN).toFixed(1).replace(".", ",")} kn</b></div>
-    <div class="hudval"><span>Drehrate</span><b class="mono" style="color:${Math.abs(rate) > 4 ? "var(--accent)" : "inherit"}">${rate > 0.3 ? "→ " : rate < -0.3 ? "← " : ""}${Math.abs(rate).toFixed(1).replace(".", ",")}°/s</b></div>
-    <div class="hudval"><span>Hebel</span><b>${THROTTLE[b.T]}</b></div>
-  </div>
-  <div class="rudder">
-    <div class="rudbar"><i class="rudmid"></i><i class="rudpos" style="left:${50 + b.delta / SIM.RUD_MAX * 50}%"></i></div>
-    <div class="rudtxt ${mid ? "mid" : ""}">${mid ? "Ruder MITTSCHIFFS" : `Ruder ${Math.abs(d)}° ${d > 0 ? "Steuerbord" : "Backbord"}`}</div>
-    <svg class="wheel" viewBox="-50 -50 100 100" style="transform:rotate(${wheelDeg}deg)" aria-hidden="true"><circle r="40" fill="none" stroke="currentColor" stroke-width="7"/><circle r="9" fill="currentColor"/>
-      ${[0, 60, 120, 180, 240, 300].map(a => `<line x1="0" y1="0" x2="${Math.sin(a * D2R) * 46}" y2="${-Math.cos(a * D2R) * 46}" stroke="${a === 0 ? "var(--accent)" : "currentColor"}" stroke-width="${a === 0 ? 7 : 5}" stroke-linecap="round"/>`).join("")}</svg>
-  </div>`;
+/* ---------- Vollbild-Simulator: Sicht vom Steuerstand, Steuerrad in der Mitte, Hebel links ---------- */
+const WHEEL_MAX = 540; // 1,5 Umdrehungen bis Hartruder
+let simCam = "cockpit";
+try { simCam = localStorage.getItem("sbfsee-simcam") || "cockpit"; } catch (e) {}
+const CAMS = [["cockpit", "Steuerstand"], ["chase", "Hinter dem Boot"], ["top", "Von oben"]];
+function loadThree() {
+  if (window.THREE) return Promise.resolve();
+  const src = IN_ARTIFACT ? "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js" : "three/three.min.js";
+  return new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("three")); document.head.appendChild(s); });
 }
 
 function vPraxis(m) {
-  if (simLoop) { cancelAnimationFrame(simLoop); simLoop = 0; }
   if (!simPick) {
     m.innerHTML = `<div class="view">
       <div><div class="eyebrow">Manöver üben</div><h2>Praxis-Simulator</h2></div>
       <section class="panel" style="display:grid;gap:8px">
-        <p style="margin:0;max-width:70ch">Ein Motorboot von oben, vereinfacht, aber mit dem, was in der ersten Fahrstunde schwer ist: <b>Das Ruder bleibt liegen</b>, das Boot reagiert verzögert und dreht nach. Unten siehst du immer die <b>Ruderlage</b> und das Steuerrad mit der markierten Speiche (oben = mittschiffs).</p>
-        <p class="muted" style="margin:0;font-size:.88rem">Steuern: Tasten ← → für das Ruder (gedrückt halten), ↑ ↓ für den Schalthebel, oder die Knöpfe unter dem Bild. Ersetzt keine Fahrstunde, hilft aber beim Verstehen.</p>
+        <p style="margin:0;max-width:70ch">Du stehst am Steuerstand eines Motorboots: <b>Steuerrad in der Mitte</b>, <b>Schalthebel links</b>. Das Ruder bleibt liegen, wo du es hindrehst, das Boot reagiert verzögert und dreht nach. Die orange markierte Speiche oben am Rad heißt: Ruder mittschiffs.</p>
+        <p class="muted" style="margin:0;font-size:.88rem">Am besten das <b>Handy quer halten</b>. Das Rad drehst du mit dem Finger, den Hebel schiebst du nach oben (voraus) oder unten (zurück). Am PC: Pfeiltasten ← → für das Rad, ↑ ↓ für den Hebel. Ein vereinfachtes Modell ohne Wind und Strömung, es ersetzt keine Fahrstunde.</p>
       </section>
       <div class="navgrid">${SCENARIOS.map(s => `<button class="panel navcard" data-sim="${s.id}"><b>${s.title}</b><span class="muted">${s.kurz}</span>
-        ${simBest[s.id] ? `<span class="pill ok">bestanden${simBest[s.id] ? " · beste Zeit " + simBest[s.id] + " s" : ""}</span>` : `<span class="pill n">noch offen</span>`}</button>`).join("")}</div>
+        ${simBest[s.id] ? `<span class="pill ok">geschafft · beste Zeit ${simBest[s.id]} s</span>` : `<span class="pill n">noch offen</span>`}</button>`).join("")}</div>
       <details class="panel grundlagen"><summary><b>Warum eiert man am Anfang herum?</b></summary>
-        <p style="margin-top:10px">Beim Auto lenkt sich das Rad von selbst zurück, und das Auto folgt sofort. Beim Boot <b>bleibt das Ruder liegen</b>, und das Boot dreht erst verzögert, dann aber weiter, auch wenn man schon zurückdreht. Wer wartet, bis der Bug auf dem Ziel steht, ist zu spät dran. Dann steuert man kräftig gegen, das Boot schießt auf die andere Seite, und so weiter.</p>
-        <p><b>Die Lösung:</b> Kleine Ruderbewegungen. Rechtzeitig vor dem Ziel zurück auf mittschiffs. Dann kurz abwarten, was das Boot macht. Am Steuerrad hilft die markierte Speiche: Steht sie oben, ist das Ruder mittschiffs. In echten Booten gibt es oft einen Ruderlagenanzeiger.</p>
+        <p style="margin-top:10px">Beim Auto lenkt sich das Rad von selbst zurück, und das Auto folgt sofort. Beim Boot <b>bleibt das Ruder liegen</b>, und das Boot dreht erst verzögert, dann aber weiter, auch wenn man schon zurückdreht. Wer wartet, bis der Bug auf dem Ziel steht, ist zu spät. Dann steuert man kräftig gegen, das Boot schießt auf die andere Seite, und so weiter.</p>
+        <p><b>Die Lösung:</b> Kleine Ruderbewegungen. Rechtzeitig vor dem Ziel zurück auf mittschiffs. Dann kurz abwarten, was das Boot macht. Am Steuerrad hilft die markierte Speiche: Steht sie oben, ist das Ruder mittschiffs.</p>
       </details>
     </div>`;
-    m.querySelectorAll("[data-sim]").forEach(b => b.onclick = () => { simPick = SCENARIOS.find(s => s.id === b.dataset.sim); sim = null; render(); window.scrollTo(0, 0); });
+    m.querySelectorAll("[data-sim]").forEach(b => b.onclick = () => { simPick = SCENARIOS.find(s => s.id === b.dataset.sim); render(); window.scrollTo(0, 0); });
     return;
   }
   const sc = simPick;
-  if (!sim) {
-    m.innerHTML = `<div class="view">
-      <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praxis-Simulator</div><h2>${sc.title}</h2></div><button class="btn small" id="simback">Alle Übungen</button></div>
-      <section class="panel" style="display:grid;gap:10px">${sc.brief.map(p => `<p style="margin:0;max-width:72ch">${p}</p>`).join("")}
-        <label class="row" style="gap:8px"><input type="checkbox" id="simhelp" ${simHelp ? "checked" : ""}> Hilfe anzeigen: oranger Pfeil zeigt, wo der Bug in 3 Sekunden steht</label>
-        <div><button class="btn primary" id="simgo">Los geht's</button></div></section>
-    </div>`;
-    $("#simback").onclick = () => { simPick = null; render(); };
-    $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
-    $("#simgo").onclick = () => { sim = newSim(sc); render(); };
-    return;
-  }
-  const st = sim;
-  m.innerHTML = `<div class="view simview">
-    <div class="row" style="justify-content:space-between"><b>${sc.title}</b><span class="row"><button class="btn small" id="simpause">${st.paused ? "Weiter" : "Pause"}</button><button class="btn small" id="simre">Neu starten</button><button class="btn small" id="simexit">Beenden</button></span></div>
-    <div class="simwrap"><canvas id="simcv"></canvas><div class="simmsg" id="simmsg"></div>
-      <div class="simresult" id="simres" hidden></div></div>
-    <div id="simhud"></div>
-    <div class="simctl">
-      <div class="steer"><button class="btn" id="rudl" aria-label="Ruder nach Backbord">◀ Backbord</button><button class="btn" id="rudr" aria-label="Ruder nach Steuerbord">Steuerbord ▶</button></div>
-      <div class="lever"><button class="btn" id="thrdown" aria-label="Hebel zurück">−</button><span class="mono" id="thrval"></span><button class="btn" id="thrup" aria-label="Hebel voraus">+</button><button class="btn small" id="thrn">Neutral</button></div>
-    </div>
+  m.innerHTML = `<div class="view">
+    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praxis-Simulator</div><h2>${sc.title}</h2></div><button class="btn small" id="simback">Alle Übungen</button></div>
+    <section class="panel" style="display:grid;gap:10px">${sc.brief.map(p => `<p style="margin:0;max-width:72ch">${p}</p>`).join("")}
+      <label class="row" style="gap:8px"><input type="checkbox" id="simhelp" ${simHelp ? "checked" : ""}> Hilfen anzeigen: Minikarte mit Pfeil, wo der Bug in 3 Sekunden steht</label>
+      <div class="row"><button class="btn primary" id="simgo">Los geht's (Vollbild)</button><span class="muted" style="font-size:.85rem">Handy dafür quer halten.</span></div></section>
   </div>`;
-  const cv = $("#simcv"), wrap = cv.parentNode;
-  const size = () => { const dpr = window.devicePixelRatio || 1, w = wrap.clientWidth, h = Math.min(Math.round(window.innerHeight * (w < 520 ? 0.4 : 0.52)), Math.round(w * 0.85)); cv.style.height = h + "px"; cv.width = w * dpr; cv.height = h * dpr; };
-  size();
-  const hold = (el, dir) => {
-    const on = e => { e.preventDefault(); st.steer = dir; el.classList.add("on"); }, off = () => { if (st.steer === dir) st.steer = 0; el.classList.remove("on"); };
-    el.addEventListener("pointerdown", on); ["pointerup", "pointerleave", "pointercancel"].forEach(ev => el.addEventListener(ev, off));
+  $("#simback").onclick = () => { simPick = null; render(); };
+  $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
+  $("#simgo").onclick = () => startSimFullscreen(sc);
+}
+
+async function startSimFullscreen(sc) {
+  try { if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen({ navigationUI: "hide" }); } catch (e) {}
+  try { if (screen.orientation && screen.orientation.lock) await screen.orientation.lock("landscape"); } catch (e) {}
+  let has3d = true;
+  try { await loadThree(); } catch (e) { has3d = false; toast("3D-Ansicht nicht verfügbar, zeige Ansicht von oben."); }
+  runSim(sc, has3d);
+}
+
+function runSim(sc, has3d) {
+  const st = sim = newSim(sc);
+  st.wheel = 0; st.prevWheel = 0; st.lastDir = 0;
+  const o = document.createElement("div"); o.className = "simfs";
+  o.innerHTML = `
+    <canvas class="fs3d"></canvas><canvas class="fs2d" hidden></canvas>
+    <div class="fstop">
+      <span class="row" style="gap:6px"><button class="fsbtn" data-a="exit" aria-label="Beenden">✕</button><button class="fsbtn" data-a="restart">Neu</button><button class="fsbtn" data-a="pause">Pause</button></span>
+      <div class="compasswrap"><div class="compass"><div class="ctape">${tapeHTML(sc)}</div><i class="cmark"></i></div><b class="cval mono"></b></div>
+      <button class="fsbtn" data-a="cam"></button>
+    </div>
+    <div class="fsinfo"><b class="fsmsg"></b><span class="fsdata mono"></span></div>
+    <canvas class="fsmini"></canvas>
+    <div class="fslever" aria-label="Schalthebel">${[3, 2, 1, 0, -1, -2].map(v => `<span class="lstop ${v === 0 ? "n" : ""}" data-t="${v}">${v > 0 ? "V" + v : v < 0 ? "Z" + -v : "N"}</span>`).join("")}<i class="lknob"></i></div>
+    <div class="fswheelbox">
+      <div class="fsrudder"><div class="rudbar"><i class="rudmid"></i><i class="rudpos"></i></div><span class="rudtxt"></span></div>
+      <svg class="fswheel" viewBox="-60 -60 120 120" aria-label="Steuerrad"><circle r="48" fill="none" stroke="#3b2a1c" stroke-width="12"/><circle r="48" fill="none" stroke="#7a5a3a" stroke-width="7"/>
+        ${[0, 60, 120, 180, 240, 300].map(a => `<line x1="0" y1="0" x2="${Math.sin(a * D2R) * 56}" y2="${-Math.cos(a * D2R) * 56}" stroke="${a === 0 ? "#ff7a3d" : "#7a5a3a"}" stroke-width="${a === 0 ? 9 : 7}" stroke-linecap="round"/>`).join("")}
+        <circle r="13" fill="#3b2a1c"/><circle r="6" fill="#ff7a3d"/></svg>
+    </div>
+    <div class="fsportrait">Handy quer halten für mehr Übersicht</div>
+    <div class="fsresult" hidden></div>`;
+  document.body.appendChild(o);
+  document.documentElement.classList.add("simopen");
+  const q = s => o.querySelector(s);
+  const c3 = q(".fs3d"), c2 = q(".fs2d"), mini = q(".fsmini"), wheel = q(".fswheel"), lever = q(".fslever");
+  let g3 = null;
+  if (has3d) { try { g3 = build3D(c3, sc, st); } catch (e) { g3 = null; } }
+  if (!g3) simCam = "top";
+  const camLabel = () => q('[data-a="cam"]').textContent = "Ansicht: " + CAMS.find(c => c[0] === simCam)[1];
+  const applyCam = () => { c3.hidden = simCam === "top" || !g3; c2.hidden = !c3.hidden; mini.hidden = simCam === "top" || !simHelp; o.classList.toggle("camfar", simCam !== "cockpit"); camLabel(); };
+  const size = () => {
+    const dpr = Math.min(window.devicePixelRatio || 1, 2), w = o.clientWidth, h = o.clientHeight;
+    c2.width = w * dpr; c2.height = h * dpr; c2.style.width = w + "px"; c2.style.height = h + "px";
+    const mw = Math.round(Math.min(w, h) * 0.34); mini.width = mw * dpr; mini.height = mw * dpr; mini.style.width = mini.style.height = mw + "px";
+    if (g3) g3.resize(w, h);
   };
-  hold($("#rudl"), -1); hold($("#rudr"), 1);
-  const setT = v => { st.b.T = Math.max(-2, Math.min(3, v)); };
-  $("#thrup").onclick = () => setT(st.b.T + 1); $("#thrdown").onclick = () => setT(st.b.T - 1); $("#thrn").onclick = () => setT(0);
-  $("#simre").onclick = () => { sim = newSim(sc); render(); };
-  $("#simexit").onclick = () => { sim = null; simPick = null; render(); };
-  $("#simpause").onclick = () => { st.paused = !st.paused; $("#simpause").textContent = st.paused ? "Weiter" : "Pause"; };
-  $("#simhud").innerHTML = simHud(st); $("#thrval").textContent = THROTTLE[st.b.T];
+  size(); applyCam();
+  window.addEventListener("resize", size);
+
+  // Steuerrad: mit dem Finger drehen, es bleibt stehen, wo man es loslässt
+  let drag = null;
+  wheel.addEventListener("pointerdown", e => {
+    const r = wheel.getBoundingClientRect(); drag = { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+    drag.a = Math.atan2(e.clientX - drag.cx, drag.cy - e.clientY) * R2D; wheel.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  wheel.addEventListener("pointermove", e => {
+    if (!drag) return;
+    const a = Math.atan2(e.clientX - drag.cx, drag.cy - e.clientY) * R2D; let d = a - drag.a; if (d > 180) d -= 360; if (d < -180) d += 360;
+    drag.a = a; st.wheel = Math.max(-WHEEL_MAX, Math.min(WHEEL_MAX, st.wheel + d));
+  });
+  ["pointerup", "pointercancel"].forEach(ev => wheel.addEventListener(ev, () => drag = null));
+  // Schalthebel: ziehen oder auf eine Stufe tippen
+  const leverSet = clientY => { const stops = [...lever.querySelectorAll(".lstop")]; let best = stops[0], bd = 1e9; for (const s of stops) { const r = s.getBoundingClientRect(), d = Math.abs(r.top + r.height / 2 - clientY); if (d < bd) { bd = d; best = s; } } st.b.T = +best.dataset.t; };
+  let ldrag = false;
+  lever.addEventListener("pointerdown", e => { ldrag = true; lever.setPointerCapture(e.pointerId); leverSet(e.clientY); e.preventDefault(); });
+  lever.addEventListener("pointermove", e => { if (ldrag) leverSet(e.clientY); });
+  ["pointerup", "pointercancel"].forEach(ev => lever.addEventListener(ev, () => ldrag = false));
+  // Umsehen in der 3D-Ansicht: über das Bild wischen
+  let look = null;
+  c3.addEventListener("pointerdown", e => { look = { x: e.clientX, yaw: st.lookYaw || 0 }; c3.setPointerCapture(e.pointerId); });
+  c3.addEventListener("pointermove", e => { if (look) st.lookYaw = Math.max(-170, Math.min(170, look.yaw - (e.clientX - look.x) * 0.3)); });
+  ["pointerup", "pointercancel"].forEach(ev => c3.addEventListener(ev, () => look = null));
+  c3.addEventListener("dblclick", () => st.lookYaw = 0);
+
+  const close = () => {
+    cancelAnimationFrame(simLoop); simLoop = 0; window.removeEventListener("resize", size);
+    if (g3) g3.dispose(); o.remove(); document.documentElement.classList.remove("simopen"); sim = null;
+    try { if (document.fullscreenElement) document.exitFullscreen(); } catch (e) {}
+    try { if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock(); } catch (e) {}
+    render();
+  };
+  o.addEventListener("click", e => {
+    const a = e.target.closest("[data-a]"); if (!a) return;
+    if (a.dataset.a === "exit") close();
+    if (a.dataset.a === "restart") { cancelAnimationFrame(simLoop); if (g3) g3.dispose(); o.remove(); runSim(sc, has3d); }
+    if (a.dataset.a === "pause") { st.paused = !st.paused; a.textContent = st.paused ? "Weiter" : "Pause"; }
+    if (a.dataset.a === "cam") { const i = CAMS.findIndex(c => c[0] === simCam); simCam = CAMS[(i + 1) % CAMS.length][0]; if (simCam !== "top" && !g3) simCam = "top"; try { localStorage.setItem("sbfsee-simcam", simCam); } catch (err) {} applyCam(); }
+    if (a.dataset.a === "again") { cancelAnimationFrame(simLoop); if (g3) g3.dispose(); o.remove(); runSim(sc, has3d); }
+    if (a.dataset.a === "list") { simPick = null; close(); }
+  });
+
   let last = performance.now(), hudT = 0;
   const frame = now => {
-    if (!document.body.contains(cv) || sim !== st) { simLoop = 0; return; }
+    if (!o.isConnected || sim !== st) return;
     const dt = Math.min(0.05, (now - last) / 1000); last = now;
-    if (!st.paused && !st.done) { for (let i = 0; i < 4; i++) simStep(st, dt / 4); }
-    simDraw(cv, st);
-    if ((hudT += dt) > 0.08) { hudT = 0; $("#simhud").innerHTML = simHud(st); $("#thrval").textContent = THROTTLE[st.b.T]; $("#simmsg").textContent = st.msg; }
-    if (st.done && $("#simres").hidden) showSimResult(st);
+    if (!st.paused && !st.done) for (let i = 0; i < 4; i++) simStep(st, dt / 4);
+    if (simCam === "top" || !g3) simDraw(c2, st); else { g3.update(st, simCam); if (simHelp) simDraw(mini, st, { view: Math.max(60, sc.view * 0.7), follow: true, mini: true }); }
+    // Rad, Ruderanzeige, Hebel jedes Bild; Texte etwas seltener
+    wheel.style.transform = `rotate(${st.wheel}deg)`;
+    q(".rudpos").style.left = 50 + st.b.delta / SIM.RUD_MAX * 50 + "%";
+    q(".lknob").style.top = (q(`.lstop[data-t="${st.b.T}"]`).offsetTop + q(".lstop").offsetHeight / 2) + "px";
+    if ((hudT += dt) > 0.1) {
+      hudT = 0;
+      const b = st.b, hd = norm360(b.psi * R2D), mid = Math.abs(b.delta) < 2, d = Math.round(b.delta);
+      q(".cval").textContent = String(Math.round(hd)).padStart(3, "0") + "°";
+      q(".ctape").style.transform = `translateX(${-hd * 3}px)`;
+      q(".rudtxt").textContent = mid ? "Ruder mittschiffs" : `Ruder ${Math.abs(d)}° ${d > 0 ? "Stb" : "Bb"}`;
+      q(".rudtxt").classList.toggle("mid", mid);
+      q(".fsmsg").textContent = st.msg;
+      q(".fsdata").textContent = `${(b.u * KN).toFixed(1).replace(".", ",")} kn · Drehung ${(b.r * R2D).toFixed(1).replace(".", ",")}°/s · ${THROTTLE[b.T]}`;
+      lever.querySelectorAll(".lstop").forEach(s => s.classList.toggle("on", +s.dataset.t === b.T));
+    }
+    if (st.done && q(".fsresult").hidden) {
+      const d = st.done, box = q(".fsresult");
+      if (d.ok && d.score != null) { const best = simBest[sc.id]; if (!best || d.score < best) { simBest[sc.id] = d.score; try { localStorage.setItem("sbfsee-simbest", JSON.stringify(simBest)); } catch (e) {} } }
+      box.innerHTML = `<div class="eyebrow">${d.ok ? "Geschafft" : "Nicht geschafft"}</div><h3>${esc(d.text)}</h3>${d.tips.map(t => `<p style="margin:0">${esc(t)}</p>`).join("")}
+        <div class="row"><button class="btn primary" data-a="again">Nochmal</button><button class="btn" data-a="list">Andere Übung</button></div>`;
+      box.className = "fsresult " + (d.ok ? "ok" : "no"); box.hidden = false;
+    }
     simLoop = requestAnimationFrame(frame);
   };
   simLoop = requestAnimationFrame(frame);
 }
-function showSimResult(st) {
-  const d = st.done, box = $("#simres");
-  if (d.ok && d.score != null) { const best = simBest[st.sc.id]; if (!best || d.score < best) { simBest[st.sc.id] = d.score; try { localStorage.setItem("sbfsee-simbest", JSON.stringify(simBest)); } catch (e) {} } }
-  box.innerHTML = `<div class="eyebrow">${d.ok ? "Geschafft" : "Nicht geschafft"}</div><h3>${esc(d.text)}</h3>${d.tips.map(t => `<p style="margin:0">${esc(t)}</p>`).join("")}
-    <div class="row"><button class="btn primary" id="simagain">Nochmal</button><button class="btn" id="simlist">Andere Übung</button></div>`;
-  box.className = "simresult " + (d.ok ? "ok" : "no"); box.hidden = false;
-  $("#simagain").onclick = () => { sim = newSim(st.sc); render(); };
-  $("#simlist").onclick = () => { sim = null; simPick = null; render(); };
+
+// Kompassband: alle 10° ein Strich, Himmelsrichtungen und Zielkurs markiert
+function tapeHTML(sc) {
+  let h = "";
+  for (let d = -180; d <= 540; d += 10) { const n = norm360(d), lab = n % 90 === 0 ? ["N", "O", "S", "W"][n / 90] : n % 30 === 0 ? String(n).padStart(3, "0") : ""; h += `<span class="tk${lab ? " big" : ""}" style="left:${d * 3}px">${lab}</span>`; }
+  if (sc.target != null) for (const k of [-360, 0, 360]) h += `<i class="ttarget" style="left:${(sc.target + k) * 3}px"></i>`;
+  return h;
 }
-// Tastatur: Ruder gedrückt halten, Hebel schrittweise
+
+/* 3D-Szene mit three.js. Welt: x = Ost, y = Nord (Meter) → three: (x, Höhe, −y) */
+function build3D(canvas, sc, st) {
+  const T = window.THREE;
+  const renderer = new T.WebGLRenderer({ canvas, antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  const scene = new T.Scene();
+  scene.background = new T.Color(0xbfd8ea); scene.fog = new T.Fog(0xbfd8ea, 150, 700);
+  const camera = new T.PerspectiveCamera(62, 1, 0.1, 2000);
+  scene.add(new T.HemisphereLight(0xffffff, 0x2a4a66, 0.95));
+  const sun = new T.DirectionalLight(0xffffff, 0.7); sun.position.set(80, 120, 40); scene.add(sun);
+  // Wasser mit Raster, damit man Fahrt und Drehung sieht
+  const tc = document.createElement("canvas"); tc.width = tc.height = 128; const tx = tc.getContext("2d");
+  tx.fillStyle = "#2b6c94"; tx.fillRect(0, 0, 128, 128); tx.strokeStyle = "rgba(255,255,255,.18)"; tx.lineWidth = 2; tx.strokeRect(0, 0, 128, 128);
+  for (let i = 0; i < 40; i++) { tx.fillStyle = `rgba(255,255,255,${Math.random() * 0.08})`; tx.fillRect(Math.random() * 128, Math.random() * 128, 18, 2); }
+  const tex = new T.CanvasTexture(tc); tex.wrapS = tex.wrapT = T.RepeatWrapping; tex.repeat.set(200, 200);
+  const water = new T.Mesh(new T.PlaneGeometry(2000, 2000), new T.MeshLambertMaterial({ map: tex }));
+  water.rotation.x = -Math.PI / 2; scene.add(water);
+  const V = (x, y, h = 0) => new T.Vector3(x, h, -y);
+  const box = (w, h, d, color, x, y, z) => { const m = new T.Mesh(new T.BoxGeometry(w, h, d), new T.MeshLambertMaterial({ color })); m.position.set(x, z, -y); scene.add(m); return m; };
+  // Steg mit Pfählen
+  for (const p of sc.piers || []) {
+    box(p.x2 - p.x1, 0.5, p.y2 - p.y1, 0x8a6a45, (p.x1 + p.x2) / 2, (p.y1 + p.y2) / 2, 0.75);
+    for (let y = p.y1 + 2; y < p.y2; y += 6) { const post = new T.Mesh(new T.CylinderGeometry(0.15, 0.15, 2.2, 8), new T.MeshLambertMaterial({ color: 0x5a4330 })); post.position.copy(V(p.x2 - 0.15, y, 0.6)); scene.add(post); }
+  }
+  if (sc.berth) { const pl = new T.Mesh(new T.PlaneGeometry(3.4, sc.berth.y2 - sc.berth.y1), new T.MeshBasicMaterial({ color: 0x4ddc7c, transparent: true, opacity: 0.35 })); pl.rotation.x = -Math.PI / 2; pl.position.copy(V(1.7, (sc.berth.y1 + sc.berth.y2) / 2, 0.03)); scene.add(pl); }
+  // Boote
+  const boatMesh = (hullColor, deckColor, own) => {
+    const g = new T.Group(), shape = new T.Shape(); hullLocal().forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1]));
+    const hull = new T.Mesh(new T.ExtrudeGeometry(shape, { depth: 1.1, bevelEnabled: false }), [new T.MeshLambertMaterial({ color: deckColor }), new T.MeshLambertMaterial({ color: hullColor })]);
+    hull.rotation.x = -Math.PI / 2; g.add(hull);
+    if (!own) { const cab = new T.Mesh(new T.BoxGeometry(2.0, 1.1, 3.2), new T.MeshLambertMaterial({ color: 0xf2f2f2 })); cab.position.set(0, 1.65, 2.2); g.add(cab); }
+    else {
+      // Bugkorb-Stange als Peilhilfe und Windschutz vor dem Steuerstand
+      const pole = new T.Mesh(new T.CylinderGeometry(0.05, 0.05, 1.4, 6), new T.MeshLambertMaterial({ color: 0xff7a3d })); pole.position.set(0, 1.8, -SIM.PIVOT * SIM.L + 0.3); g.add(pole);
+      const screen = new T.Mesh(new T.BoxGeometry(2.2, 0.5, 0.08), new T.MeshLambertMaterial({ color: 0x9fc3d8, transparent: true, opacity: 0.35 })); screen.position.set(0, 1.5, -0.2); g.add(screen);
+      const dash = new T.Mesh(new T.BoxGeometry(2.4, 0.35, 0.8), new T.MeshLambertMaterial({ color: 0x1d2b36 })); dash.position.set(0, 1.25, 0.3); g.add(dash);
+    }
+    scene.add(g); return g;
+  };
+  const place = (g, x, y, psi) => { g.position.set(x, 0, -y); g.rotation.y = -psi; };
+  for (const mb of sc.moored || []) place(boatMesh(0xdfe6ea, 0xb0bec5, false), mb.x, mb.y + (SIM.L / 2 - SIM.PIVOT * SIM.L), mb.psi * D2R);
+  const own = boatMesh(0xffffff, 0xd8cdb8, true);
+  // Tonnen, Kurslinie, Landmarke
+  const buoy = (x, y, color) => { const b = new T.Mesh(new T.CylinderGeometry(0.45, 0.6, 1.4, 12), new T.MeshLambertMaterial({ color })); b.position.copy(V(x, y, 0.5)); scene.add(b); return b; };
+  if (sc.zone) { for (const yy of [sc.zone.y1, sc.zone.y2]) for (const xx of [-sc.zone.x - 2, sc.zone.x + 2]) buoy(xx, yy, 0xffd600);
+    for (let y = -40; y < 200; y += 8) box(0.3, 0.05, 2.5, 0xffffff, 0, y, 0.03); }
+  if (sc.id === "kurs") { // Leuchtturm im Osten als Ziel für Kurs 090°
+    const lt = new T.Mesh(new T.CylinderGeometry(3, 4, 30, 16), new T.MeshLambertMaterial({ color: 0xffffff })); lt.position.copy(V(600, 40, 15)); scene.add(lt);
+    const red = new T.Mesh(new T.CylinderGeometry(3.2, 3.4, 6, 16), new T.MeshLambertMaterial({ color: 0xd32f2f })); red.position.copy(V(600, 40, 20)); scene.add(red); }
+  // Ufer als Hintergrund im Hafen
+  if (sc.piers) box(400, 6, 30, 0x7c9a6a, -40, 200, 3);
+  let person = null;
+  const update = (st, cam) => {
+    const b = st.b;
+    place(own, b.x, b.y, b.psi);
+    if (st.stats.person && !person) { person = new T.Group(); const head = new T.Mesh(new T.SphereGeometry(0.3, 12, 10), new T.MeshLambertMaterial({ color: 0xf1c27d })); head.position.y = 0.35; person.add(head);
+      const ring = new T.Mesh(new T.TorusGeometry(0.55, 0.14, 8, 18), new T.MeshLambertMaterial({ color: 0xff6d00 })); ring.rotation.x = Math.PI / 2; ring.position.y = 0.1; person.add(ring); scene.add(person); }
+    if (person) { person.position.copy(V(st.stats.person.x, st.stats.person.y, Math.sin(performance.now() / 500) * 0.08)); }
+    if (cam === "chase") {
+      const p = toWorld(b, [0, -20]), t = toWorld(b, [0, 6]);
+      camera.position.copy(V(p[0], p[1], 9)); camera.lookAt(V(t[0], t[1], 0));
+    } else {
+      const p = toWorld(b, [0, -1.0]), yaw = b.psi + (st.lookYaw || 0) * D2R;
+      camera.position.copy(V(p[0], p[1], 2.5)); camera.lookAt(V(p[0] + Math.sin(yaw) * 40, p[1] + Math.cos(yaw) * 40, 0.6));
+    }
+    renderer.render(scene, camera);
+  };
+  const resize = (w, h) => { renderer.setSize(w, h, false); canvas.style.width = w + "px"; canvas.style.height = h + "px"; camera.aspect = w / h; camera.updateProjectionMatrix(); };
+  const dispose = () => { renderer.dispose(); scene.traverse(o => { if (o.geometry) o.geometry.dispose(); }); };
+  return { update, resize, dispose };
+}
+// Tastatur: Rad gedrückt halten, Hebel schrittweise
 document.addEventListener("keydown", e => {
-  if (view !== "praxis" || !sim || sim.done || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if (!sim || sim.done || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
   if (e.key === "ArrowLeft") { sim.steer = -1; e.preventDefault(); }
   if (e.key === "ArrowRight") { sim.steer = 1; e.preventDefault(); }
   if (e.key === "ArrowUp" && !e.repeat) { sim.b.T = Math.min(3, sim.b.T + 1); e.preventDefault(); }
@@ -2150,6 +2336,7 @@ document.addEventListener("keydown", e => {
   if (e.key === "n" || e.key === "0") sim.b.T = 0;
 });
 document.addEventListener("keyup", e => { if (sim && (e.key === "ArrowLeft" || e.key === "ArrowRight")) sim.steer = 0; });
+
 
 render();
 initSync();

@@ -33,6 +33,7 @@ Ohne Lerncode bleibt der Lernstand nur auf dem jeweiligen Gerät. Die App funkti
   `boegen.json` = die 15 offiziellen Prüfungsbögen als Katalognummern (`boegen.mjs`), `navigation.json` = die 15 Navigationsaufgaben
   mit Lösungen und der Seite des Lösungswegs in der großen Lösungs-PDF (`navigation.mjs`).
 - `pdfjs/` – pdf.js 3.11.174 zum Einlesen der Seekarten-PDF auf dem Gerät.
+- `three/` – three.js r128 (MIT) für die 3D-Ansicht im Praxis-Simulator.
 
 ## Navigation und Seekarten
 
