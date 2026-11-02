@@ -111,9 +111,10 @@ service cloud.firestore {
       match /stores/{id} {
         allow read, delete: if signedIn();
         allow create, update: if signedIn() && open()
-          && d().keys().hasOnly(["name", "color", "createdAt", "order", "by", "catOrder"])
+          && d().keys().hasOnly(["name", "color", "createdAt", "order", "by", "catOrder", "prospekt"])
           && needStr("name", 40) && d().color is string && d().color.matches("#[0-9a-fA-F]{6}")
           && num("createdAt") && num("order") && idOrNull("by")
+          && (!("prospekt" in d()) || d().prospekt == null || (d().prospekt is string && d().prospekt.size() <= 500 && d().prospekt.matches("https://.+")))
           && (!("catOrder" in d()) || d().catOrder == null || (d().catOrder is list && d().catOrder.size() <= 60));
       }
 

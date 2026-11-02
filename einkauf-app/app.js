@@ -314,11 +314,11 @@ function renderHome() {
   }
 }
 
-async function createStore_(name, color, catOrder = null) {
+async function createStore_(name, color, catOrder = null, prospekt = null) {
   const used = new Set(S.stores.map(s => s.color));
   const pick = color || COLORS.find(c => !used.has(c)) || COLORS[hash(name) % COLORS.length];
   const now = Date.now();
-  try { await house.add("stores", { name, color: pick, createdAt: now, order: now, by: S.uid, catOrder }); }
+  try { await house.add("stores", { name, color: pick, createdAt: now, order: now, by: S.uid, catOrder, ...(prospekt && { prospekt }) }); }
   catch (e) { console.error(e); fail("Anlegen")(); }
 }
 
@@ -328,6 +328,8 @@ function openStoreDlg(s = null) {
   editStore = s;
   $("#storeDlgTitle").textContent = s ? "Laden bearbeiten" : "Neuer Laden";
   $("#sName").value = s?.name || "";
+  $("#sProspekt").value = s?.prospekt || "";
+  $("#sProspekt").placeholder = (s && prospektUrl(s.name)) || "https://…";
   $("#sDelete").hidden = !s;
   $("#sError").textContent = "";
   const used = new Set(S.stores.map(x => x.color));
@@ -465,9 +467,13 @@ $("#storeForm").onsubmit = async e => {
   const name = $("#sName").value.trim();
   if (!name) return;
   if (S.stores.some(x => x.id !== editStore?.id && norm(x.name) === norm(name))) { $("#sError").textContent = "Diesen Laden gibt es schon."; return; }
+  let prospekt = $("#sProspekt").value.trim() || null;
+  if (prospekt && !/^https?:\/\//i.test(prospekt)) prospekt = "https://" + prospekt; // "kaufda.de/…" ohne https
+  if (prospekt) prospekt = prospekt.replace(/^http:/i, "https:");
+  if (prospekt && !/^https:\/\/[^\s/]+\.[^\s]+$/i.test(prospekt)) { $("#sError").textContent = "Der Prospekt-Link sieht nicht wie eine Internetadresse aus."; return; }
   try {
-    if (editStore) await house.update("stores", editStore.id, { name, color: pickedColor, catOrder: editOrder });
-    else await createStore_(name, pickedColor, editOrder);
+    if (editStore) await house.update("stores", editStore.id, { name, color: pickedColor, catOrder: editOrder, prospekt });
+    else await createStore_(name, pickedColor, editOrder, prospekt);
     $("#storeDlg").close();
   } catch (err) { console.error(err); $("#sError").textContent = "Speichern hat nicht geklappt."; }
 };
@@ -555,7 +561,7 @@ function renderTripBar(s) {
       .catch(fail("Speichern"));
     row.appendChild(go);
   }
-  const url = prospektUrl(s.name);
+  const url = s.prospekt || prospektUrl(s.name);
   if (url) {
     const p = el("a", "btn ghost small prospekt", "📰 Prospekt");
     Object.assign(p, { href: url, target: "_blank", rel: "noopener" });
@@ -564,17 +570,18 @@ function renderTripBar(s) {
   bar.appendChild(row);
 }
 
-// Aktuelle Angebote der bekannten Ketten (offizielle Seiten); bei "Aldi" ohne Nord/Süd beide über marktguru
+// Prospekte der bekannten Ketten (offizielle Seiten; Edeka/Rewe/dm/Rossmann haben keine allgemeine Prospektseite, dort die Angebote).
+// Bei "Aldi" ohne Nord/Süd beide über marktguru. Ein eigener Link am Laden (✎) geht immer vor.
 const PROSPEKTE = [
-  [/aldi\s*(süd|sued)/, "https://www.aldi-sued.de/angebote"],
-  [/aldi\s*nord/, "https://www.aldi-nord.de/angebote.html"],
+  [/aldi\s*(süd|sued)/, "https://www.aldi-sued.de/prospekte"],
+  [/aldi\s*nord/, "https://www.aldi-nord.de/prospekte.html"],
   [/aldi/, "https://www.marktguru.de/search/aldi"],
-  [/kaufland/, "https://filiale.kaufland.de/angebote.html"],
-  [/netto/, "https://www.netto-online.de/filialangebote"],
+  [/kaufland/, "https://filiale.kaufland.de/prospekte.html"],
+  [/netto/, "https://www.netto-online.de/ueber-netto/Online-Prospekte.chtm"],
   [/edeka/, "https://www.edeka.de/angebote/"],
   [/rewe/, "https://www.rewe.de/angebote/"],
   [/lidl/, "https://www.lidl.de/c/online-prospekte/s10005610"],
-  [/penny/, "https://www.penny.de/angebote"],
+  [/penny/, "https://www.penny.de/angebote#handout"],
   [/norma/, "https://www.marktguru.de/r/norma"],
   [/rossmann/, "https://www.rossmann.de/de/angebote/c/angebote"],
   [/^dm\b|\bdm$/, "https://www.dm.de/angebote"]
