@@ -378,6 +378,7 @@ function renderMatches() {
   const waiting = S.dishes.filter(d => !(d.id in S.myVotes) && likersOf(d.id).length);
   const onlyMe = S.dishes.filter(d => S.myVotes[d.id] === 1 && !likersOf(d.id).length);
   $("#matchCount").textContent = both.length || "";
+  $("#essenCount").textContent = both.length || "";
 
   if (!others().length) {
     const n = el("div", "notice");
@@ -1003,13 +1004,21 @@ $("#leaveBtn").onclick = () => {
 };
 
 /* ---------- Tabs & Rendern ---------- */
+// Unten 4 Reiter. „Essen“ umfasst Swipen, Matches und Gerichte (mit Wünschen), oben umschaltbar.
+const ESSEN_VIEWS = ["swipe", "match", "dishes", "wish"];
 function showTab(t) {
-  const active = t === "wish" ? "dishes" : t; // Wünsche gehören zum Reiter „Gerichte“
-  document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === active));
+  if (t === "essen") t = ls.get("em.essenSub") || "swipe";
+  const essen = ESSEN_VIEWS.includes(t);
+  if (essen) ls.set("em.essenSub", t);
+  document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === (essen ? "essen" : t)));
+  $("#essenSeg").hidden = !essen;
+  const sub = t === "wish" ? "dishes" : t; // Wünsche gehören zu „Gerichte“
+  document.querySelectorAll("#essenSeg button").forEach(b => b.setAttribute("aria-selected", b.dataset.sub === sub));
   for (const v of ["swipe", "match", "dishes", "shop", "clean", "todo", "wish"]) $("#view-" + v).hidden = v !== t;
   ls.set("em.tab", t);
 }
 document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
+document.querySelectorAll("#essenSeg button").forEach(b => b.onclick = () => showTab(b.dataset.sub));
 
 function renderPeople() {
   const box = $("#avatars");
@@ -1388,7 +1397,7 @@ async function initPush() {
 }
 
 // Benachrichtigungen öffnen die App mit #clean, #match oder #shop direkt im passenden Reiter
-const TABS = ["swipe", "match", "dishes", "shop", "clean", "todo", "wish"];
+const TABS = ["essen", "swipe", "match", "dishes", "shop", "clean", "todo", "wish"];
 const hashTab = () => TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : null;
 window.addEventListener("hashchange", () => { if (hashTab()) showTab(hashTab()); });
 showTab(hashTab() || ls.get("em.tab") || "swipe");

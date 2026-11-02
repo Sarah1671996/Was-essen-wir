@@ -66,7 +66,7 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 6
 .view { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
 .tabbar {
-  display: grid; grid-template-columns: repeat(6, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   border-top: 1px solid var(--line); background: var(--surface);
   padding: 6px var(--gutter-r) calc(6px + env(safe-area-inset-bottom, 0px)) var(--gutter-l);
 }
@@ -213,7 +213,13 @@ select {
 .row .later-in { color: var(--muted); font-size: .8rem; white-space: nowrap; }
 .toggle { display: flex; align-items: center; gap: 10px; font-size: .92rem; color: var(--ink); font-weight: 500; }
 .toggle input { width: 20px; height: 20px; accent-color: var(--basil); flex: none; }
-.tabbar button { font-size: .68rem; }
+.tabbar button { font-size: .74rem; }
+.seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; background: var(--chip); border-radius: 999px; padding: 4px; margin-bottom: 10px; }
+.seg button {
+  border: 0; background: transparent; color: var(--muted); font: 600 .88rem var(--body); padding: 7px 4px;
+  border-radius: 999px; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 5px;
+}
+.seg button[aria-selected="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
 .pill { font-size: .72rem; background: var(--basil); color: var(--basil-ink); border-radius: 999px; padding: 1px 7px; font-variant-numeric: tabular-nums; }
 .pill:empty { display: none; }
 .row .due { font-size: .78rem; color: var(--muted); white-space: nowrap; }

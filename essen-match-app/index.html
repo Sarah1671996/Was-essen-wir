@@ -56,6 +56,11 @@
   </header>
 
   <main>
+    <div class="seg" id="essenSeg" role="tablist" aria-label="Essen">
+      <button role="tab" data-sub="swipe">Swipen</button>
+      <button role="tab" data-sub="match">Matches <b class="pill" id="matchCount"></b></button>
+      <button role="tab" data-sub="dishes">Gerichte</button>
+    </div>
     <section id="view-swipe" class="view">
       <div class="filterbar" id="filterBar" role="group" aria-label="Kategorie" hidden></div>
       <div class="deck" id="deck"></div>
@@ -161,9 +166,7 @@
   </main>
 
   <nav class="tabbar" role="tablist">
-    <button role="tab" data-tab="swipe" aria-selected="true"><span class="ti">♥</span>Swipen</button>
-    <button role="tab" data-tab="match" aria-selected="false"><span class="ti">★</span>Matches<b class="badge" id="matchCount"></b></button>
-    <button role="tab" data-tab="dishes" aria-selected="false"><span class="ti">☰</span>Gerichte</button>
+    <button role="tab" data-tab="essen" aria-selected="true"><span class="ti">♥</span>Essen<b class="badge" id="essenCount"></b></button>
     <button role="tab" data-tab="shop" aria-selected="false"><span class="ti">☑</span>Einkauf<b class="badge" id="shopCount"></b></button>
     <button role="tab" data-tab="clean" aria-selected="false"><span class="ti">✧</span>Putzen<b class="badge" id="cleanCount"></b></button>
     <button role="tab" data-tab="todo" aria-selected="false"><span class="ti">✎</span>To-dos<b class="badge" id="todoCount"></b></button>
