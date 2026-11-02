@@ -1565,6 +1565,26 @@ window.addEventListener("hashchange", () => { if (hashTab()) showTab(hashTab());
 showTab(hashTab() || ls.get("em.tab") || "swipe");
 boot();
 
+// Eigener Installieren-Knopf (Android/Chrome): erscheint, sobald der Browser die Installation anbietet
+let installPrompt = null;
+window.addEventListener("beforeinstallprompt", e => {
+  e.preventDefault();
+  installPrompt = e;
+  document.querySelectorAll(".installBtn").forEach(b => { b.hidden = false; });
+});
+window.addEventListener("appinstalled", () => {
+  installPrompt = null;
+  document.querySelectorAll(".installBtn").forEach(b => { b.hidden = true; });
+  toast("Planer ist installiert 🎉");
+});
+document.querySelectorAll(".installBtn").forEach(b => b.onclick = async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => null);
+  installPrompt = null;
+  document.querySelectorAll(".installBtn").forEach(x => { x.hidden = true; });
+});
+
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }

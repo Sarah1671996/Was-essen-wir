@@ -26,6 +26,7 @@
     <div class="logo" aria-hidden="true"><svg class="house" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11.2 12 4l9 7.2V20a1 1 0 0 1-1 1h-5.2v-6h-5.6v6H4a1 1 0 0 1-1-1z"/></svg></div>
     <h1>Planer</h1>
     <p class="lead">Euer gemeinsamer Planer: was ihr esst, was ihr einkauft, wer putzt und was sonst noch zu tun ist.</p>
+    <button class="btn ghost installBtn" type="button" hidden>📲 Als App installieren</button>
 
     <label for="setupName">Wie heißt du?</label>
     <input id="setupName" maxlength="24" autocomplete="given-name" placeholder="Dein Vorname">
@@ -56,6 +57,7 @@
   </header>
 
   <main>
+    <button class="btn installBtn" type="button" style="margin-bottom:10px" hidden>📲 Planer als App installieren</button>
     <div class="seg" id="essenSeg" role="tablist" aria-label="Essen">
       <button role="tab" data-sub="swipe">Swipen</button>
       <button role="tab" data-sub="match">Matches <b class="pill" id="matchCount"></b></button>
