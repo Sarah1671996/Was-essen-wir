@@ -34,6 +34,9 @@ Ohne Lerncode bleibt der Lernstand nur auf dem jeweiligen Gerät. Die App funkti
   mit Lösungen und der Seite des Lösungswegs in der großen Lösungs-PDF (`navigation.mjs`).
 - `pdfjs/` – pdf.js 3.11.174 zum Einlesen der Seekarten-PDF auf dem Gerät.
 - `three/` – three.js r128 (MIT) für die 3D-Ansicht im Praxis-Simulator.
+- `index.html`, `app.js`, `daten.js` – von `build.mjs` erzeugt, werden auf GitHub Pages ausgeliefert.
+- `quelle/artifact.html` – ebenfalls erzeugt: dieselbe App als eine Datei für den Claude-Artifact-Link (nicht im Repo).
+- `sw.js` – Offline-Speicher; bei Änderungen die Versionsnummer `CACHE` hochzählen.
 
 ## Navigation und Seekarten
 
@@ -41,9 +44,11 @@ Die Seekarten und die ausführlichen Lösungswege stammen aus urheberrechtlich g
 und liegen deshalb **nicht** im Repo. In der App unter **Navigation → Seekarten aus PDF laden** die eigene Datei
 `bootspruefung_de_sbfs_karten.pdf` wählen; die Karten werden nur auf diesem Gerät gespeichert (IndexedDB).
 Für die Lösungswege nennt die App die Seite in `bootspruefung_de_sbfs_navigationsaufgaben_alle.pdf`.
-- `index.html`, `app.js`, `daten.js` – von `build.mjs` erzeugt, werden auf GitHub Pages ausgeliefert.
-- `quelle/artifact.html` – ebenfalls erzeugt: dieselbe App als eine Datei für den Claude-Artifact-Link (nicht im Repo).
-- `sw.js` – Offline-Speicher; bei Änderungen die Versionsnummer `CACHE` hochzählen.
+
+## Praxis-Simulator
+
+Vereinfachtes 8-m-Motorboot (rechtsdrehende Schraube) ohne Wind und Strömung, Vollbild im Querformat.
+Fahrphysik und Auswertung der Übungen stehen in `quelle/app.html` (`SCENARIOS`, `simStep`, `CHECKS`), die 3D-Ansicht in `build3D`.
 
 ## Lernstand und Sicherheit
 
