@@ -30,9 +30,11 @@ async function members(room) {
 async function notify(room, uid, pref, { title, body, tag, tab }) {
   const ref = db.doc(`rooms/${room}/tokens/${uid}`);
   const snap = await ref.get();
-  if (!snap.exists) return;
-  const { tokens = [], prefs = {} } = snap.data();
-  if (!tokens.length || !{ ...PUSH_DEFAULTS, ...prefs }[pref]) return;
+  const { tokens = [], prefs = {} } = snap.exists ? snap.data() : {};
+  if (!tokens.length || !{ ...PUSH_DEFAULTS, ...prefs }[pref]) {
+    logger.info("push übersprungen", { room, pref, reason: tokens.length ? "ausgeschaltet" : "keine Benachrichtigungen erlaubt" });
+    return;
+  }
 
   const res = await getMessaging().sendEachForMulticast({
     tokens,
@@ -105,6 +107,7 @@ async function cleaningReminder(room, byUid = null) {
   if (!who || who === byUid) return;
   const chores = (await db.collection(`rooms/${room}/chores`).get()).docs.map(d => ({ id: d.id, ...d.data() }));
   const open = openChores(chores, wk);
+  logger.info("putzplan", { room, week: wk.key, open: open.length, manual: !!byUid });
   if (!open.length) return;
   const title = byUid ? `🔔 ${await memberName(room, byUid)} erinnert dich ans Putzen` : "🧽 Du bist diese Woche mit Putzen dran";
   await notify(room, who, "cleaning", {
