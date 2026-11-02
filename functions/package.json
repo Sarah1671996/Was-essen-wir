@@ -1,0 +1,14 @@
+{
+  "name": "was-essen-wir-functions",
+  "description": "Push-Benachrichtigungen für die App „Was essen wir?“",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "engines": {
+    "node": "22"
+  },
+  "dependencies": {
+    "firebase-admin": "14.5.0",
+    "firebase-functions": "7.4.0"
+  }
+}

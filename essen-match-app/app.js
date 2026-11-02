@@ -1,5 +1,7 @@
 import { createStore, hasFirebase, randomCode } from "./store.js";
 import { STARTER_DISHES } from "./starter-dishes.js";
+import { weekOf, choreState, responsibleFor, rhythmText } from "./cleaning-logic.js";
+import { vapidKey } from "./firebase-config.js";
 
 // Die Beispielgerichte der ersten Version. Sie werden beim Übernehmen der neuen Liste entfernt.
 const OLD_STARTER_NAMES = new Set(["Spaghetti Carbonara", "Pizza Margherita", "Lasagne", "Pilz-Risotto", "Sushi", "Ramen",
@@ -16,7 +18,7 @@ const ls = {
 
 const S = {
   uid: null, code: null, name: "",
-  dishes: [], members: [], wishes: [], shopping: [],
+  dishes: [], members: [], wishes: [], shopping: [], chores: [], cleaning: {},
   myVotes: {}, history: [], salt: ls.get("em.salt") || "1",
   votesLoaded: false,
   // Runden: Wer "Neue Runde" startet, erhöht round. Jedes Handy leert dann seine eigenen Swipes.
@@ -167,6 +169,8 @@ function enterRoom() {
     }, null, onErr),
     room.watch("wishes", list => { S.wishes = list; renderWishes(); }, { field: "at", dir: "desc" }, onErr),
     room.watch("shopping", list => { S.shopping = list; renderShopping(); }, { field: "at" }, onErr),
+    room.watch("chores", list => { S.chores = list; renderCleaning(); }, { field: "createdAt" }, onErr),
+    room.watch("cleaning", list => { S.cleaning = list.find(x => x.id === "config") || {}; renderCleaning(); }, null, onErr),
     room.watch("meta", list => {
       S.round = list.find(x => x.id === "round")?.n || 0;
       S.roundLoaded = true;
@@ -175,6 +179,7 @@ function enterRoom() {
     }, null, onErr)
   ];
   renderAll();
+  initPush();
 }
 
 // Startgerichte, die vor dem Zutaten-Import angelegt wurden, bekommen Kategorie und Zutaten nachgetragen.
@@ -889,6 +894,7 @@ function openRoom() {
   $("#modeLine").textContent = hasFirebase ? "" : "Demo-Modus: Daten bleiben nur auf diesem Gerät, bis Firebase eingerichtet ist.";
   renderResetBox();
   renderListBox();
+  renderPushBox();
   $("#roomDlg").showModal();
 }
 
@@ -987,6 +993,7 @@ $("#leaveBtn").onclick = () => {
   unsubs.forEach(u => u()); unsubs = [];
   ls.del("em.code");
   S.code = null; S.myVotes = {}; S.history = []; S.members = []; S.dishes = []; S.wishes = []; S.shopping = [];
+  S.chores = []; S.cleaning = {};
   S.round = 0; S.myRound = 0;
   $("#roomDlg").close();
   showSetup();
@@ -995,7 +1002,7 @@ $("#leaveBtn").onclick = () => {
 /* ---------- Tabs & Rendern ---------- */
 function showTab(t) {
   document.querySelectorAll(".tabbar button").forEach(b => b.setAttribute("aria-selected", b.dataset.tab === t));
-  for (const v of ["swipe", "match", "dishes", "shop", "wish"]) $("#view-" + v).hidden = v !== t;
+  for (const v of ["swipe", "match", "dishes", "shop", "clean", "wish"]) $("#view-" + v).hidden = v !== t;
   ls.set("em.tab", t);
 }
 document.querySelectorAll(".tabbar button").forEach(b => b.onclick = () => showTab(b.dataset.tab));
@@ -1013,11 +1020,246 @@ function renderAll() {
   renderDishes();
   renderWishes();
   renderShopping();
+  renderCleaning();
   renderPeople();
   if (!$("#listNotice").dataset.confirming) renderListBox($("#listNotice"));
 }
 
-showTab(ls.get("em.tab") || "swipe");
+/* ---------- Putzplan ---------- */
+const memberName = uid => uid ? (uid === S.uid ? "Du" : (S.members.find(m => m.id === uid)?.name || "Jemand")) : null;
+function renderCleaning() {
+  if (!room) return;
+  const wk = weekOf();
+  const next = weekOf(Date.now() + 7 * 864e5);
+  const who = responsibleFor(S.cleaning, wk);
+  const whoNext = responsibleFor(S.cleaning, next);
+  const states = S.chores.map(c => ({ c, ...choreState(c, wk) }));
+  const now = states.filter(x => x.state === "due" || x.state === "done");
+  const open = states.filter(x => x.state === "due");
+  const later = states.filter(x => x.state === "later" || x.state === "skipped")
+    .sort((a, b) => (a.in || 0) - (b.in || 0));
+  $("#cleanCount").textContent = who === S.uid && open.length ? open.length : "";
+
+  // Wer ist dran?
+  const card = $("#dutyCard");
+  card.textContent = "";
+  card.classList.toggle("mine", who === S.uid);
+  card.appendChild(el("div", "kw", `KW ${wk.week} · ${wk.week % 2 ? "ungerade" : "gerade"} Woche`));
+  if (!who) {
+    card.appendChild(el("div", "who-big", "Noch nicht festgelegt, wer dran ist"));
+    card.appendChild(el("p", "small", "Stell unten unter „Wer ist wann dran?“ ein, wer in geraden und ungeraden Wochen putzt."));
+    $("#dutySetup").open = true;
+  } else {
+    card.appendChild(el("div", "who-big", who === S.uid ? "Du bist diese Woche dran" : `${memberName(who)} ist diese Woche dran`));
+    card.appendChild(el("p", "small", open.length
+      ? `Noch ${open.length} von ${now.length} Aufgaben offen.`
+      : now.length ? "Alles erledigt 🎉" : "Diese Woche ist nichts fällig."));
+    if (whoNext) card.appendChild(el("p", "small", `Nächste Woche: ${memberName(whoNext)}`));
+    if (who !== S.uid && open.length && store.pushToken) {
+      const b = el("button", "btn ghost", `🔔 ${memberName(who)} nochmal erinnern`);
+      b.onclick = async () => {
+        b.disabled = true;
+        try {
+          await room.add("pings", { to: who, by: S.uid, at: Date.now(), kind: "cleaning" });
+          toast(`Erinnerung an ${memberName(who)} ist unterwegs`);
+        } catch { toast("Konnte die Erinnerung nicht senden"); }
+        setTimeout(() => { b.disabled = false; }, 5000);
+      };
+      card.appendChild(b);
+    }
+  }
+
+  // Diese Woche
+  const list = $("#cleanNow");
+  list.textContent = "";
+  if (!S.chores.length) list.appendChild(el("div", "notice", "Noch keine Aufgaben. Leg unten die erste an, z. B. „Bad putzen“ jede Woche."));
+  else if (!now.length) list.appendChild(el("div", "notice", "Diese Woche ist nichts fällig."));
+  now.sort((a, b) => (a.state === "done") - (b.state === "done")).forEach(x => list.appendChild(choreRow(x, wk)));
+
+  const ll = $("#cleanLater");
+  ll.textContent = "";
+  $("#cleanLaterLabel").hidden = !later.length;
+  later.forEach(x => ll.appendChild(choreRow(x, wk)));
+
+  // Wer ist wann dran?
+  for (const [sel, key] of [["#dutyOdd", "odd"], ["#dutyEven", "even"]]) {
+    const s = $(sel);
+    if (document.activeElement === s) continue;
+    s.textContent = "";
+    s.appendChild(new Option("– niemand –", ""));
+    S.members.forEach(m => s.appendChild(new Option(m.id === S.uid ? `${m.name} (du)` : m.name, m.id)));
+    s.value = S.cleaning[key] || "";
+  }
+}
+function choreRow(x, wk) {
+  const { c, state } = x;
+  const r = el("div", "row" + (state === "done" ? " done" : ""));
+  if (state === "due" || state === "done") {
+    const chk = el("button", "check", state === "done" ? "✓" : "");
+    chk.setAttribute("aria-label", state === "done" ? "Wieder offen" : "Erledigt");
+    chk.onclick = () => {
+      const data = state === "done"
+        ? { lastDone: c.prevDone ?? null, doneBy: c.prevDoneBy ?? null }
+        : { lastDone: Date.now(), doneBy: S.uid, prevDone: c.lastDone ?? null, prevDoneBy: c.doneBy ?? null };
+      room.update("chores", c.id, data).catch(() => toast("Konnte nicht speichern"));
+    };
+    r.appendChild(chk);
+  }
+  const txt = el("button", "txt");
+  txt.style.cssText = "border:0;background:none;text-align:left;color:inherit;padding:0;cursor:pointer;font:inherit";
+  let sub = rhythmText(c.every);
+  if (state === "done") sub += ` · erledigt von ${memberName(c.doneBy) === "Du" ? "dir" : memberName(c.doneBy)}`;
+  else if (c.lastDone && c.every) sub += ` · zuletzt ${fmtDate(c.lastDone)}`;
+  if (state === "skipped") sub += " · auf nächste Woche verschoben";
+  txt.append(el("div", "t", c.title), el("div", "s", sub));
+  txt.onclick = () => openChore(c);
+  r.appendChild(txt);
+  if (state === "later") r.appendChild(el("span", "later-in", x.in === 1 ? "nächste Woche" : `in ${x.in} Wochen`));
+  if (state === "due" && c.every) {
+    const skip = el("button", "iconbtn", "⏭");
+    skip.title = "Auf nächste Woche verschieben";
+    skip.setAttribute("aria-label", "Auf nächste Woche verschieben");
+    skip.onclick = () => room.update("chores", c.id, { skipWeek: wk.key }).catch(() => toast("Konnte nicht speichern"));
+    r.appendChild(skip);
+  }
+  if (state === "skipped") {
+    const back = el("button", "iconbtn", "↩");
+    back.title = "Doch diese Woche";
+    back.setAttribute("aria-label", "Doch diese Woche erledigen");
+    back.onclick = () => room.update("chores", c.id, { skipWeek: null }).catch(() => toast("Konnte nicht speichern"));
+    r.appendChild(back);
+  }
+  return r;
+}
+$("#choreForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const title = $("#choreTitle").value.trim();
+  if (!title) return;
+  const every = Number($("#choreEvery").value);
+  $("#choreTitle").value = "";
+  try {
+    await room.add("chores", {
+      title, every, week: every ? null : weekOf().key, lastDone: null, doneBy: null,
+      skipWeek: null, createdAt: Date.now(), createdBy: S.uid
+    });
+  } catch { $("#choreTitle").value = title; toast("Konnte nicht speichern"); }
+});
+for (const [sel, key] of [["#dutyOdd", "odd"], ["#dutyEven", "even"]]) {
+  $(sel).addEventListener("change", e => {
+    room.set("cleaning", "config", { odd: S.cleaning.odd || null, even: S.cleaning.even || null, [key]: e.target.value || null })
+      .catch(() => toast("Konnte nicht speichern"));
+  });
+}
+let choreId = null;
+function openChore(c) {
+  choreId = c.id;
+  $("#choreEditTitle").value = c.title;
+  $("#choreEditEvery").value = String(c.every || 0);
+  $("#choreEditInfo").textContent = c.lastDone
+    ? `Zuletzt erledigt am ${fmtDate(c.lastDone)} von ${memberName(c.doneBy) === "Du" ? "dir" : memberName(c.doneBy)}.`
+    : "Noch nie erledigt.";
+  const del = $("#choreDelete");
+  del.textContent = "Löschen"; del.dataset.armed = "";
+  $("#choreDlg").showModal();
+}
+$("#choreCancel").onclick = () => $("#choreDlg").close();
+$("#choreEditForm").addEventListener("submit", async e => {
+  e.preventDefault();
+  const every = Number($("#choreEditEvery").value);
+  const c = S.chores.find(x => x.id === choreId);
+  try {
+    await room.update("chores", choreId, {
+      title: $("#choreEditTitle").value.trim() || c.title, every,
+      week: every ? null : (c.week || weekOf().key)
+    });
+    $("#choreDlg").close();
+  } catch { toast("Konnte nicht speichern"); }
+});
+$("#choreDelete").onclick = async () => {
+  const b = $("#choreDelete");
+  if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "Wirklich löschen?"; return; }
+  try { await room.remove("chores", choreId); $("#choreDlg").close(); } catch { toast("Löschen hat nicht geklappt"); }
+};
+
+/* ---------- Benachrichtigungen ---------- */
+const PUSH_DEFAULTS = { cleaning: true, match: true, round: true, shopping: false };
+const PUSH_LABELS = { cleaning: "Putzplan (wenn ich dran bin)", match: "Neues Match", round: "Neue Runde", shopping: "Andere setzen etwas auf die Einkaufsliste" };
+const pushSupported = () => "Notification" in window && "serviceWorker" in navigator && !!store?.pushToken && !!vapidKey;
+async function registerPush() {
+  const reg = await navigator.serviceWorker.ready;
+  const token = await store.pushToken(vapidKey, reg);
+  if (!token) throw new Error("kein Token");
+  const cur = await room.getPush();
+  await room.savePush(token, cur?.prefs ? null : PUSH_DEFAULTS);
+}
+async function renderPushBox() {
+  const box = $("#pushBox");
+  box.textContent = "";
+  if (!pushSupported()) {
+    const iOS = /iPhone|iPad/.test(navigator.userAgent);
+    box.appendChild(el("p", "small", !vapidKey || !store?.pushToken
+      ? "Benachrichtigungen sind noch nicht eingerichtet."
+      : iOS ? "Auf dem iPhone gehen Benachrichtigungen nur, wenn du die App über „Zum Home-Bildschirm“ installiert hast und sie von dort öffnest."
+        : "Dieser Browser unterstützt keine Benachrichtigungen."));
+    return;
+  }
+  if (Notification.permission === "denied") {
+    box.appendChild(el("p", "small", "Benachrichtigungen sind für diese App blockiert. Du kannst sie in den Einstellungen deines Handys wieder erlauben."));
+    return;
+  }
+  if (Notification.permission !== "granted") {
+    const b = el("button", "btn", "🔔 Benachrichtigungen einschalten");
+    b.onclick = async () => {
+      b.disabled = true;
+      try {
+        if (await Notification.requestPermission() !== "granted") { renderPushBox(); return; }
+        await registerPush();
+        toast("Benachrichtigungen sind an");
+      } catch (e) { console.error(e); toast("Das hat nicht geklappt. Versuch es nochmal."); }
+      renderPushBox(); renderCleaning();
+    };
+    box.appendChild(b);
+    return;
+  }
+  const cur = await room.getPush().catch(() => null);
+  const prefs = { ...PUSH_DEFAULTS, ...(cur?.prefs || {}) };
+  for (const key of Object.keys(PUSH_LABELS)) {
+    const lab = el("label", "toggle");
+    const cb = el("input"); cb.type = "checkbox"; cb.checked = !!prefs[key]; cb.id = "push-" + key;
+    cb.onchange = () => {
+      prefs[key] = cb.checked;
+      room.savePush(null, { ...prefs }).catch(() => toast("Konnte nicht speichern"));
+    };
+    lab.append(cb, document.createTextNode(PUSH_LABELS[key]));
+    box.appendChild(lab);
+  }
+}
+function updatePushHint() {
+  const hint = $("#pushHint");
+  const show = pushSupported() && Notification.permission === "default";
+  hint.hidden = !show;
+  if (show && !hint.children.length) {
+    hint.append("Damit du ans Putzen erinnert wirst, schalte die Benachrichtigungen ein: ");
+    const b = el("button", "btn mini", "Einstellungen öffnen");
+    b.onclick = openRoom;
+    hint.appendChild(b);
+  }
+}
+let pushInited = false;
+async function initPush() {
+  if (!pushSupported()) return;
+  if (pushInited) { if (Notification.permission === "granted") registerPush().catch(() => {}); return; }
+  pushInited = true;
+  updatePushHint();
+  store.onPush(p => toast(`${p.notification?.title || ""} ${p.notification?.body || ""}`.trim(), true));
+  if (Notification.permission === "granted") registerPush().catch(e => console.error(e)); // Token auffrischen
+}
+
+// Benachrichtigungen öffnen die App mit #clean, #match oder #shop direkt im passenden Reiter
+const TABS = ["swipe", "match", "dishes", "shop", "clean", "wish"];
+const hashTab = () => TABS.includes(location.hash.slice(1)) ? location.hash.slice(1) : null;
+window.addEventListener("hashchange", () => { if (hashTab()) showTab(hashTab()); });
+showTab(hashTab() || ls.get("em.tab") || "swipe");
 boot();
 
 if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {

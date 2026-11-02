@@ -93,6 +93,39 @@
       </div>
     </section>
 
+    <section id="view-clean" class="view" hidden>
+      <div class="scroll">
+        <div class="panel duty" id="dutyCard"></div>
+        <div class="notice" id="pushHint" hidden></div>
+        <div class="sectlabel" id="cleanNowLabel">Diese Woche</div>
+        <div id="cleanNow" class="list"></div>
+        <form id="choreForm" class="panel">
+          <label for="choreTitle">Aufgabe hinzufügen</label>
+          <input id="choreTitle" maxlength="60" placeholder="z. B. Bad putzen" autocomplete="off">
+          <div class="joinrow">
+            <select id="choreEvery" aria-label="Wie oft?">
+              <option value="1">jede Woche</option>
+              <option value="2">alle 2 Wochen</option>
+              <option value="3">alle 3 Wochen</option>
+              <option value="4">alle 4 Wochen</option>
+              <option value="8">alle 8 Wochen</option>
+              <option value="0">nur diese Woche</option>
+            </select>
+            <button class="btn" type="submit">Hinzufügen</button>
+          </div>
+        </form>
+        <div class="sectlabel" id="cleanLaterLabel">Später fällig</div>
+        <div id="cleanLater" class="list"></div>
+        <details class="panel" id="dutySetup">
+          <summary>Wer ist wann dran?</summary>
+          <label for="dutyOdd">Ungerade Kalenderwochen</label>
+          <select id="dutyOdd"></select>
+          <label for="dutyEven">Gerade Kalenderwochen</label>
+          <select id="dutyEven"></select>
+        </details>
+      </div>
+    </section>
+
     <section id="view-wish" class="view" hidden>
       <div class="scroll">
         <form id="wishForm" class="panel">
@@ -111,6 +144,7 @@
     <button role="tab" data-tab="match" aria-selected="false"><span class="ti">★</span>Matches<b class="badge" id="matchCount"></b></button>
     <button role="tab" data-tab="dishes" aria-selected="false"><span class="ti">☰</span>Gerichte</button>
     <button role="tab" data-tab="shop" aria-selected="false"><span class="ti">☑</span>Einkauf<b class="badge" id="shopCount"></b></button>
+    <button role="tab" data-tab="clean" aria-selected="false"><span class="ti">✧</span>Putzen<b class="badge" id="cleanCount"></b></button>
     <button role="tab" data-tab="wish" aria-selected="false"><span class="ti">✎</span>Wünsche<b class="badge" id="wishCount"></b></button>
   </nav>
 </div>
@@ -187,6 +221,31 @@
   </form>
 </dialog>
 
+<!-- Putzaufgabe bearbeiten -->
+<dialog id="choreDlg" class="sheet">
+  <form id="choreEditForm" class="sheet-body" method="dialog">
+    <h2>Aufgabe bearbeiten</h2>
+    <label for="choreEditTitle">Aufgabe</label>
+    <input id="choreEditTitle" maxlength="60" required>
+    <label for="choreEditEvery">Wie oft?</label>
+    <select id="choreEditEvery">
+      <option value="1">jede Woche</option>
+      <option value="2">alle 2 Wochen</option>
+      <option value="3">alle 3 Wochen</option>
+      <option value="4">alle 4 Wochen</option>
+      <option value="8">alle 8 Wochen</option>
+      <option value="0">nur diese Woche</option>
+    </select>
+    <p class="small" id="choreEditInfo"></p>
+    <div class="sheet-actions">
+      <button type="button" class="btn danger-ghost" id="choreDelete">Löschen</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn ghost" id="choreCancel">Abbrechen</button>
+      <button type="submit" class="btn">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Küche / Einstellungen -->
 <dialog id="roomDlg" class="sheet">
   <div class="sheet-body">
@@ -199,6 +258,8 @@
       <button class="btn" id="inviteShare">Teilen</button>
     </div>
     <p class="small">Code: <b id="roomCode" class="mono"></b></p>
+    <label>Benachrichtigungen auf diesem Handy</label>
+    <div class="stack" id="pushBox"></div>
     <label for="nameEdit">Dein Name</label>
     <div class="joinrow">
       <input id="nameEdit" maxlength="24">

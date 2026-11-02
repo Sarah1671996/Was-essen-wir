@@ -70,9 +70,29 @@ async function firebaseStore() {
     return model;
   }
 
+  let messaging = null;
+  async function getMessaging() {
+    if (messaging) return messaging;
+    const msg = await import(FB + "firebase-messaging.js");
+    if (!(await msg.isSupported())) return null;
+    messaging = { msg, m: msg.getMessaging(app) };
+    return messaging;
+  }
+
   return {
     uid,
     mode: "firebase",
+    // Push: Token für dieses Gerät holen (fragt nicht selbst nach Erlaubnis)
+    async pushToken(vapidKey, serviceWorkerRegistration) {
+      const x = await getMessaging();
+      if (!x) return null;
+      return x.msg.getToken(x.m, { vapidKey, serviceWorkerRegistration });
+    },
+    // Nachrichten, die ankommen, während die App offen ist
+    async onPush(cb) {
+      const x = await getMessaging();
+      if (x) x.msg.onMessage(x.m, cb);
+    },
     // Liefert { recipes: [{ name, mins, description, ingredients[], missing[], steps[] }] }
     async suggestRecipes(prompt) {
       const m = await getModel();
@@ -97,6 +117,13 @@ async function firebaseStore() {
           return fs.onSnapshot(q, snap => cb(snap.docs.map(d => ({ id: d.id, ...d.data() }))), onError);
         },
         setMember: data => fs.setDoc(fs.doc(base, "members", uid), data),
+        // Push-Token und Benachrichtigungs-Einstellungen dieses Geräts (nur für den Server lesbar)
+        savePush: (token, prefs) => fs.setDoc(fs.doc(base, "tokens", uid), {
+          ...(token ? { tokens: fs.arrayUnion(token) } : {}),
+          ...(prefs ? { prefs } : {}),
+          updatedAt: Date.now()
+        }, { merge: true }),
+        getPush: async () => (await fs.getDoc(fs.doc(base, "tokens", uid))).data() || null,
         set: (c, id, data) => fs.setDoc(fs.doc(base, c, id), data),
         add: async (c, data) => (await fs.addDoc(col(c), data)).id,
         update: (c, id, data) => fs.updateDoc(fs.doc(base, c, id), data),
@@ -135,7 +162,9 @@ function localStore() {
   return {
     uid,
     mode: "local",
-    suggestRecipes: null, // KI gibt es nur mit Firebase
+    suggestRecipes: null, // KI und Push gibt es nur mit Firebase
+    pushToken: null,
+    onPush: null,
     async roomExists(code) { return !!load(code); },
     async createRoom(code) { save(code, { dishes: {}, members: {}, wishes: {}, shopping: {}, meta: {} }); },
     room(code) {
@@ -161,6 +190,8 @@ function localStore() {
           return () => subs.delete(s);
         },
         async setMember(data) { change(r => { r.members[uid] = data; }); },
+        async savePush() {},
+        async getPush() { return null; },
         async set(c, id, data) { change(r => { (r[c] ||= {})[id] = data; }); },
         async add(c, data) { const id = randomCode(12); change(r => { (r[c] ||= {})[id] = data; }); return id; },
         async update(c, id, data) { change(r => { Object.assign(r[c][id], data); }); },

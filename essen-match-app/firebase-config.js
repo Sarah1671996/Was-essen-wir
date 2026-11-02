@@ -8,3 +8,7 @@ export const firebaseConfig = {
   messagingSenderId: "789967858241",
   appId: "1:789967858241:web:dd6a7dba8de56518a874c0"
 };
+
+// Öffentlicher Schlüssel für Push-Benachrichtigungen
+// (Firebase-Konsole → Projekteinstellungen → Cloud Messaging → Web-Push-Zertifikate)
+export const vapidKey = "";

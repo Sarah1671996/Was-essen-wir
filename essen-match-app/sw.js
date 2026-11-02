@@ -1,10 +1,34 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "essen-v8";
+const CACHE = "essen-v9";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "store.js", "firebase-config.js", "starter-dishes.js",
-  "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
+  "cleaning-logic.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
 ];
+
+// Push-Benachrichtigungen vom Server (Firebase Cloud Messaging, Datennachricht mit title/body/link/tag)
+self.addEventListener("push", e => {
+  let p = {};
+  try { p = e.data ? e.data.json() : {}; } catch { p = { data: { body: e.data && e.data.text() } }; }
+  const d = { ...(p.notification || {}), ...(p.data || {}) };
+  e.waitUntil(self.registration.showNotification(d.title || "Was essen wir?", {
+    body: d.body || "",
+    tag: d.tag || undefined,
+    renotify: !!d.tag,
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    data: { link: d.link || "./" }
+  }));
+});
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const link = new URL(e.notification.data?.link || "./", self.registration.scope).href;
+  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+    const open = list.find(c => c.url.startsWith(self.registration.scope));
+    if (open) { open.navigate(link).catch(() => {}); return open.focus(); }
+    return self.clients.openWindow(link);
+  }));
+});
 
 self.addEventListener("install", e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting()));
