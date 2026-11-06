@@ -240,7 +240,8 @@ async function cleaningReminder(room, byUid = null) {
   const open = openChores(chores, wk);
   logger.info("putzplan", { room, week: wk.key, open: open.length, manual: !!byUid });
   if (!open.length) return;
-  const title = byUid ? `🔔 ${await memberName(room, byUid)} erinnert dich ans Putzen` : "🧽 Du bist diese Woche mit Putzen dran";
+  // Auch die manuelle Erinnerung sieht neutral aus (kein Hinweis, wer sie ausgelöst hat)
+  const title = "🧽 Du bist diese Woche mit Putzen dran";
   await notify(room, who, "cleaning", {
     title, body: `Noch offen: ${open.map(c => c.title).join(", ")}`, tag: "cleaning", tab: "clean"
   });
