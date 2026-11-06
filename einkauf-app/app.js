@@ -499,8 +499,10 @@ function renderList() {
   box.textContent = "";
   const all = itemsOf(s.id);
   const open = all.filter(i => !i.done), done = all.filter(i => i.done);
+  // Unterwegs liegt's im Wagen, danach bleibt es zum Nachschauen durchgestrichen stehen
+  const shopping = S.members.some(m => tripOf(m)?.state === "los" && tripOf(m).storeId === s.id);
   $("#listSub").textContent = open.length || done.length
-    ? [open.length ? `${open.length} offen` : "alles besorgt", done.length ? `${done.length} im Wagen` : ""].filter(Boolean).join(" · ")
+    ? [open.length ? `${open.length} offen` : "alles besorgt", done.length ? `${done.length} ${shopping ? "im Wagen" : "eingekauft"}` : ""].filter(Boolean).join(" · ")
     : "";
 
   if (!all.length) {
@@ -524,7 +526,7 @@ function renderList() {
 
   if (done.length) {
     const head = el("div", "donehead");
-    head.appendChild(el("p", "sectionlabel", `Im Wagen (${done.length})`));
+    head.appendChild(el("p", "sectionlabel", `${shopping ? "Im Wagen" : "Eingekauft"} (${done.length})`));
     const clear = el("button", "btn ghost small", "Erledigte entfernen");
     clear.onclick = clearDone;
     head.appendChild(clear);
@@ -556,9 +558,16 @@ function renderTripBar(s) {
     row.append(stop, fin);
   } else {
     const go = el("button", "btn ghost small", `🛒 Ich gehe jetzt zu ${s.name}`);
-    go.onclick = () => house.patch("members", S.uid, { trip: { storeId: s.id, at: Date.now(), state: "los" } })
-      .then(() => toast("Die anderen sehen jetzt, dass du unterwegs bist"))
-      .catch(fail("Speichern"));
+    // Neuer Einkauf: was vom letzten Mal noch durchgestrichen dasteht, wandert in den Verlauf
+    go.onclick = async () => {
+      const old = itemsOf(s.id).filter(i => i.done);
+      const { ops, undo } = archiveOps(old);
+      try {
+        await Promise.all([house.patch("members", S.uid, { trip: { storeId: s.id, at: Date.now(), state: "los" } }), ops.length ? house.batch(ops) : null]);
+        if (old.length) toast(`Der letzte Einkauf (${old.length}) liegt jetzt im Verlauf 🕘`, { label: "Rückgängig", run: () => house.batch(undo).catch(fail("Wiederherstellen")) });
+        else toast("Die anderen sehen jetzt, dass du unterwegs bist");
+      } catch (err) { console.error(err); fail("Speichern")(); }
+    };
     row.appendChild(go);
   }
   const url = s.prospekt || prospektUrl(s.name);
@@ -1118,6 +1127,7 @@ function openFinish() {
     chips.appendChild(c);
   });
   $("#finishReceipt").checked = false;
+  $("#finishClear").checked = false;
   $("#finishDlg").showModal();
 }
 $("#finishCancel").onclick = () => $("#finishDlg").close();
