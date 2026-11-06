@@ -255,12 +255,37 @@ export const dailyCleaning = onSchedule({ schedule: "0 17 * * *", timeZone: "Eur
   }
 });
 
-// „Nochmal erinnern“-Knopf in der App
+// Test-Benachrichtigung an das eigene Gerät; das Ergebnis landet in meta/pushtest_<uid>,
+// damit die App anzeigen kann, woran es hakt
+async function pushTest(room, uid) {
+  const result = { at: Date.now(), tokens: 0, sent: 0, failed: 0, errors: [] };
+  const ref = db.doc(`rooms/${room}/tokens/${uid}`);
+  const snap = await ref.get();
+  const tokens = snap.exists ? snap.get("tokens") || [] : [];
+  result.tokens = tokens.length;
+  if (tokens.length) {
+    const res = await getMessaging().sendEachForMulticast({
+      tokens,
+      data: { title: "🔔 Test-Benachrichtigung", body: "Wenn du das liest, funktionieren die Benachrichtigungen.", tag: "test", link: APP_URL + "#home" },
+      webpush: { headers: { Urgency: "high", TTL: "600" } }
+    });
+    result.sent = res.successCount;
+    result.failed = res.failureCount;
+    result.errors = res.responses.filter(r => !r.success).map(r => r.error?.code || "unbekannt");
+    const dead = res.responses.map((r, i) => (!r.success && DEAD_TOKEN.includes(r.error?.code) ? tokens[i] : null)).filter(Boolean);
+    if (dead.length) await ref.update({ tokens: FieldValue.arrayRemove(...dead) });
+  }
+  logger.info("pushtest", { room, ...result });
+  await db.doc(`rooms/${room}/meta/pushtest_${uid}`).set(result);
+}
+
+// „Nochmal erinnern“-Knopf (kind "cleaning") und Test-Benachrichtigung (kind "test")
 export const onPing = onDocumentCreated("rooms/{room}/pings/{id}", async event => {
   const ping = event.data?.data();
   if (!ping) return;
   try {
-    await cleaningReminder(event.params.room, ping.by);
+    if (ping.kind === "test") await pushTest(event.params.room, ping.by);
+    else await cleaningReminder(event.params.room, ping.by);
   } finally {
     await event.data.ref.delete();
   }

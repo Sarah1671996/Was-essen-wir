@@ -177,6 +177,7 @@ function enterRoom() {
     room.watch("meta", list => {
       S.round = list.find(x => x.id === "round")?.n || 0;
       S.einkauf = list.find(x => x.id === "einkauf") || null;
+      S.pushTest = list.find(x => x.id === "pushtest_" + S.uid) || null;
       if ($("#roomDlg").open) renderLinkBox();
       S.roundLoaded = true;
       checkRound();
@@ -1518,7 +1519,11 @@ async function renderPushBox() {
         if (await Notification.requestPermission() !== "granted") { renderPushBox(); return; }
         await registerPush();
         toast("Benachrichtigungen sind an");
-      } catch (e) { console.error(e); toast("Das hat nicht geklappt. Versuch es nochmal."); }
+      } catch (e) {
+        console.error(e);
+        pushError = String(e?.code || e?.message || e);
+        toast("Das hat nicht geklappt. Versuch es nochmal.");
+      }
       renderPushBox(); renderCleaning();
     };
     box.appendChild(b);
@@ -1536,7 +1541,38 @@ async function renderPushBox() {
     lab.append(cb, document.createTextNode(PUSH_LABELS[key]));
     box.appendChild(lab);
   }
+
+  // Test: schickt eine Nachricht an dieses Gerät und zeigt, was der Server erlebt hat
+  const t = el("button", "btn ghost", "🔔 Test-Benachrichtigung an mich schicken");
+  t.onclick = async () => {
+    t.disabled = true; t.textContent = "Sende …";
+    pushError = "";
+    const before = S.pushTest?.at || 0;
+    try {
+      await registerPush(); // Gerät sicherheitshalber neu anmelden
+      await room.add("pings", { kind: "test", by: S.uid, to: S.uid, at: Date.now() });
+    } catch (e) {
+      console.error(e);
+      pushError = String(e?.code || e?.message || e);
+      renderPushBox();
+      return;
+    }
+    const t0 = Date.now();
+    while (Date.now() - t0 < 30000 && (S.pushTest?.at || 0) <= before) await new Promise(r => setTimeout(r, 500));
+    renderPushBox();
+  };
+  box.appendChild(t);
+  if (pushError) box.appendChild(el("p", "error", `Anmelden des Geräts fehlgeschlagen: ${pushError}`));
+  const r = S.pushTest;
+  if (r) {
+    const when = new Date(r.at).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    const text = !r.tokens ? "Der Server kennt kein Gerät von dir. Schalte die Benachrichtigungen aus und wieder ein."
+      : r.sent ? `Verschickt an ${r.sent} Gerät${r.sent > 1 ? "e" : ""}. Kommt nichts an, blockiert das Handy die Anzeige (Einstellungen → Apps → Benachrichtigungen bzw. Energiesparen).`
+        : `Google hat die Nachricht abgelehnt (${(r.errors || []).join(", ") || "unbekannt"}).`;
+    box.appendChild(el("p", r.sent ? "small" : "error", `Letzter Test ${when}: ${text}`));
+  }
 }
+let pushError = "";
 function updatePushHint() {
   const hint = $("#pushHint");
   const show = pushSupported() && Notification.permission === "default";
