@@ -33,8 +33,9 @@ async function notify(room, uid, pref, { title, body, tag, tab }) {
   const snap = await ref.get();
   const { tokens = [], prefs = {} } = snap.exists ? snap.data() : {};
   if (!tokens.length || !{ ...PUSH_DEFAULTS, ...prefs }[pref]) {
-    logger.info("push übersprungen", { room, pref, reason: tokens.length ? "ausgeschaltet" : "keine Benachrichtigungen erlaubt" });
-    return;
+    const reason = tokens.length ? "ausgeschaltet" : "keine Benachrichtigungen erlaubt";
+    logger.info("push übersprungen", { room, pref, reason });
+    return { sent: 0, failed: 0, reason };
   }
 
   const res = await getMessaging().sendEachForMulticast({
@@ -47,6 +48,8 @@ async function notify(room, uid, pref, { title, body, tag, tab }) {
     .filter(Boolean);
   if (dead.length) await ref.update({ tokens: FieldValue.arrayRemove(...dead) });
   logger.info("push", { room, pref, ok: res.successCount, failed: res.failureCount });
+  return { sent: res.successCount, failed: res.failureCount,
+    errors: res.responses.filter(r => !r.success).map(r => r.error?.code || "unbekannt") };
 }
 
 // 🎉 Neues Match: jemand hat ein Gericht geliked, das ein anderer in derselben Runde auch mag
@@ -232,19 +235,22 @@ export const onNewRound = onDocumentWritten("rooms/{room}/meta/round", async eve
 
 // 🧽 Putzplan: Erinnerung an die Person, die diese Woche dran ist, falls noch etwas offen ist
 async function cleaningReminder(room, byUid = null) {
+  // Bei der manuellen Erinnerung bekommt die auslösende Person das Ergebnis in meta/remind_<uid>
+  const report = r => byUid ? db.doc(`rooms/${room}/meta/remind_${byUid}`).set({ at: Date.now(), ...r }) : null;
   const config = (await db.doc(`rooms/${room}/cleaning/config`).get()).data();
   const wk = weekOf();
   const who = responsibleFor(config, wk);
-  if (!who || who === byUid) return;
+  if (!who || who === byUid) return report({ sent: 0, reason: "niemand eingeteilt" });
   const chores = (await db.collection(`rooms/${room}/chores`).get()).docs.map(d => ({ id: d.id, ...d.data() }));
   const open = openChores(chores, wk);
   logger.info("putzplan", { room, week: wk.key, open: open.length, manual: !!byUid });
-  if (!open.length) return;
+  if (!open.length) return report({ to: who, sent: 0, reason: "nichts offen" });
   // Auch die manuelle Erinnerung sieht neutral aus (kein Hinweis, wer sie ausgelöst hat)
   const title = "🧽 Du bist diese Woche mit Putzen dran";
-  await notify(room, who, "cleaning", {
+  const res = await notify(room, who, "cleaning", {
     title, body: `Noch offen: ${open.map(c => c.title).join(", ")}`, tag: "cleaning", tab: "clean"
   });
+  await report({ to: who, ...res });
 }
 
 // Täglich um 17 Uhr deutscher Zeit

@@ -178,6 +178,7 @@ function enterRoom() {
       S.round = list.find(x => x.id === "round")?.n || 0;
       S.einkauf = list.find(x => x.id === "einkauf") || null;
       S.pushTest = list.find(x => x.id === "pushtest_" + S.uid) || null;
+      S.remind = list.find(x => x.id === "remind_" + S.uid) || null;
       if ($("#roomDlg").open) renderLinkBox();
       S.roundLoaded = true;
       checkRound();
@@ -1171,6 +1172,22 @@ function renderHome() {
 
 /* ---------- Putzplan ---------- */
 const memberName = uid => uid ? (uid === S.uid ? "Du" : (S.members.find(m => m.id === uid)?.name || "Jemand")) : null;
+// Ergebnis der letzten „nochmal erinnern“-Nachricht (vom Server in meta/remind_<uid>)
+let remindPending = 0;
+function remindInfo(who) {
+  const r = S.remind, name = memberName(who);
+  if (remindPending && !(r && r.at >= remindPending - 60000)) return "⏳ Wird verschickt …";
+  remindPending = 0;
+  if (!r || Date.now() - r.at > 7 * 864e5) return "";
+  const when = new Date(r.at).toLocaleString("de-DE", { weekday: "short", hour: "2-digit", minute: "2-digit" });
+  if (r.sent > 0) return `✅ Letzte Erinnerung (${when}) ist an ${name} rausgegangen.`;
+  if (r.reason === "keine Benachrichtigungen erlaubt") return `⚠️ Letzte Erinnerung (${when}) kam nicht an: ${name} hat auf dem Handy keine Benachrichtigungen eingeschaltet.`;
+  if (r.reason === "ausgeschaltet") return `⚠️ Letzte Erinnerung (${when}) kam nicht an: ${name} hat Putz-Benachrichtigungen ausgeschaltet.`;
+  if (r.reason === "nichts offen") return `ℹ️ Letzte Erinnerung (${when}) war nicht nötig, es ist nichts mehr offen.`;
+  if (r.failed) return `⚠️ Letzte Erinnerung (${when}) wurde von Google abgelehnt (${(r.errors || []).join(", ")}).`;
+  return "";
+}
+
 function renderCleaning() {
   homeLater();
   if (!room) return;
@@ -1205,12 +1222,18 @@ function renderCleaning() {
       b.onclick = async () => {
         b.disabled = true;
         try {
-          await room.add("pings", { to: who, by: S.uid, at: Date.now(), kind: "cleaning" });
+          const at = Date.now();
+          await room.add("pings", { to: who, by: S.uid, at, kind: "cleaning" });
           toast(`Erinnerung an ${memberName(who)} ist unterwegs`);
+          remindPending = at;
+          renderCleaning();
+          setTimeout(() => { if (remindPending === at) { remindPending = 0; renderCleaning(); } }, 30000);
         } catch { toast("Konnte die Erinnerung nicht senden"); }
         setTimeout(() => { b.disabled = false; }, 5000);
       };
       card.appendChild(b);
+      const info = remindInfo(who);
+      if (info) card.appendChild(el("p", "small", info));
     }
   }
 

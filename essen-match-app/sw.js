@@ -1,6 +1,6 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "essen-v17";
+const CACHE = "essen-v18";
 const FILES = [
   "./", "index.html", "style.css", "app.js", "store.js", "firebase-config.js", "starter-dishes.js",
   "cleaning-logic.js", "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
