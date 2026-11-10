@@ -203,3 +203,7 @@ textarea { resize: vertical; min-height: 70px; }
 .d-head .poster .t { font-size: .8rem; }
 .poster .t::before { content: "🎬"; display: block; font-size: 1.4em; margin-bottom: 4px; opacity: .6; }
 .poster .t { align-content: center; }
+.own label { display: block; margin: 12px 0 4px; font-weight: 600; font-size: .9rem; }
+.own label input { margin-top: 4px; font-weight: 400; }
+.own h2 { padding-top: 18px; }
+.own .statusbtns { margin-top: 16px; }
