@@ -379,3 +379,11 @@ textarea {
 /* Neuer Eintrag leuchtet kurz auf */
 @keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--c, var(--accent)); } 100% { box-shadow: 0 0 0 3px transparent; } }
 li.flash .item { animation: flash 1.6s ease-out; border-radius: 14px; }
+
+/* ---------- Reiter: Jetzt / Angebote ab … ---------- */
+.tabbar { display: flex; gap: 6px; padding: 8px var(--gutter-r) 0 var(--gutter-l); overflow-x: auto; scrollbar-width: none; }
+.tabbar::-webkit-scrollbar { display: none; }
+.tab { flex: none; border: 0; border-radius: 999px; padding: 8px 14px; min-height: 40px; font: inherit; font-weight: 700; font-size: .92rem;
+  background: var(--chip); color: var(--ink); white-space: nowrap; position: relative; display: inline-flex; align-items: center; }
+.tab.on { background: var(--c, var(--accent)); color: #fff; }
+.tab.pick input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
