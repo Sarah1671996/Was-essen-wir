@@ -1,8 +1,8 @@
 // Hält die App-Dateien offline bereit. Erst Netz, bei Funkloch der Zwischenspeicher.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "filme-v3";
+const CACHE = "filme-v4";
 const FILES = [
-  "./", "index.html", "style.css", "app.js", "store.js", "catalog.js", "recs.js", "online.js", "../essen-match-app/firebase-config.js",
+  "./", "index.html", "style.css", "app.js", "store.js", "catalog.js", "recs.js", "online.js", "streaming.js", "../essen-match-app/firebase-config.js",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
 ];
 

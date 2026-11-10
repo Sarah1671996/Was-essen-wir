@@ -17,6 +17,11 @@ Adresse auf GitHub Pages: `https://sarah1671996.github.io/Was-essen-wir/film-app
   „🎲 Zufällig was aussuchen“ für Abende ohne Entscheidung.
 - **Titel antippen**: Poster, Beschreibung (Wikipedia), Genres und Merkmale, Status, Bewertung, Notiz,
   **📺 Wo läuft das?** (JustWatch zeigt alle Streamingdienste in Deutschland), Trailer und **Ähnliche** Titel.
+- **📺 Wo läuft das?** (beim Titel): Streamingdienste in Deutschland, getrennt nach *Im Abo*, *Kostenlos*, *Leihen*, *Kaufen*,
+  mit Link direkt zum Dienst. Daten von JustWatch (`streaming.js`); ist JustWatch nicht erreichbar oder kennt den Titel nicht,
+  fragt die App die KI (mit Google-Suche, falls freigeschaltet – sonst als „geschätzt“ markiert). Ergebnisse werden 3 Tage gemerkt.
+  In der Merkliste prüft „Wo läuft das? Alle prüfen“ alle Titel auf einmal, „Nur in meinen Abos“ zeigt, was ohne Aufpreis geht.
+- **Meine Abos** (Mehr): Netflix, Prime Video, Disney+, WOW … ankreuzen, dann steht beim Titel „✓ Läuft in deinem Abo“.
 - **Mehr**: deine Zahlen, Abgleich zwischen Geräten über einen Listen-Code, Sicherung als Datei.
 
 ## Wie die Empfehlungen funktionieren
@@ -29,7 +34,8 @@ Neue Titel kommen in den Katalog, indem man in `catalog.js` eine Zeile ergänzt.
 
 ## Was sie nicht kann (und warum)
 
-Es gibt keine freie Schnittstelle, die sagt, auf welchem Streamingdienst etwas läuft – deshalb öffnet „Wo läuft das?“ JustWatch.
+Für „Wo läuft das?“ gibt es keine offizielle kostenlose Schnittstelle. Die App nutzt die Schnittstelle, mit der auch justwatch.de arbeitet;
+sollte JustWatch den Zugriff von anderen Seiten sperren, springt die KI ein, und „Bei JustWatch ansehen“ geht immer.
 Die Beschreibungen aus der Serien-Suche (TVmaze) sind manchmal englisch; dann wird zuerst die deutsche Wikipedia versucht.
 
 ## Abgleich zwischen Geräten (Listen-Code)
