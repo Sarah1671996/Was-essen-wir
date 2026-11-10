@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Sicherheitsrichtlinie: Code nur von dieser Seite, von Google (Firebase) und der iTunes-Suche (Filmdaten). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://itunes.apple.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://api.tvmaze.com https://de.wikipedia.org https://en.wikipedia.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://itunes.apple.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://apis.justwatch.com https://*.googleapis.com https://www.gstatic.com https://api.tvmaze.com https://de.wikipedia.org https://en.wikipedia.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <meta name="robots" content="noindex">
   <title>Was gucken wir?</title>
@@ -102,6 +102,10 @@
           <option value="rating">Beste Bewertung</option>
         </select>
       </div>
+      <div class="row stream-tools" id="streamTools" hidden>
+        <button class="btn ghost" id="checkStreams">📺 Wo läuft das? Alle prüfen</button>
+        <button class="chip" id="onlyAbo" aria-pressed="false" hidden>Nur in meinen Abos</button>
+      </div>
       <div class="list" id="myList"></div>
       <button class="btn ghost wide" id="pickRandom" hidden>🎲 Zufällig was aussuchen</button>
     </section>
@@ -112,6 +116,11 @@
         <h2>Schnell bewerten</h2>
         <p class="muted">Bekannte Filme und Serien nacheinander: gesehen und gemocht, nicht gemocht, will ich sehen oder kenne ich nicht.</p>
         <button class="btn" data-action="quick">Loslegen</button>
+      </div>
+      <div class="card">
+        <h2>Meine Abos</h2>
+        <p class="muted">Welche Streamingdienste hast du? Dann zeigt die App, was du ohne Aufpreis schauen kannst.</p>
+        <div class="chips wrap" id="abos"></div>
       </div>
       <div class="card" id="stats"></div>
       <div class="card">
@@ -129,7 +138,7 @@
       <div class="card">
         <h2>Woher die Daten kommen</h2>
         <p class="muted small">Eingebaut sind rund 380 bekannte Filme und Serien mit Genres und Merkmalen. Die Suche findet zusätzlich
-          Serien bei TVmaze und Filme bei iTunes/Apple TV, Beschreibungen kommen von Wikipedia. „Wo läuft das?“ öffnet JustWatch.
+          Serien bei TVmaze und Filme bei iTunes/Apple TV, Beschreibungen kommen von Wikipedia. „Wo läuft das?“ kommt von JustWatch (sonst fragt die App die KI).
           Die KI-Empfehlung läuft über Google Gemini (Firebase) und bekommt nur die Titel aus deiner Liste.</p>
         <p class="muted small" id="version"></p>
       </div>

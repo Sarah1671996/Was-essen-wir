@@ -1,10 +1,11 @@
 // Was gucken wir? – Filme und Serien merken, bewerten und passende Empfehlungen bekommen.
 import { CATALOG, CATALOG_BY_ID, GENRES, makeId, tagLabel } from "./catalog.js";
 import * as store from "./store.js";
+import { SERVICES, KIND, serviceOf, whereToStream, cachedStream } from "./streaming.js";
 import { buildProfile, scoreItem, similarTo, topFeatures } from "./recs.js";
 import { searchSeries, searchMovies, searchWikipedia, cleanQuery, details, cachedImg, whereToWatch, trailerLink } from "./online.js";
 
-const VERSION = "3";
+const VERSION = "4";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
@@ -23,6 +24,42 @@ const STATUS = {
 };
 const RATING = { 2: { label: "Liebe ich", icon: "❤️" }, 1: { label: "Gut", icon: "👍" }, "-1": { label: "Nicht meins", icon: "👎" } };
 const typeName = t => t === "s" ? "Serie" : "Film";
+
+/* ---------- Streaming ---------- */
+const myServices = () => new Set(state.prefs?.services || []);
+const inMyAbo = o => o.kind === "abo" && myServices().has(serviceOf(o.name)?.id);
+const loadStream = (item, force) => whereToStream(item, { force, useAi: store.canAi ? store.aiWhereToWatch : null });
+// Kurzfassung für Listen: „✓ Netflix (dein Abo)“, „📺 Prime Video“, „Kostenlos: ARD Mediathek“
+function streamBadge(id) {
+  const c = cachedStream(id);
+  if (!c) return "";
+  const mine = c.offers.find(inMyAbo);
+  if (mine) return `<span class="tag good">✓ ${esc(mine.name)} · dein Abo</span>`;
+  const abo = c.offers.filter(o => o.kind === "abo").map(o => o.name);
+  if (abo.length) return `<span class="tag">📺 ${esc(abo.slice(0, 2).join(", "))}${abo.length > 2 ? " …" : ""}</span>`;
+  const free = c.offers.find(o => o.kind === "gratis");
+  if (free) return `<span class="tag good">Kostenlos: ${esc(free.name)}</span>`;
+  if (c.offers.some(o => o.kind === "leihen" || o.kind === "kaufen")) return `<span class="tag">nur leihen/kaufen</span>`;
+  return `<span class="tag">nirgends im Stream</span>`;
+}
+function streamHtml(item, r) {
+  if (!r.offers.length) return `<p class="muted small">Gerade bei keinem Streamingdienst in Deutschland${r.note ? ` – ${esc(r.note)}` : ""}.</p>`;
+  const groups = {};
+  for (const o of r.offers) (groups[o.kind] ||= []).push(o);
+  const mine = myServices();
+  const rows = Object.keys(groups).sort((a, b) => KIND[a].order - KIND[b].order).map(k => {
+    const os = groups[k].sort((a, b) => (inMyAbo(b) - inMyAbo(a)));
+    return `<div class="st-row"><span class="st-kind">${KIND[k].label}</span><span class="st-list">${os.map(o => {
+      const own = inMyAbo(o);
+      const label = `${own ? "✓ " : ""}${esc(o.name)}`;
+      return o.url ? `<a class="st-chip${own ? " own" : ""}" href="${esc(o.url)}" target="_blank" rel="noopener">${label}</a>` : `<span class="st-chip${own ? " own" : ""}">${label}</span>`;
+    }).join("")}</span></div>`;
+  }).join("");
+  const any = r.offers.some(inMyAbo);
+  const src = { justwatch: "Laut JustWatch, heute abgefragt.", ki: "Laut KI mit Google-Suche – ohne Gewähr.", "ki-wissen": "Geschätzt von der KI aus ihrem Wissen – kann veraltet sein, lieber bei JustWatch nachsehen." }[r.source] || "";
+  return `${mine.size ? (any ? `<p class="st-yes">✓ Läuft in deinem Abo</p>` : `<p class="muted small">Nicht in deinen Abos.</p>`) : ""}${rows}
+    ${r.note ? `<p class="muted small">${esc(r.note)}</p>` : ""}<p class="muted small">${src}</p>`;
+}
 
 /* ---------- Daten ---------- */
 const entries = () => Object.values(state.items).filter(e => !e.del);
@@ -122,6 +159,7 @@ function itemHtml(item, opts = {}) {
       ${badges ? `<div class="why">${badges}</div>` : ""}
       ${opts.why ? `<div class="why">${esc(opts.why)}</div>` : ""}
       ${opts.against ? `<div class="why bad">${esc(opts.against)}</div>` : ""}
+      ${opts.stream ? `<div class="why">${streamBadge(item.id)}</div>` : ""}
       ${acts}
     </div>
   </div>`;
@@ -417,7 +455,12 @@ function renderList() {
     b.textContent = counts[b.dataset.v] ? `${base} (${counts[b.dataset.v]})` : base;
   });
   const sort = $("#listSort").value;
-  const list = entries().filter(e => e.status === listTab && (!listType || e.type === listType)).map(e => getItem(e.id));
+  let list = entries().filter(e => e.status === listTab && (!listType || e.type === listType)).map(e => getItem(e.id));
+  const streamTab = listTab === "want" || listTab === "watching";
+  $("#streamTools").hidden = !streamTab || !list.length;
+  if (streamTab && onlyAbo) list = list.filter(x => cachedStream(x.id)?.offers.some(inMyAbo));
+  $("#onlyAbo").setAttribute("aria-pressed", String(onlyAbo));
+  $("#onlyAbo").hidden = !myServices().size;
   const by = {
     new: (a, b) => (b.t || 0) - (a.t || 0),
     title: (a, b) => a.title.localeCompare(b.title, "de"),
@@ -430,10 +473,30 @@ function renderList() {
     const hint = { want: "Noch nichts gemerkt. Unter „Für dich“ oder „Suchen“ auf 🔖 Merken tippen.", watching: "Gerade schaust du nichts. Bei einem gemerkten Titel auf ▶️ Angefangen tippen.",
       seen: "Noch nichts als gesehen markiert. Mit „Schnell bewerten“ geht das ganz fix.", dropped: "Nichts abgebrochen – sehr gut!" }[listTab];
     el.innerHTML = `<p class="empty"><span class="big">🍿</span>${hint}</p>${listTab === "seen" ? `<button class="btn wide" data-action="quick">Schnell bewerten</button>` : ""}`;
-  } else renderItems(el, list, { acts: "list", showStatus: listTab === "watching" });
+  } else renderItems(el, list, { acts: "list", showStatus: listTab === "watching", stream: streamTab });
+  if (!list.length && onlyAbo && streamTab) el.innerHTML = `<p class="empty"><span class="big">📺</span>Nichts davon läuft (laut letzter Abfrage) in deinen Abos. Tipp auf „Wo läuft das?“, um alles zu prüfen.</p>`;
   $("#pickRandom").hidden = !(listTab === "want" && list.length > 1);
 }
 $("#myList").addEventListener("click", onListClick);
+let onlyAbo = false, checking = false;
+$("#onlyAbo").onclick = () => { onlyAbo = !onlyAbo; renderList(); };
+// Für alle Titel auf der Merkliste nachsehen, wo sie laufen (nacheinander, damit es nicht zu viele Anfragen werden)
+$("#checkStreams").onclick = async () => {
+  if (checking) return;
+  checking = true;
+  const btn = $("#checkStreams");
+  const todo = entries().filter(e => (e.status === listTab) && (!listType || e.type === listType)).map(e => getItem(e.id));
+  let done = 0, failed = 0;
+  for (const x of todo) {
+    btn.innerHTML = `<span class="spinner"></span> ${++done} von ${todo.length} …`;
+    try { await loadStream(x); } catch { failed++; }
+    if (view === "list") renderList();
+  }
+  btn.textContent = "📺 Wo läuft das? Alle prüfen";
+  checking = false;
+  toast(failed ? `${failed} konnte ich nicht prüfen (keine Verbindung?)` : "Alles geprüft");
+  renderList();
+};
 $("#pickRandom").onclick = () => {
   const list = entries().filter(e => e.status === "want" && (!listType || e.type === listType));
   if (list.length) openDetail(list[Math.floor(Math.random() * list.length)].id);
@@ -470,6 +533,11 @@ function renderDetail(focusRating) {
     </div>
     <div class="d-text" id="dText"><span class="spinner"></span></div>
     <div class="d-sec">
+      <h3>Wo läuft das?</h3>
+      <div id="dStream"><span class="spinner"></span> wird nachgesehen …</div>
+      <div class="row st-acts"><button class="mini" data-restream>↻ Neu prüfen</button><a class="mini" href="${esc(whereToWatch(item))}" target="_blank" rel="noopener">Bei JustWatch ansehen</a></div>
+    </div>
+    <div class="d-sec">
       <h3>Meine Liste</h3>
       <div class="statusbtns">
         ${Object.entries(STATUS).map(([k, s]) => `<button data-status="${k}" aria-pressed="${e.status === k}">${s.icon} ${s.label}</button>`).join("")}
@@ -487,7 +555,6 @@ function renderDetail(focusRating) {
       <textarea id="dNote" maxlength="500" placeholder="z. B. von Anna empfohlen, läuft auf Netflix …">${esc(e.note || "")}</textarea>
     </div>
     <div class="d-sec links">
-      <a class="btn ghost" href="${esc(whereToWatch(item))}" target="_blank" rel="noopener">📺 Wo läuft das?</a>
       <a class="btn ghost" href="${esc(trailerLink(item))}" target="_blank" rel="noopener">▶ Trailer</a>
       <a class="btn ghost" id="dWiki" hidden target="_blank" rel="noopener">Wikipedia</a>
     </div>
@@ -503,6 +570,7 @@ function renderDetail(focusRating) {
   watchPosters(body);
   if (focusRating) setTimeout(() => $("#dRateSec")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60);
   const id = item.id;
+  showStream(item, false);
   details(item, true).then(v => {
     if (detailId !== id || !detail.open) return;
     const t = $("#dText");
@@ -514,10 +582,23 @@ function renderDetail(focusRating) {
     if (v?.img && p && !p.querySelector("img")) { p.innerHTML = `<img src="${esc(v.img)}" alt="" referrerpolicy="no-referrer">`; }
   }).catch(() => { const t = $("#dText"); if (t) t.innerHTML = `<span class="muted small">Beschreibung gerade nicht erreichbar.</span>`; });
 }
+function showStream(item, force) {
+  const el = $("#dStream");
+  if (!el) return;
+  if (force) el.innerHTML = `<span class="spinner"></span> wird nachgesehen …`;
+  const id = item.id;
+  loadStream(item, force).then(r => {
+    if (detailId !== id || !$("#dStream")) return;
+    $("#dStream").innerHTML = streamHtml(item, r) + (myServices().size ? "" : `<p class="muted small">Tipp: Unter Mehr → Meine Abos deine Dienste ankreuzen, dann siehst du sofort, ob es ohne Aufpreis geht.</p>`);
+  }).catch(() => {
+    if (detailId === id && $("#dStream")) $("#dStream").innerHTML = `<p class="muted small">Konnte ich gerade nicht nachsehen. Über „Bei JustWatch ansehen“ geht es immer.</p>`;
+  });
+}
 detail.addEventListener("click", ev => {
   if (ev.target === detail || ev.target.closest("[data-close]")) return detail.close();
   const item = getItem(detailId);
   if (!item) return;
+  if (ev.target.closest("[data-restream]")) return showStream(item, true);
   const e = entryOf(item.id) || {};
   const s = ev.target.closest("[data-status]")?.dataset.status;
   const r = ev.target.closest("[data-r]")?.dataset.r;
@@ -634,7 +715,21 @@ quick.addEventListener("close", refresh);
 document.addEventListener("click", ev => { if (ev.target.closest("[data-action=quick]")) openQuick(); });
 
 /* ---------- Mehr ---------- */
+function renderAbos() {
+  const mine = myServices();
+  $("#abos").innerHTML = SERVICES.map(sv => `<button class="chip" data-sv="${sv.id}" aria-pressed="${mine.has(sv.id)}">${esc(sv.name)}</button>`).join("");
+}
+$("#abos").addEventListener("click", ev => {
+  const b = ev.target.closest("[data-sv]");
+  if (!b) return;
+  const set = myServices();
+  set.has(b.dataset.sv) ? set.delete(b.dataset.sv) : set.add(b.dataset.sv);
+  state.prefs = { ...(state.prefs || {}), services: [...set], t: Date.now() };
+  store.save(state);
+  renderAbos();
+});
 function renderMore() {
+  renderAbos();
   const es = entries();
   const c = (f) => es.filter(f).length;
   $("#stats").innerHTML = `<h2>Deine Zahlen</h2><div class="stat-grid">
@@ -677,7 +772,8 @@ async function link(code, isNew) {
 }
 store.onSync(remote => {
   const merged = store.merge(state, remote);
-  const same = JSON.stringify(Object.keys(merged.items).sort().map(k => [k, merged.items[k].t])) === JSON.stringify(Object.keys(remote.items || {}).sort().map(k => [k, remote.items[k].t]));
+  const same = JSON.stringify(Object.keys(merged.items).sort().map(k => [k, merged.items[k].t])) === JSON.stringify(Object.keys(remote.items || {}).sort().map(k => [k, remote.items[k].t]))
+    && (merged.prefs?.t || 0) === (remote.prefs?.t || 0);
   if (same) { merged.st = remote.st; state = merged; store.adopt(state); }
   else { state = merged; store.save(state); }
   refresh();

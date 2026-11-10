@@ -207,3 +207,12 @@ textarea { resize: vertical; min-height: 70px; }
 .own label input { margin-top: 4px; font-weight: 400; }
 .own h2 { padding-top: 18px; }
 .own .statusbtns { margin-top: 16px; }
+.st-row { display: flex; gap: 10px; align-items: baseline; margin: 6px 0; }
+.st-kind { flex: 0 0 82px; font-size: .82rem; color: var(--muted); font-weight: 600; }
+.st-list { display: flex; flex-wrap: wrap; gap: 6px; }
+.st-chip { display: inline-block; padding: 6px 11px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); font-size: .88rem; font-weight: 600; color: var(--ink); text-decoration: none; }
+.st-chip.own { border-color: var(--like); color: var(--like); }
+.st-yes { color: var(--like); font-weight: 700; margin: 4px 0 8px; }
+.st-acts { margin-top: 8px; }
+.st-acts a.mini { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; }
+.stream-tools { align-items: center; margin-bottom: 10px; }

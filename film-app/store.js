@@ -29,6 +29,9 @@ export const newCode = (n = 12) => Array.from(crypto.getRandomValues(new Uint8Ar
 // damit sie vom anderen Gerät nicht zurückkommen.
 export function merge(a, b) {
   const out = { v: 1, items: { ...a.items }, st: Math.max(a.st || 0, b.st || 0) };
+  // Einstellungen (z. B. meine Abos): die neuere gewinnt
+  const pa = a.prefs, pb = b.prefs;
+  if (pa || pb) out.prefs = !pa ? pb : !pb ? pa : ((pb.t || 0) > (pa.t || 0) ? pb : pa);
   for (const [id, it] of Object.entries(b.items || {})) {
     const mine = out.items[id];
     if (!mine || (it.t || 0) > (mine.t || 0)) out.items[id] = it;
@@ -148,4 +151,31 @@ Antworte NUR mit einem JSON-Objekt, ohne Text davor oder danach:
   const text = res.response.text();
   const json = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
   return (json.recs || []).filter(r => r && r.title);
+}
+
+// Wo läuft ein Titel in Deutschland? Erst mit Google-Suche (aktuell), sonst aus dem Wissen der KI (kann veraltet sein).
+export async function aiWhereToWatch(item) {
+  const { app } = await fbInit();
+  const ai = await import(FB + "firebase-ai.js");
+  const backend = ai.getAI(app, { backend: new ai.GoogleAIBackend() });
+  const prompt = `Wo kann man ${item.type === "s" ? "die Serie" : "den Film"} „${item.title}“${item.orig ? ` (${item.orig})` : ""}${item.year ? ` von ${item.year}` : ""} in Deutschland gerade legal schauen?
+Antworte NUR mit einem JSON-Objekt, ohne Text davor oder danach:
+{"offers":[{"name":"Name des Dienstes, z. B. Netflix, Prime Video, Disney+, WOW, RTL+, Joyn, ARD Mediathek, Apple TV, Google Play","kind":"abo | gratis | leihen | kaufen | kino"}],
+"note":"kurzer deutscher Hinweis, z. B. nur Staffel 1–3 oder ab wann es kommt; leer wenn nichts"}
+Nur Angebote, bei denen du dir sicher bist. Wenn du es nicht weißt, gib eine leere Liste zurück.`;
+  const ask = async tools => {
+    const m = ai.getGenerativeModel(backend, { model: AI_MODEL, generationConfig: { temperature: 0 }, ...(tools ? { tools } : {}) });
+    const res = await Promise.race([
+      m.generateContent(prompt),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Zeitüberschreitung")), AI_TIMEOUT_MS))
+    ]);
+    const text = res.response.text();
+    const j = JSON.parse(text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1));
+    const offers = (j.offers || []).filter(o => o && o.name && ["abo", "gratis", "leihen", "kaufen", "kino"].includes(o.kind))
+      .map(o => ({ name: String(o.name).slice(0, 40), kind: o.kind, url: "" }));
+    return { offers, note: String(j.note || "").slice(0, 200) };
+  };
+  try { return { ...(await ask([{ googleSearch: {} }])), source: "ki" }; }
+  catch (e) { console.warn("Google-Suche für die KI nicht verfügbar:", e.message); }
+  return { ...(await ask(null)), source: "ki-wissen" };
 }
