@@ -16,6 +16,10 @@ Die Firestore-Regeln bleiben, wie sie sind: Sie erlauben die neueren Felder nur 
 
 ## Versionen
 
+### Version 3 · 10.11.2026
+- Notbremse beim Start (boot.js): Startet die App nicht, kommt statt eines schwarzen Bildschirms eine Meldung mit dem Fehler und „Neu laden“ (leert den Zwischenspeicher).
+- Sonst wie Version 2.
+
 ### Version 2 · 10.11.2026
 - Reiter in jeder Liste: „Jetzt“, „ab Mo …“ (Prospekt der nächsten Woche) und 📅 für einen anderen Tag. Was man dort einträgt, steht ab dem Tag von selbst unter „Jetzt“.
 - Angebot am Eintrag: „Im Angebot?“ mit „Gilt schon“, „ab Do/Fr/Mo …“ oder Kalender. Anzeige mit Kalenderwoche, z. B. „KW 46 · Angebot bis Sa“ oder „Angebot vorbei“.

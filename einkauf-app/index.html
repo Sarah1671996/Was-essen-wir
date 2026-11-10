@@ -430,6 +430,14 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite"><span id="toastText"></span><button id="toastAction" hidden></button></div>
 
+<!-- Notbremse (boot.js): statt eines leeren Bildschirms diese Meldung, falls die App nicht startet -->
+<div class="bootfail" id="bootFail" hidden>
+  <p class="bootfailtitle">Die App ist nicht richtig gestartet.</p>
+  <p class="small">Meist hilft einmal neu laden. Deine Listen sind sicher gespeichert.</p>
+  <button class="btn" id="bootReload">Neu laden</button>
+  <p class="small bootfailmsg" id="bootFailMsg"></p>
+</div>
+<script src="boot.js"></script>
 <script type="module" src="app.js"></script>
 </body>
 </html>

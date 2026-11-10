@@ -2,7 +2,7 @@ import { createStore, hasFirebase, randomCode } from "./store.js";
 import { allCats, norm, keyOf, guessCat as guessFrom, splitQty } from "./cats.js";
 
 // Bei jeder neuen Version hochzählen und in VERSIONEN.md eintragen (Git-Tag einkauf-vN)
-const APP_VERSION = "2";
+const APP_VERSION = "3";
 const APP_DATE = "10.11.2026";
 
 const $ = s => document.querySelector(s);
@@ -148,6 +148,7 @@ async function boot() {
 }
 
 function showSetup(err = "", invite = null) {
+  appShown();
   $("#app").hidden = true;
   $("#setup").hidden = false;
   $("#setupName").value = S.name;
@@ -256,7 +257,10 @@ function renderAll() {
   if (S.view === "list") renderList();
   else if (S.view === "money") renderMoney();
   else renderHome();
+  appShown();
 }
+// Ab hier läuft die App; die Notbremse in index.html bleibt dann aus
+function appShown() { window.__ekShown = true; $("#bootFail").hidden = true; }
 
 /* ---------- Übersicht ---------- */
 // "Sarah ist gerade bei Kaufland" / "Sarah hat bei Kaufland eingekauft"

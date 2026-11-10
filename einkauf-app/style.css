@@ -388,3 +388,10 @@ li.flash .item { animation: flash 1.6s ease-out; border-radius: 14px; }
 .tab.on { background: var(--c, var(--accent)); color: #fff; }
 .tab.pick input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
 .appversion { text-align: center; opacity: .75; }
+
+/* ---------- Notbremse beim Start ---------- */
+.bootfail { position: fixed; inset: 0; z-index: 100; display: grid; place-content: center; gap: 12px; padding: 24px var(--gutter-r) 24px var(--gutter-l);
+  background: var(--bg); color: var(--ink); text-align: center; }
+.bootfail[hidden] { display: none; }
+.bootfailtitle { font-size: 1.3rem; font-weight: 800; margin: 0; }
+.bootfailmsg { opacity: .7; word-break: break-word; }
