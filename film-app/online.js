@@ -112,15 +112,66 @@ function fromItunes(r) {
   };
 }
 
+// Satzzeichen stören die Suche („Ice road:vengeance“ findet sonst nichts)
+export const cleanQuery = q => String(q || "").replace(/[:;,.!?_/\\|–—"„“()\[\]-]+/g, " ").replace(/\s+/g, " ").trim();
+
 export async function searchSeries(q) {
+  q = cleanQuery(q);
   const res = await getJson("https://api.tvmaze.com/search/shows?q=" + encodeURIComponent(q));
   return res.slice(0, 10).map(r => fromTvmaze(r.show));
 }
 export async function searchMovies(q) {
+  q = cleanQuery(q);
   const res = await jsonp("https://itunes.apple.com/search?" + new URLSearchParams({ term: q, media: "movie", entity: "movie", country: "de", lang: "de_de", limit: "12" }));
   const out = [], ids = new Set();
   for (const r of res.results || []) { const x = fromItunes(r); if (!ids.has(x.id)) { ids.add(x.id); out.push(x); } }
   return out;
+}
+
+// Wikipedia kennt auch ganz neue Filme und Serien, die (noch) nicht bei iTunes stehen.
+// Erkannt wird ein Film/eine Serie an der Kurzbeschreibung („2025 film by …“, „US-amerikanischer Film von 2025“).
+const EN_GENRE = [[/action/, "Action"], [/adventure/, "Abenteuer"], [/animat/, "Animation"], [/documentar/, "Doku"], [/comedy|comedic/, "Komödie"],
+  [/crime/, "Krimi"], [/drama/, "Drama"], [/family|children/, "Familie"], [/fantasy/, "Fantasy"], [/historical|period/, "Historie"], [/horror/, "Horror"],
+  [/war film|war drama/, "Krieg"], [/musical|music/, "Musik"], [/mystery/, "Mystery"], [/reality/, "Reality"], [/romanc|romantic/, "Romantik"],
+  [/science fiction|sci-fi/, "Sci-Fi"], [/sports?/, "Sport"], [/thriller/, "Thriller"], [/western/, "Western"]];
+const DE_GENRE = [[/action/, "Action"], [/abenteuer/, "Abenteuer"], [/animation|zeichentrick/, "Animation"], [/dokumentar/, "Doku"], [/komödie/, "Komödie"],
+  [/krimi/, "Krimi"], [/drama/, "Drama"], [/familien|kinder/, "Familie"], [/fantasy/, "Fantasy"], [/historien/, "Historie"], [/horror/, "Horror"],
+  [/kriegs/, "Krieg"], [/musik/, "Musik"], [/mystery/, "Mystery"], [/reality/, "Reality"], [/liebes|romanti/, "Romantik"],
+  [/science-fiction|science fiction/, "Sci-Fi"], [/sport/, "Sport"], [/thriller/, "Thriller"], [/western/, "Western"]];
+export async function searchWikipedia(q, type) {
+  q = cleanQuery(q);
+  const one = async lang => {
+    const kinds = type === "s" ? [lang === "de" ? "Fernsehserie" : "TV series"] : type === "f" ? [lang === "de" ? "Film" : "film"] : [lang === "de" ? "Film" : "film", lang === "de" ? "Fernsehserie" : "TV series"];
+    const out = [];
+    for (const kind of kinds) {
+      const r = await wikiApi(lang, {
+        action: "query", generator: "search", gsrsearch: `${q} ${kind}`, gsrlimit: "6",
+        prop: "description|pageimages|extracts", piprop: "thumbnail", pithumbsize: "500", pilicense: "any",
+        exintro: "1", explaintext: "1", exsentences: "3", exlimit: "max"
+      });
+      for (const pg of Object.values(r.query?.pages || {}).sort((a, b) => a.index - b.index)) {
+        const d = (pg.description || "").toLowerCase(), ex = (pg.extract || "").toLowerCase().slice(0, 400);
+        const isSeries = /series|serie|sitcom|miniserie|show/.test(d);
+        const isFilm = !isSeries && /\bfilm|movie|spielfilm/.test(d);
+        if (!isSeries && !isFilm) continue;
+        const t = isSeries ? "s" : "f";
+        if (type && t !== type) continue;
+        const year = Number((d.match(/\b(19|20)\d\d\b/) || ex.match(/\b(19|20)\d\d\b/) || [])[0]) || null;
+        const title = pg.title.replace(/\s*\((?:[^)]*\b(?:film|fernsehserie|tv series|miniserie|serie)\b[^)]*|\d{4})\)\s*$/i, "").trim();
+        const genres = [];
+        for (const [re, g] of lang === "de" ? DE_GENRE : EN_GENRE) if ((re.test(d) || re.test(ex)) && !genres.includes(g)) genres.push(g);
+        out.push({
+          id: makeId(t, title, year), type: t, title, year, genres: genres.length ? genres.slice(0, 3) : ["Drama"], tags: [], orig: "",
+          img: pg.thumbnail?.source || "", src: "wikipedia", text: cleanText(pg.extract), textLang: lang
+        });
+      }
+    }
+    return out;
+  };
+  const [de, en] = await Promise.all([one("de").catch(() => []), one("en").catch(() => [])]);
+  const seen = new Set(), res = [];
+  for (const x of [...de, ...en]) { const k = norm(x.title) + x.type + (x.year || ""); if (!seen.has(k)) { seen.add(k); res.push(x); } }
+  return res;
 }
 
 /* ---------- Poster und Beschreibung zu einem Titel ---------- */

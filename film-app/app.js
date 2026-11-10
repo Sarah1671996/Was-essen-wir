@@ -2,9 +2,9 @@
 import { CATALOG, CATALOG_BY_ID, GENRES, makeId, tagLabel } from "./catalog.js";
 import * as store from "./store.js";
 import { buildProfile, scoreItem, similarTo, topFeatures } from "./recs.js";
-import { searchSeries, searchMovies, details, cachedImg, whereToWatch, trailerLink } from "./online.js";
+import { searchSeries, searchMovies, searchWikipedia, cleanQuery, details, cachedImg, whereToWatch, trailerLink } from "./online.js";
 
-const VERSION = "2";
+const VERSION = "3";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
@@ -320,6 +320,7 @@ function renderSearch() {
   const on = online.filter(x => !ids.has(x.id) && (!searchType || x.type === searchType));
   $("#onlineHead").hidden = !q || !on.length;
   renderItems($("#onlineList"), q ? on : []);
+  $("#addOwn").innerHTML = q ? `<p class="muted small">Nicht dabei?</p><button class="btn ghost wide" data-own>＋ „${esc(q)}“ selbst eintragen</button>` : "";
   if (!q) {
     genreChips($("#browseGenres"), browseGenre, g => { browseGenre = g; renderSearch(); });
     const list = CATALOG.filter(x => (!searchType || x.type === searchType) && (!browseGenre || x.genres.includes(browseGenre)))
@@ -336,15 +337,72 @@ async function runOnline() {
   const jobs = [];
   if (searchType !== "f") jobs.push(searchSeries(q).catch(e => { console.warn(e); return null; }));
   if (searchType !== "s") jobs.push(searchMovies(q).catch(e => { console.warn(e); return null; }));
+  // Wikipedia kennt auch ganz Neues; nur Treffer, deren Titel wirklich zur Suche passt
+  const qWords = norm(cleanQuery(q)).split(" ").filter(w => w.length > 1);
+  const fits = x => { const t = norm(x.title); const hit = qWords.filter(w => t.includes(w)).length; return hit >= Math.ceil(qWords.length * 0.6); };
+  jobs.push(searchWikipedia(q, searchType).then(r => r.filter(fits)).catch(e => { console.warn(e); return null; }));
   const res = await Promise.all(jobs);
   if (seq !== searchSeq) return;
-  online = res.flat().filter(Boolean);
+  // Doppelte (gleicher Titel und Art aus mehreren Quellen) nur einmal, der erste Treffer zählt
+  const dup = new Set();
+  online = res.flat().filter(Boolean).filter(x => {
+    const k = x.type + norm(x.title);
+    if (dup.has(k)) return false;
+    dup.add(k);
+    return true;
+  });
   for (const x of online) if (!CATALOG_BY_ID.has(x.id) && !known.has(x.id)) known.set(x.id, x);
   $("#onlineHead").textContent = res.every(r => r === null) ? "Keine Verbindung zur Online-Suche" : "Im Internet gefunden";
   renderSearch();
   if (res.every(r => r === null)) $("#onlineHead").hidden = false;
 }
 for (const id of ["#searchList", "#onlineList", "#browseList"]) $(id).addEventListener("click", onListClick);
+$("#addOwn").addEventListener("click", ev => { if (ev.target.closest("[data-own]")) openOwn($("#q").value.trim()); });
+
+/* ---------- Selbst eintragen ---------- */
+// Für Titel, die keine Quelle kennt: Name, Film/Serie, Jahr, Genres – danach wie jeder andere Titel
+function openOwn(title) {
+  detailId = null;
+  const own = { type: searchType || "f", genres: [] };
+  const body = $("#detailBody");
+  const draw = () => {
+    body.innerHTML = `<button class="close" data-close aria-label="Schließen">✕</button>
+      <div class="own">
+        <h2>Selbst eintragen</h2>
+        <label>Titel<input id="oTitle" maxlength="120" value="${esc(title)}"></label>
+        <div class="seg" id="oType">
+          <button data-v="f" aria-pressed="${own.type === "f"}">Film</button>
+          <button data-v="s" aria-pressed="${own.type === "s"}">Serie</button>
+        </div>
+        <label>Jahr (wenn du es weißt)<input id="oYear" inputmode="numeric" maxlength="4" placeholder="z. B. 2025"></label>
+        <p class="muted small">Genres (für bessere Empfehlungen):</p>
+        <div class="chips wrap" id="oGenres">${GENRES.map(g => `<button class="chip" data-g="${g}" aria-pressed="${own.genres.includes(g)}">${g}</button>`).join("")}</div>
+        <div class="statusbtns">
+          <button data-ostatus="want">🔖 Will ich sehen</button>
+          <button data-ostatus="seen">✓ Gesehen</button>
+        </div>
+      </div>`;
+  };
+  draw();
+  body.onclick = ev => {
+    const t = ev.target.closest("#oType [data-v]");
+    const g = ev.target.closest("#oGenres [data-g]");
+    const st = ev.target.closest("[data-ostatus]");
+    if (t) { own.type = t.dataset.v; body.querySelectorAll("#oType button").forEach(b => b.setAttribute("aria-pressed", String(b === t))); }
+    else if (g) { const x = g.dataset.g; own.genres = own.genres.includes(x) ? own.genres.filter(y => y !== x) : [...own.genres, x]; g.setAttribute("aria-pressed", String(own.genres.includes(x))); }
+    else if (st) {
+      const name = $("#oTitle").value.trim();
+      if (!name) return $("#oTitle").focus();
+      const year = Number($("#oYear").value) || null;
+      const item = { id: makeId(own.type, name, year), type: own.type, title: name, year, genres: own.genres.length ? own.genres : ["Drama"], tags: [], src: "eigen" };
+      body.onclick = null;
+      setEntry(item, { status: st.dataset.ostatus }, true);
+      openDetail(item.id, st.dataset.ostatus === "seen");
+      refresh();
+    }
+  };
+  if (!detail.open) detail.showModal();
+}
 
 /* ---------- Meine Liste ---------- */
 let listTab = "want", listType = "";
@@ -397,6 +455,7 @@ function renderDetail(focusRating) {
   const tags = (item.tags || []).map(t => `<span class="tag">${esc(tagLabel(t))}</span>`).join("");
   const sim = similarTo(item, pool(), 14);
   const body = $("#detailBody");
+  body.onclick = null;
   body.innerHTML = `
     <button class="close" data-close aria-label="Schließen">✕</button>
     <div class="d-head">
