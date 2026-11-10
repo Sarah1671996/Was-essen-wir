@@ -1,5 +1,7 @@
 // Speichern: immer auf diesem Gerät, auf Wunsch zusätzlich über einen Listen-Code in Firebase,
-// damit Handy und PC (oder ihr beide) dieselbe Liste sehen. Ein Dokument pro Liste: filme/{code}.
+// damit Handy und PC (oder ihr beide) dieselbe Liste sehen. Ein Dokument pro Liste: reisen/film-{code}.
+// Die Liste liegt in derselben Sammlung wie die Kanada-Reisen (gleiche Form: j + st), damit keine neue
+// Firestore-Regel veröffentlicht werden muss. Das Präfix „film-“ hält sie von den Reisen getrennt.
 // Gleiches Firebase-Projekt wie die anderen Apps (../essen-match-app/firebase-config.js).
 const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
 const LS_STATE = "fs.state", LS_CODE = "fs.code";
@@ -79,7 +81,7 @@ async function fbInit() {
 // Mit einem Listen-Code verbinden. isNew legt ihn mit der Liste dieses Geräts an.
 export async function connect(code, state, isNew) {
   const { fs, db } = await fbInit();
-  const doc = fs.doc(db, "filme", code);
+  const doc = fs.doc(db, "reisen", "film-" + code);
   const pack = s => ({ j: JSON.stringify(s), st: s.st || Date.now() });
   let first = null;
   if (isNew) await fs.setDoc(doc, pack(state));
