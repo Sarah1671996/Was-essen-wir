@@ -137,6 +137,7 @@ button.row { cursor: pointer; }
 .row .t { font-weight: 700; overflow-wrap: anywhere; }
 .row .s { color: var(--muted); font-size: .83rem; }
 .row .actions { display: flex; gap: 4px; flex: none; }
+button.txt.linkish { background: none; border: 0; padding: 0; text-align: left; font: inherit; color: inherit; cursor: pointer; }
 .sectlabel { font-size: .74rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; margin-top: 8px; }
 .toolbar { display: flex; gap: 8px; }
 .toolbar input { flex: 1; min-width: 0; }

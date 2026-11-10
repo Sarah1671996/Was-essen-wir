@@ -375,6 +375,31 @@ function dishRow(d, sub, onClick) {
   if (onClick) r.onclick = onClick;
   return r;
 }
+// Namen der anderen, die mindestens eins dieser Gerichte mögen ("Olli" oder "Olli & Tom")
+function fansText(dishes) {
+  const names = [...new Set(dishes.flatMap(d => likersOf(d.id).map(m => m.name)))];
+  return names.join(" & ") || "Jemand";
+}
+// Zeile mit Schnell-Entscheidung: ✕ = Nö, ♥ = will ich auch (gibt sofort ein Match)
+function quickRow(d) {
+  const r = el("div", "row");
+  const th = el("div", "thumb");
+  paint(th, d, "");
+  const txt = el("button", "txt linkish");
+  const sub = [courseOf(d), others().length > 1 ? "♥ " + likersOf(d.id).map(m => m.name).join(", ") : ""].filter(Boolean).join(" · ");
+  txt.append(el("div", "t", d.name), el("div", "s", sub));
+  txt.onclick = () => openDetail(d.id);
+  const acts = el("div", "actions");
+  const no = el("button", "btn mini ghost", "✕");
+  no.setAttribute("aria-label", d.name + ": will ich nicht");
+  no.onclick = () => vote(d.id, false);
+  const yes = el("button", "btn mini", "♥");
+  yes.setAttribute("aria-label", d.name + ": will ich auch");
+  yes.onclick = () => vote(d.id, true);
+  if (S.myVotes[d.id] === 0) acts.append(yes); else acts.append(no, yes);
+  r.append(th, txt, acts);
+  return r;
+}
 function renderMatches() {
   const list = $("#matchList");
   list.textContent = "";
@@ -401,13 +426,17 @@ function renderMatches() {
   } else {
     list.appendChild(el("div", "notice", "Noch kein Match. Weiterswipen!"));
   }
+  // Was die anderen schon wollen: direkt hier mit ♥ oder ✕ entscheiden, ohne alles durchzuswipen
   if (waiting.length) {
-    list.appendChild(el("div", "sectlabel", "Wartet auf dich"));
-    const n = el("div", "notice", `${waiting.length} Gericht${waiting.length > 1 ? "e haben" : " hat"} schon ein Herz bekommen, aber du hast noch nicht geswipt. `);
-    const b = el("button", "btn mini", "Jetzt swipen");
-    b.onclick = () => showTab("swipe");
-    n.appendChild(b);
-    list.appendChild(n);
+    list.appendChild(el("div", "sectlabel", `${fansText(waiting)} will – du hast noch nicht entschieden (${waiting.length})`));
+    waiting.forEach(d => list.appendChild(quickRow(d)));
+  }
+  const declined = S.dishes.filter(d => S.myVotes[d.id] === 0 && likersOf(d.id).length);
+  if (declined.length) {
+    const det = el("details", "panel");
+    det.appendChild(el("summary", null, `${fansText(declined)} will, du hast „Nö“ gesagt (${declined.length})`));
+    declined.forEach(d => det.appendChild(quickRow(d)));
+    list.appendChild(det);
   }
   if (onlyMe.length) {
     list.appendChild(el("div", "sectlabel", `Nur du willst (${onlyMe.length})`));
