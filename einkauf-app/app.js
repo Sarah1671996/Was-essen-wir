@@ -60,6 +60,20 @@ function when(ts) {
   return d.toLocaleDateString("de-DE", { day: "numeric", month: "short" });
 }
 
+// Angebote gelten bis Samstag der Woche; manche erst ab Donnerstag oder Freitag
+const DAY = 864e5;
+const dayStart = t => { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime(); };
+const offerEnd = from => { const d = new Date(dayStart(from)); d.setDate(d.getDate() + (6 - d.getDay() + 7) % 7 + 1); return d.getTime() - 1; };
+const shortDay = t => new Date(t).toLocaleDateString("de-DE", { weekday: "short" }).replace(".", "");
+const dayDate = t => `${shortDay(t)} ${new Date(t).toLocaleDateString("de-DE", { day: "numeric", month: "numeric" })}`;
+function kw(t) { // Kalenderwoche nach ISO (Woche mit dem Donnerstag zählt)
+  const d = new Date(dayStart(t));
+  d.setDate(d.getDate() + 3 - (d.getDay() + 6) % 7);
+  const jan4 = new Date(d.getFullYear(), 0, 4);
+  return 1 + Math.round(((d - jan4) / DAY - 3 + (jan4.getDay() + 6) % 7) / 7);
+}
+const offerState = i => !i.offerFrom ? null : Date.now() < i.offerFrom ? "soon" : Date.now() <= (i.offerTo || offerEnd(i.offerFrom)) ? "now" : "over";
+
 // Nur Werte anzeigen, die die App selbst erzeugt: Fotos als eingebettetes JPEG, Farben als #rrggbb.
 // So kann auch ein manipulierter Eintrag keine fremden Seiten laden oder das Layout kapern.
 const safePhoto = p => typeof p === "string" && /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p) ? p : null;
@@ -512,15 +526,18 @@ function renderList() {
   renderTripBar(s);
 
   // Dringendes ganz oben, der Rest nach Abteilungen in der Reihenfolge des Ladens
-  const groups = [{ label: "❗ Dringend", list: open.filter(i => i.urgent) }, ...catsFor(s).map(cat => ({
+  // Angebote, die erst später gelten, stehen gesammelt unten, damit man sie nicht zu früh kauft
+  const now = open.filter(i => offerState(i) !== "soon"), later = open.filter(i => offerState(i) === "soon");
+  const groups = [{ label: "❗ Dringend", list: now.filter(i => i.urgent) }, ...catsFor(s).map(cat => ({
     label: `${cat.emoji} ${cat.name}`,
-    list: open.filter(i => !i.urgent && shownCat(i) === cat.id)
-  }))];
+    list: now.filter(i => !i.urgent && shownCat(i) === cat.id)
+  })), { label: "⏳ Angebote ab später", list: later, by: i => i.offerFrom }];
   for (const g of groups) {
     if (!g.list.length) continue;
     box.appendChild(el("p", "sectionlabel", g.label));
     const ul = el("ul", "items");
-    g.list.sort((a, b) => a.at - b.at).forEach(i => ul.appendChild(itemRow(i)));
+    const by = g.by || (i => i.at);
+    g.list.sort((a, b) => by(a) - by(b)).forEach(i => ul.appendChild(itemRow(i)));
     box.appendChild(ul);
   }
 
@@ -537,7 +554,46 @@ function renderList() {
   }
   $("#swipeHint").hidden = !open.length || ls.get("ek.swiped") === "1";
   renderOften();
+  showFlash();
 }
+
+// Nach dem Eintragen zum Eintrag hinscrollen und ihn kurz aufleuchten lassen
+// Die Liste wird beim Speichern evtl. mehrmals neu gezeichnet, darum gilt das Aufleuchten kurz für jede neue Zeile
+let flash = null;
+function showFlash() {
+  if (!flash || Date.now() > flash.until) { flash = null; return; }
+  const li = document.querySelector(`#items li[data-id="${flash.id}"]`);
+  if (!li) return;
+  if (!flash.scrolled) {
+    flash.scrolled = true;
+    const id = flash.id;
+    // kurz warten, bis die Liste fertig neu gezeichnet ist, sonst bricht das sanfte Scrollen ab
+    setTimeout(() => {
+      const sc = $("#listScroll"), row = document.querySelector(`#items li[data-id="${id}"]`);
+      if (!row) return;
+      const box = sc.getBoundingClientRect(), r = row.getBoundingClientRect();
+      if (r.top < box.top || r.bottom > box.bottom) glide(sc, sc.scrollTop + r.top - box.top - (box.height - r.height) / 2);
+    }, 120);
+  }
+  if (!li.classList.contains("flash")) li.classList.add("flash");
+}
+// Sanft scrollen (selbst gemacht, "behavior: smooth" klappt nicht auf allen Handys)
+function glide(sc, to) {
+  const from = sc.scrollTop, dist = Math.max(0, Math.min(to, sc.scrollHeight - sc.clientHeight)) - from, t0 = performance.now();
+  let done = false;
+  const step = now => {
+    if (done) return;
+    const p = Math.min(1, (now - t0) / 400);
+    sc.scrollTop = from + dist * (1 - (1 - p) ** 3);
+    if (p < 1) requestAnimationFrame(step); else done = true;
+  };
+  requestAnimationFrame(step);
+  setTimeout(() => { if (!done) { done = true; sc.scrollTop = from + dist; } }, 600); // falls keine Animation läuft
+}
+const flashTo = id => {
+  if (flash?.id !== id) flash = { id, until: Date.now() + 1500, scrolled: false };
+  setTimeout(showFlash);
+};
 
 // Leiste unter dem Kopf: "Ich gehe los" / "Fertig eingekauft" / wer gerade hier ist
 function renderTripBar(s) {
@@ -638,6 +694,7 @@ $("#photoDlg").onclick = e => { if (e.target.id !== "photoClose") $("#photoDlg")
 
 function itemRow(i) {
   const li = el("li", "swipe");
+  li.dataset.id = i.id;
   li.appendChild(el("span", "swipebg", i.done ? "↩ wieder auf die Liste" : "✓ abhaken"));
   const row = el("div", "item" + (i.done ? " isdone" : "") + (i.urgent ? " urgent" : "") + (i.missing ? " missing" : ""));
   li.appendChild(row);
@@ -664,6 +721,10 @@ function itemRow(i) {
   if (wants.length > 1) meta.appendChild(el("span", "tag forall",
     "für " + wants.map(([uid, q]) => forName(uid) + (q ? ` (${q})` : "")).join(" + ")));
   if (!i.done) {
+    const o = offerState(i);
+    if (o) meta.appendChild(el("span", "tag offer " + o, `🏷️ KW ${kw(i.offerFrom)} · ` +
+      (o === "soon" ? `ab ${dayDate(i.offerFrom)}` : o === "now" ? `Angebot bis ${shortDay(i.offerTo || offerEnd(i.offerFrom))}` : "Angebot vorbei")));
+    else if (Date.now() - i.at > 7 * DAY) meta.appendChild(el("span", "tag old", `seit KW ${kw(i.at)}`));
     if (i.missing) meta.appendChild(el("span", "tag missing", `gab's nicht · ${when(i.missingAt)}`));
     if (isNew(i)) meta.appendChild(el("span", "tag new", "neu"));
     if (i.by !== S.uid && wants.length < 2) meta.appendChild(document.createTextNode(`von ${nameOf(i.by)} · ${when(i.at)}`));
@@ -723,6 +784,7 @@ async function addItems(raws, extra = {}) {
   const open = new Map(openOf(S.current).map(i => [sameKey(i.text), i]));
   const ops = [], added = [], skipped = [], joined = [], elsewhere = [];
   const now = Date.now();
+  let first = null; // dorthin wird danach gescrollt
   for (const raw of raws) {
     const { qty, text } = splitQty(raw);
     if (!text) continue;
@@ -730,6 +792,7 @@ async function addItems(raws, extra = {}) {
     const have = open.get(key);
     if (have !== undefined) {
       // Steht schon drauf: von mir → nichts tun; von jemand anderem → ich brauche es auch
+      if (have) first ??= have.id;
       if (!have || S.uid in wantsOf(have)) { skipped.push(text); continue; }
       const wants = { ...wantsOf(have), [S.uid]: qty };
       ops.push({ type: "update", c: "items", id: have.id, data: { wants, qty: sumQty(wants), text: splitQty(have.text).text } });
@@ -743,17 +806,20 @@ async function addItems(raws, extra = {}) {
     if (other) elsewhere.push(`„${text}“ steht auch auf ${storeById(other.storeId)?.name || "einer anderen Liste"}`);
     const cat = extra.cat || guessCat(text);
     const at = now + added.length;
-    const k = S.known.find(x => x.id === keyOf(text));
+    const k = S.known.find(x => x.id === keyOf(text)), id = uid20();
+    first ??= id;
     ops.push(
-      { c: "items", data: { text, qty, note: "", cat, storeId: S.current, done: false, urgent: false, by: S.uid, at } },
+      { c: "items", id, data: { text, qty, note: "", cat, storeId: S.current, done: false, urgent: false, by: S.uid, at } },
       { c: "known", id: keyOf(text), data: { text, cat, count: (k?.count || 0) + 1, last: at, stores: { ...(k?.stores || {}), [S.current]: at } } }
     );
     added.push(text);
   }
   if (skipped.length && !joined.length) toast(skipped.length === 1 ? `„${skipped[0]}“ steht schon drauf` : `Stand schon drauf: ${skipped.join(", ")}`);
+  if (first) flashTo(first);
   if (!ops.length) return;
   try {
     await house.batch(ops);
+    if (first) flashTo(first);
     if (joined.length === 1 && !skipped.length) {
       const { text, wants } = joined[0];
       toast(`„${text}“ stand schon drauf, jetzt für ${Object.keys(wants).map(forName).join(" und ")} (${sumQty(wants)})`);
@@ -956,6 +1022,8 @@ function openItemDlg(i) {
   $("#fMissing").textContent = i.missing ? "Doch wieder suchen" : "Gab's nicht";
   $("#fMeta").textContent = `Eingetragen von ${nameOf(i.by)}, ${when(i.at)}` + (i.done ? ` · besorgt ${when(i.doneAt)}` : "");
   editWants = { ...wantsOf(i) };
+  editOffer = i.offerFrom || null;
+  renderOfferChips();
   renderPhoto();
   renderStoreChips();
   renderWantChips();
@@ -979,6 +1047,34 @@ function renderWantChips() {
     box.appendChild(b);
   });
 }
+// "Im Angebot?": Kein / Gilt schon / die nächsten Montag, Donnerstag, Freitag (die üblichen Prospekt-Tage)
+let editOffer = null;
+function renderOfferChips() {
+  const box = $("#fOffer"), today = dayStart(Date.now());
+  box.textContent = "";
+  const next = [1, 2, 3, 4, 5, 6, 7].map(n => { const d = new Date(today); d.setDate(d.getDate() + n); return d.getTime(); })
+    .filter(t => [1, 4, 5].includes(new Date(t).getDay()));
+  const isNow = editOffer && editOffer <= Date.now();
+  const opts = [["Kein Angebot", null, !editOffer], ["Gilt schon", isNow ? editOffer : today, isNow],
+    ...next.map(t => [`ab ${dayDate(t)}`, t, editOffer === t])];
+  opts.forEach(([label, val, on]) => {
+    const b = el("button", "chip" + (on ? " on" : ""), label);
+    b.type = "button";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.onclick = () => { editOffer = val; renderOfferChips(); };
+    box.appendChild(b);
+  });
+  const d = editOffer && new Date(editOffer);
+  $("#fOfferDate").value = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
+  $("#fOfferInfo").textContent = editOffer
+    ? `Angebot KW ${kw(editOffer)}: ${dayDate(editOffer)} bis ${dayDate(offerEnd(editOffer))}` + (editOffer > Date.now() ? " · steht bis dahin unten bei „Angebote ab später“" : "")
+    : "";
+}
+$("#fOfferDate").onchange = e => {
+  const [y, m, d] = e.target.value.split("-").map(Number);
+  editOffer = y ? new Date(y, m - 1, d).getTime() : null;
+  renderOfferChips();
+};
 function renderPhoto() {
   $("#fPhoto").hidden = !editPhoto;
   if (editPhoto) $("#fPhoto").src = editPhoto;
@@ -1054,7 +1150,8 @@ $("#itemForm").onsubmit = async e => {
   const cat = $("#fCat").value;
   const data = {
     text, qty, note: $("#fNote").value.trim(), cat, wants: people.length > 1 ? editWants : null,
-    urgent: $("#fUrgent").checked, photo: editPhoto || null, storeId: editStoreId
+    urgent: $("#fUrgent").checked, photo: editPhoto || null, storeId: editStoreId,
+    offerFrom: editOffer || null, offerTo: editOffer ? offerEnd(editOffer) : null
   };
   const ops = [{ type: "update", c: "items", id: editItem.id, data }];
   // Geänderte Abteilung merken, damit sie beim nächsten Mal stimmt

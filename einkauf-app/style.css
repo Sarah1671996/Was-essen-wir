@@ -367,3 +367,15 @@ textarea {
 .chip.removable { border-color: color-mix(in srgb, var(--urgent) 50%, var(--line)); color: var(--urgent); border-style: solid; }
 .linkbtn.danger { color: var(--urgent); }
 #oftenEditHint { margin: 0 4px 8px; }
+
+/* ---------- Angebote am Eintrag ---------- */
+.tag.offer.now { color: var(--new); background: color-mix(in srgb, var(--new) 14%, transparent); }
+.tag.offer.soon { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.tag.offer.over, .tag.old { color: var(--muted); background: var(--chip); }
+.offerpick { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+.offerpick label { margin: 0; }
+.offerpick input { flex: 1; min-width: 0; min-height: 44px; }
+
+/* Neuer Eintrag leuchtet kurz auf */
+@keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--c, var(--accent)); } 100% { box-shadow: 0 0 0 3px transparent; } }
+li.flash .item { animation: flash 1.6s ease-out; border-radius: 14px; }
