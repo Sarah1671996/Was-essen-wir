@@ -1,6 +1,10 @@
 import { createStore, hasFirebase, randomCode } from "./store.js";
 import { allCats, norm, keyOf, guessCat as guessFrom, splitQty } from "./cats.js";
 
+// Bei jeder neuen Version hochzählen und in VERSIONEN.md eintragen (Git-Tag einkauf-vN)
+const APP_VERSION = "2";
+const APP_DATE = "10.11.2026";
+
 const $ = s => document.querySelector(s);
 const ls = {
   get(k) { try { return localStorage.getItem(k); } catch { return null; } },
@@ -1805,6 +1809,7 @@ $("#settingsBtn").onclick = () => {
   $("#keepAwake").parentElement.hidden = !("wakeLock" in navigator);
   $("#simpleMode").checked = ls.get("ek.simple") === "1";
   $("#modeNote").textContent = store.mode === "local" ? "Demo-Modus: Alles bleibt nur auf diesem Gerät." : "";
+  $("#appVersion").textContent = `Version ${APP_VERSION} · ${APP_DATE}`;
   renderMembers();
   $("#settingsDlg").showModal();
 };

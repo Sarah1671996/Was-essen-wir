@@ -387,3 +387,4 @@ li.flash .item { animation: flash 1.6s ease-out; border-radius: 14px; }
   background: var(--chip); color: var(--ink); white-space: nowrap; position: relative; display: inline-flex; align-items: center; }
 .tab.on { background: var(--c, var(--accent)); color: #fff; }
 .tab.pick input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.appversion { text-align: center; opacity: .75; }
