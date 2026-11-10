@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2a2438"/>
+      <stop offset="1" stop-color="#14121a"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#g)"/>
+  <!-- Popcorn-Tüte -->
+  <circle cx="196" cy="176" r="52" fill="#fff6e0"/>
+  <circle cx="256" cy="150" r="58" fill="#fffaf0"/>
+  <circle cx="318" cy="178" r="52" fill="#fff6e0"/>
+  <circle cx="226" cy="208" r="44" fill="#ffe9b8"/>
+  <circle cx="290" cy="210" r="44" fill="#ffe9b8"/>
+  <path d="M150 220 H362 L332 420 Q330 432 318 432 H194 Q182 432 180 420 Z" fill="#f5b83d"/>
+  <path d="M196 220 L212 432 H244 L236 220 Z M276 220 L268 432 H300 L316 220 Z" fill="#e0452f"/>
+</svg>

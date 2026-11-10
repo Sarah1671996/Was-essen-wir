@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Sicherheitsrichtlinie: Code nur von dieser Seite, von Google (Firebase) und der iTunes-Suche (Filmdaten). -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://itunes.apple.com; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://api.tvmaze.com https://de.wikipedia.org https://en.wikipedia.org; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Was gucken wir?</title>
+  <meta name="description" content="Filme und Serien: merken, was man gesehen hat und sehen will, und passende Empfehlungen bekommen.">
+  <meta name="theme-color" content="#14121a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Gucken">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <h1 id="viewTitle">Für dich</h1>
+    <span class="sync" id="syncBadge" hidden></span>
+  </header>
+
+  <main id="main">
+    <!-- Für dich: Empfehlungen -->
+    <section class="view" id="view-recs">
+      <div class="seg" role="tablist" id="recType">
+        <button data-v="" aria-pressed="true">Alles</button>
+        <button data-v="f" aria-pressed="false">Filme</button>
+        <button data-v="s" aria-pressed="false">Serien</button>
+      </div>
+      <div class="chips scroll" id="recGenres"></div>
+
+      <div class="card ai" id="aiBox">
+        <div class="ai-head"><span aria-hidden="true">✨</span> <strong>KI fragen</strong><span class="muted small"> kennt fast alles, auch ganz Neues</span></div>
+        <div class="ai-row">
+          <input id="aiWish" maxlength="300" placeholder="Worauf hast du Lust? z. B. was Lustiges, kurze Serie, wie Dark">
+          <button class="btn" id="aiGo">Los</button>
+        </div>
+        <p class="muted small" id="aiNote" hidden></p>
+      </div>
+      <div id="aiResults"></div>
+
+      <div class="card intro" id="rateIntro" hidden>
+        <p><strong>Sag mir erst, was du schon kennst.</strong> Je mehr du bewertest, desto besser passen die Vorschläge.</p>
+        <button class="btn big" data-action="quick">Schnell bewerten</button>
+      </div>
+      <div class="taste" id="taste"></div>
+      <h2 class="sub" id="recHead">Passt zu dir</h2>
+      <div class="list" id="recList"></div>
+      <button class="btn ghost wide" id="recMore" hidden>Mehr zeigen</button>
+    </section>
+
+    <!-- Suchen -->
+    <section class="view" id="view-search" hidden>
+      <div class="searchbar">
+        <input id="q" type="search" placeholder="Film oder Serie suchen …" autocomplete="off" enterkeyhint="search">
+      </div>
+      <div class="seg" id="searchType">
+        <button data-v="" aria-pressed="true">Alles</button>
+        <button data-v="f" aria-pressed="false">Filme</button>
+        <button data-v="s" aria-pressed="false">Serien</button>
+      </div>
+      <p class="muted small" id="searchNote">Tipp: Suche nach Titeln, die du gesehen hast, und bewerte sie.</p>
+      <div class="list" id="searchList"></div>
+      <h2 class="sub" id="onlineHead" hidden>Im Internet gefunden</h2>
+      <div class="list" id="onlineList"></div>
+      <div id="browse">
+        <h2 class="sub">Stöbern</h2>
+        <div class="chips wrap" id="browseGenres"></div>
+        <div class="list" id="browseList"></div>
+      </div>
+    </section>
+
+    <!-- Meine Liste -->
+    <section class="view" id="view-list" hidden>
+      <div class="seg four" id="listTabs">
+        <button data-v="want" aria-pressed="true">Will ich sehen</button>
+        <button data-v="watching" aria-pressed="false">Gerade</button>
+        <button data-v="seen" aria-pressed="false">Gesehen</button>
+        <button data-v="dropped" aria-pressed="false">Abgebrochen</button>
+      </div>
+      <div class="listtools">
+        <div class="seg small" id="listType">
+          <button data-v="" aria-pressed="true">Alles</button>
+          <button data-v="f" aria-pressed="false">Filme</button>
+          <button data-v="s" aria-pressed="false">Serien</button>
+        </div>
+        <select id="listSort" aria-label="Sortieren">
+          <option value="new">Zuletzt geändert</option>
+          <option value="title">A–Z</option>
+          <option value="year">Neueste zuerst</option>
+          <option value="rating">Beste Bewertung</option>
+        </select>
+      </div>
+      <div class="list" id="myList"></div>
+      <button class="btn ghost wide" id="pickRandom" hidden>🎲 Zufällig was aussuchen</button>
+    </section>
+
+    <!-- Mehr -->
+    <section class="view" id="view-more" hidden>
+      <div class="card">
+        <h2>Schnell bewerten</h2>
+        <p class="muted">Bekannte Filme und Serien nacheinander: gesehen und gemocht, nicht gemocht, will ich sehen oder kenne ich nicht.</p>
+        <button class="btn" data-action="quick">Loslegen</button>
+      </div>
+      <div class="card" id="stats"></div>
+      <div class="card">
+        <h2>Auf allen Geräten</h2>
+        <div id="syncBox"></div>
+      </div>
+      <div class="card">
+        <h2>Sicherung</h2>
+        <p class="muted">Die ganze Liste als Datei speichern oder aus einer Datei zurückholen.</p>
+        <div class="row">
+          <button class="btn ghost" id="exportBtn">Speichern</button>
+          <label class="btn ghost">Laden<input type="file" id="importFile" accept=".json,application/json" hidden></label>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Woher die Daten kommen</h2>
+        <p class="muted small">Eingebaut sind rund 380 bekannte Filme und Serien mit Genres und Merkmalen. Die Suche findet zusätzlich
+          Serien bei TVmaze und Filme bei iTunes/Apple TV, Beschreibungen kommen von Wikipedia. „Wo läuft das?“ öffnet JustWatch.
+          Die KI-Empfehlung läuft über Google Gemini (Firebase) und bekommt nur die Titel aus deiner Liste.</p>
+        <p class="muted small" id="version"></p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" id="tabs">
+    <button data-view="recs" aria-current="page"><span aria-hidden="true">✨</span>Für dich</button>
+    <button data-view="search"><span aria-hidden="true">🔍</span>Suchen</button>
+    <button data-view="list"><span aria-hidden="true">🍿</span>Meine Liste</button>
+    <button data-view="more"><span aria-hidden="true">⋯</span>Mehr</button>
+  </nav>
+</div>
+
+<!-- Detailansicht -->
+<dialog class="sheet" id="detail" aria-labelledby="dTitle">
+  <div class="sheet-inner" id="detailBody"></div>
+</dialog>
+
+<!-- Schnell bewerten -->
+<dialog class="sheet quick" id="quick" aria-label="Schnell bewerten">
+  <div class="sheet-inner" id="quickBody"></div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
