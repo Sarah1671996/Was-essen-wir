@@ -2,7 +2,8 @@
 //   node serve.mjs              → Essens-App auf http://localhost:5174
 //   node serve.mjs . 5175       → ganzer Ordner, Einkaufs-App unter http://localhost:5175/einkauf-app/
 //                                  (Date-App unter http://localhost:5175/date-app/?demo,
-//                                   Kanada-App unter http://localhost:5175/kanada-app/)
+//                                   Kanada-App unter http://localhost:5175/kanada-app/,
+//                                   Filme & Serien unter http://localhost:5175/film-app/?demo)
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
