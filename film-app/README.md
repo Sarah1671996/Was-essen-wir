@@ -32,12 +32,11 @@ Neue Titel kommen in den Katalog, indem man in `catalog.js` eine Zeile ergänzt.
 Es gibt keine freie Schnittstelle, die sagt, auf welchem Streamingdienst etwas läuft – deshalb öffnet „Wo läuft das?“ JustWatch.
 Die Beschreibungen aus der Serien-Suche (TVmaze) sind manchmal englisch; dann wird zuerst die deutsche Wikipedia versucht.
 
-## Einmalig: Firestore-Regeln veröffentlichen (für den Listen-Code)
+## Abgleich zwischen Geräten (Listen-Code)
 
-Die Regel steht mit in `../essen-match-app/firestore.rules` (Sammlung `filme`).
-Im Ordner `essen-match-app` `firebase deploy --only firestore:rules` ausführen,
-oder in der Firebase-Konsole unter **Firestore → Regeln** den Inhalt der Datei einfügen und **Veröffentlichen**.
-Ohne Listen-Code bleibt alles nur auf dem jeweiligen Gerät (das ist auch so voll benutzbar).
+Die Listen liegen in Firestore in derselben Sammlung wie die Kanada-Reisen (`reisen/film-{code}`), mit derselben Form (`j` + `st`).
+Deshalb muss keine neue Regel veröffentlicht werden – die Regel für `reisen` in `../essen-match-app/firestore.rules` gilt mit.
+Ohne Listen-Code bleibt alles nur auf dem jeweiligen Gerät.
 
 ## Testen
 

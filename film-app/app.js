@@ -4,7 +4,7 @@ import * as store from "./store.js";
 import { buildProfile, scoreItem, similarTo, topFeatures } from "./recs.js";
 import { searchSeries, searchMovies, details, cachedImg, whereToWatch, trailerLink } from "./online.js";
 
-const VERSION = "1";
+const VERSION = "2";
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const norm = s => String(s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ß/g, "ss").replace(/[^a-z0-9]+/g, " ").trim();
