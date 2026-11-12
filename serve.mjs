@@ -3,7 +3,8 @@
 //   node serve.mjs . 5175       → ganzer Ordner, Einkaufs-App unter http://localhost:5175/einkauf-app/
 //                                  (Date-App unter http://localhost:5175/date-app/?demo,
 //                                   Kanada-App unter http://localhost:5175/kanada-app/,
-//                                   Filme & Serien unter http://localhost:5175/film-app/?demo)
+//                                   Filme & Serien unter http://localhost:5175/film-app/?demo,
+//                                   Spiel „Sonnenhof“ unter http://localhost:5175/spiel/)
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
@@ -11,7 +12,7 @@ import { extname, join, normalize } from "node:path";
 const root = join(import.meta.dirname, process.argv[2] ?? "essen-match-app");
 const port = Number(process.argv[3] ?? 5174);
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml",
-  ".png": "image/png", ".webmanifest": "application/manifest+json", ".json": "application/json" };
+  ".png": "image/png", ".webp": "image/webp", ".jpg": "image/jpeg", ".webmanifest": "application/manifest+json", ".json": "application/json" };
 
 http.createServer(async (req, res) => {
   let p = decodeURIComponent(new URL(req.url, "http://x").pathname);

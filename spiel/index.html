@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Sonnenhof</title>
+  <meta name="description" content="Eigenes Farmspiel: Felder, Tiere, Fabriken und Aufträge – ganz ohne Bezahlinhalte.">
+  <meta name="theme-color" content="#7dbb4a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sonnenhof">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="stil.css">
+</head>
+<body>
+<!--SPIEL-->
+<div id="welt-rahmen"><div id="welt"><canvas id="boden"></canvas><div id="geist" class="geist" hidden></div></div></div>
+<div id="insel-rahmen"><div id="insel-welt"><img id="insel-karte" src="img/insel.webp" alt="" draggable="false"></div></div>
+
+<div class="hud">
+  <div class="pille" title="Level und Erfahrung">
+    <div class="lvl"><img src="img/i-stern.webp" alt=""><b id="anz-level">1</b></div>
+    <div class="xp"><i id="anz-xp"></i></div>
+  </div>
+  <div class="hud-rechts">
+    <div class="pille nur-insel werkzeuge" id="anz-werkzeug" title="Werkzeuge"></div>
+    <div class="pille nur-insel" id="anz-punkte" title="Inselpunkte"><span class="ew" aria-hidden="true">⭐</span><b>0</b></div>
+    <div class="pille nur-hof" id="anz-einwohner" title="Einwohner"><span class="ew" aria-hidden="true">🏠</span><b>0</b></div>
+    <div class="pille" id="anz-muenzen" title="Münzen"><img src="img/i-muenze.webp" alt=""><b>0</b></div>
+    <button class="pille rund" id="knopf-neu" aria-label="Einstellungen und Sync">⚙</button>
+  </div>
+</div>
+<div class="schritt" id="schritt" hidden></div>
+<div class="leiste" id="saatleiste" hidden></div>
+<div class="leiste" id="platzleiste" hidden>
+  <span>Tippe auf den Platz, wo es stehen soll.</span>
+  <button id="platz-ok">Hier aufstellen</button><button id="platz-ab" class="ab">Abbrechen</button>
+</div>
+
+<nav class="aktionen nur-hof" id="hof-aktionen">
+  <button class="knopf" id="knopf-auftraege"><img src="img/tafel.webp" alt="">Aufträge<span class="zahl" id="auftrag-zahl" hidden>0</span></button>
+  <button class="knopf" id="knopf-lager"><img src="img/scheune.webp" alt="">Scheune</button>
+  <button class="knopf" id="knopf-bauen"><img src="img/haus1.webp" alt="">Bauen</button>
+  <button class="knopf" id="knopf-puzzle"><img src="img/stein-rot.webp" alt="">Puzzle</button>
+</nav>
+<nav class="aktionen nur-insel" id="insel-aktionen">
+  <button class="knopf" id="knopf-hof"><img src="img/steg.webp" alt="">Zum Hof</button>
+  <button class="knopf" id="knopf-quests"><img src="img/gastgeberin.webp" alt="">Quests</button>
+  <button class="knopf" id="knopf-pfad"><img src="img/truhe.webp" alt="">Belohnungen<span class="zahl" id="pfad-zahl" hidden>!</span></button>
+  <button class="knopf" id="knopf-puzzle2"><img src="img/stein-rot.webp" alt="">Puzzle</button>
+</nav>
+<div id="puzzle">
+  <div class="pz-kopf">
+    <button class="zu" id="pz-zu" aria-label="Puzzle verlassen">✕</button>
+    <div class="pz-level">Level<b id="pz-level">1</b></div>
+    <div class="pz-ziele" id="pz-ziele"></div>
+    <div class="pz-zuege"><b id="pz-zuege">0</b><small>Züge</small></div>
+  </div>
+  <div id="brett"></div>
+  <div class="pz-dialog fenster" id="pz-dialog" hidden></div>
+</div>
+<div id="fenster"></div>
+<div class="meldung" id="meldung" hidden></div>
+<!--/SPIEL-->
+<script type="module" src="spiel.js"></script>
+</body>
+</html>
