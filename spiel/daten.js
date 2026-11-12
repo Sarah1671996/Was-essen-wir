@@ -175,17 +175,17 @@ export const PUNKTE = { hindernis: 2, truhe: 5, bruecke: 10 };
 
 // Quests: typ = was gezählt wird, n = wie oft
 export const QUESTS = [
-  { text: "Räume 3 dichte Büsche mit der Axt frei", typ: "axt", n: 3, punkte: 8 },
-  { text: "Grabe 2 Baumstümpfe mit der Schaufel aus", typ: "schaufel", n: 2, punkte: 6 },
+  { text: "Räume 3 dichte Büsche mit der Axt frei", textWinter: "Hacke 3 Eisbüsche mit der Axt frei", typ: "axt", n: 3, punkte: 8 },
+  { text: "Grabe 2 Baumstümpfe mit der Schaufel aus", textWinter: "Schaufle 2 Schneehaufen weg", typ: "schaufel", n: 2, punkte: 6 },
   { text: "Repariere die Holzbrücke", typ: "bruecke:b1", n: 1, punkte: 12 },
   { text: "Gewinne ein Puzzle-Level", typ: "puzzle", n: 1, punkte: 8 },
-  { text: "Zerschlage 2 Felsen mit der Spitzhacke", typ: "spitzhacke", n: 2, punkte: 6 },
+  { text: "Zerschlage 2 Felsen mit der Spitzhacke", textWinter: "Zerschlage 2 Eisfelsen mit der Spitzhacke", typ: "spitzhacke", n: 2, punkte: 6 },
   { text: "Öffne 2 Schatztruhen", typ: "truhe", n: 2, punkte: 10 },
   { text: "Liefere 3 Aufträge auf dem Hof", typ: "auftrag", n: 3, punkte: 8 },
-  { text: "Entdecke das alte Dorf", typ: "ziel:dorf", n: 1, punkte: 15 },
+  { text: "Entdecke das alte Dorf", textWinter: "Finde die verschneite Blockhütte", typ: "ziel:dorf", n: 1, punkte: 15 },
   { text: "Repariere die Steinbrücke", typ: "bruecke:b2", n: 1, punkte: 15 },
   { text: "Räume 10 Hindernisse frei", typ: "hindernis", n: 10, punkte: 12 },
-  { text: "Erreiche den Wasserfall", typ: "ziel:wasserfall", n: 1, punkte: 18 },
+  { text: "Erreiche den Wasserfall", textWinter: "Erreiche den gefrorenen Wasserfall", typ: "ziel:wasserfall", n: 1, punkte: 18 },
   { text: "Öffne 4 Schatztruhen", typ: "truhe", n: 4, punkte: 14 },
   { text: "Gewinne 2 Puzzle-Level", typ: "puzzle", n: 2, punkte: 10 },
   { text: "Räume die ganze Insel frei", typ: "alles", n: 1, punkte: 30 },
@@ -357,9 +357,47 @@ export const BEWOHNER_PAUSE_MIN = 12;   // so lange bis zum nächsten Wunsch
 export const HERZ_MAX = 10;
 
 // Puzzle-Karte: Mittelpunkte der Steine auf dem Bild „puzzle-weg“ (1116 × 2000), von unten nach oben
-export const PUZZLE_WEG = { b: 1116, h: 2000, steine: [
+export const PUZZLE_WEG = { b: 1116, h: 2000, bilder: ["puzzle-weg", "puzzle-weg-winter"], steine: [
   [497, 1912], [607, 1832], [717, 1757], [733, 1688], [602, 1638], [487, 1630], [482, 1574], [591, 1548], [690, 1515], [720, 1447],
   [636, 1415], [537, 1405], [405, 1378], [318, 1293], [345, 1220], [406, 1177], [474, 1147], [562, 1128], [614, 1078], [560, 1042],
   [487, 1023], [447, 975], [490, 930], [575, 905], [657, 868], [698, 815], [655, 768], [595, 750], [525, 713], [525, 660],
   [565, 622], [507, 588], [455, 557], [461, 512], [510, 492], [557, 467], [617, 440], [668, 372], [617, 320], [533, 278], [577, 228],
 ] };
+
+/* ================= Paket C: Schneeinsel ================= */
+export const WELTEN = {
+  sommer: { name: "Abenteuerinsel", karte: "insel", meer: "#2fa7b8", level: 2, schatz: 1, hindernisse: {},
+    begruessung: "Hallo, ich bin Mila! Der Dschungel hat alle Wege zugewuchert. Mit Axt, Schaufel und Spitzhacke räumst du sie frei. Dahinter warten Schätze und ein altes Dorf.",
+    ziele: { dorf: "Du hast das alte Dorf entdeckt!", wasserfall: "Was für ein Ausblick: der Wasserfall!" },
+    fertig: "Fantastisch, du hast jede Ecke freigeräumt! Wenn du magst, wächst der Dschungel nach und wir legen neue Schätze aus." },
+  winter: { name: "Schneeinsel", karte: "schneeinsel", meer: "#5fc6cf", level: 8, schatz: 1.8,
+    hindernisse: {
+      dschungel: { werkzeug: "axt",        bild: "eisbusch",    breite: 118, text: "Eisbusch" },
+      stumpf:    { werkzeug: "schaufel",   bild: "schneehaufen", breite: 120, text: "Schneehaufen" },
+      felsen:    { werkzeug: "spitzhacke", bild: "eisfelsen",   breite: 100, text: "Eisfelsen" },
+    },
+    begruessung: "Brrr, ist das kalt! Über Nacht hat der Schnee die ganze Insel zugedeckt. Schaufle die Wege frei, hacke das Eis auf und such die versteckten Truhen. Hier sind die Schätze besonders wertvoll!",
+    ziele: { dorf: "Da ist sie: die gemütliche Blockhütte!", wasserfall: "Der Wasserfall ist zu glitzerndem Eis gefroren!" },
+    fertig: "Die ganze Schneeinsel ist frei! Wenn du magst, schneit es noch einmal und wir suchen neue Schätze." },
+};
+
+/* ================= Paket C: Jahreszeiten-Events (Belohnungen ohne Deko) ================= */
+export const EVENTS = {
+  fruehling: { monate: [3, 4, 5],   name: "Osterfest",    token: "i-osterei",      mehrzahl: "Ostereier",     text: "Die Hasen haben überall Ostereier versteckt!" },
+  sommer:    { monate: [6, 7, 8],   name: "Sommerfest",   token: "i-geschenk",     mehrzahl: "Geschenke",     text: "Zum Sommerfest liegen überall kleine Geschenke herum!" },
+  herbst:    { monate: [9, 10, 11], name: "Kürbisfest",   token: "i-kuerbis",      mehrzahl: "Kürbisse",      text: "Erntezeit! Sammle Kürbisse für das große Kürbisfest." },
+  winter:    { monate: [12, 1, 2],  name: "Winterzauber", token: "i-schneeflocke", mehrzahl: "Schneeflocken", text: "Es schneit! Fang die glitzernden Schneeflocken ein." },
+};
+// Stufen: ab so vielen gesammelten Teilen gibt es die Belohnung (Münzen, Werkzeuge, Puzzle-Helfer)
+export const EVENT_STUFEN = [
+  { n: 10,  muenzen: 100 },
+  { n: 25,  werkzeug: 3, helfer: { hammer: 1 } },
+  { n: 45,  muenzen: 250 },
+  { n: 70,  helfer: { besen: 1, regenbogen: 1 } },
+  { n: 100, muenzen: 400, werkzeug: 5 },
+  { n: 140, helfer: { hammer: 2, besen: 2, regenbogen: 2 } },
+  { n: 200, muenzen: 1000, werkzeug: 8, helfer: { regenbogen: 3 } },
+];
+// Wie viele Teile es wofür gibt
+export const EVENT_QUELLEN = { ernteChance: .25, auftrag: 3, eil: 10, wunsch: 5, tag: 5, puzzle: 4, truhe: 3, fundstueck: 2 };
+export const FUNDSTUECK = { minuten: 3, max: 3 };   // so oft liegt ein Teil irgendwo auf dem Hof

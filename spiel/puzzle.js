@@ -330,9 +330,11 @@ export function puzzleStarten(api) {
     document.body.classList.add("im-puzzle");
     const P = stand(), aktuell = P.level, kap = Math.ceil(aktuell / proKapitel), basis = (kap - 1) * proKapitel;
     const s = S(); s.helfer ??= {};
-    p$("#pz-karte-titel").textContent = `Kapitel ${kap}`;
+    const winter = (kap - 1) % PUZZLE_WEG.bilder.length === 1;
+    p$("#pz-karte-titel").textContent = `Kapitel ${kap}${winter ? " ❄" : ""}`;
+    karte.classList.toggle("winter", winter);
     p$("#pz-karte-helfer").innerHTML = Object.keys(HELFER).map(k => `<span>${api.helferIcon(k, "ic")}<b>${s.helfer[k] || 0}</b></span>`).join("");
-    kInhalt.innerHTML = `<img src="${api.bildUrl("puzzle-weg")}" alt="" draggable="false">` + PUZZLE_WEG.steine.map(([x, y], i) => {
+    kInhalt.innerHTML = `<img src="${api.bildUrl(PUZZLE_WEG.bilder[(kap - 1) % PUZZLE_WEG.bilder.length])}" alt="" draggable="false">` + PUZZLE_WEG.steine.map(([x, y], i) => {
       const n = basis + i + 1, st = P.sterne?.[n] || 0;
       const zustand = n < aktuell ? "fertig" : n === aktuell ? "jetzt" : "zu";
       return `<button class="pz-stein ${zustand}" data-level="${n}" style="left:${x / PUZZLE_WEG.b * 100}%;top:${y / PUZZLE_WEG.h * 100}%" ${zustand === "zu" ? "disabled" : ""} aria-label="Level ${n}">
@@ -390,7 +392,7 @@ export function puzzleStarten(api) {
     s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
     const bekommen = {};
     for (let k = 0; k < lohn.werkzeuge; k++) { const w = Object.keys(WERKZEUGE)[Math.floor(Math.random() * 3)]; s.werkzeug[w]++; bekommen[w] = (bekommen[w] || 0) + 1; }
-    if (erstmals) { api.inselEreignis("puzzle"); if (s.insel) s.insel.punkte += lohn.punkte; P.level = nummer + 1; }
+    if (erstmals) { api.eventGeben?.(4); api.inselEreignis("puzzle"); if (s.insel) s.insel.punkte += lohn.punkte; P.level = nummer + 1; }
     P.gewonnen++;
     api.speichern();
     zeigeDialog(`<h2>Gewonnen!</h2><div class="pz-sterne">${[1, 2, 3].map(k => `<span class="${k <= sterne ? "an" : ""}">★</span>`).join("")}</div>

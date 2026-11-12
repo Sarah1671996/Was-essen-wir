@@ -2,7 +2,7 @@
 // Quests erfüllen und Punkte auf dem Belohnungspfad sammeln.
 import {
   WAREN, BAUTEN, WERKZEUGE, HELFER, INSEL_LEVEL, INSEL_KARTE, WERKZEUG_KISTE, HINDERNISSE, INSEL_PLAETZE, TIEFE_TEUER,
-  PUNKTE, QUESTS, AKTIVE_QUESTS, PFAD,
+  PUNKTE, QUESTS, AKTIVE_QUESTS, PFAD, WELTEN,
 } from "./daten.js";
 
 export function inselStarten(api) {
@@ -14,45 +14,61 @@ export function inselStarten(api) {
   const zufallsWerkzeug = () => ["axt", "schaufel", "spitzhacke"][Math.floor(Math.random() * 3)];
 
   /* ---------- Zustand ---------- */
-  function stand() {
+  // welt: "sommer" (Abenteuerinsel, Spielstand s.insel) oder "winter" (Schneeinsel, Spielstand s.schnee).
+  // Punkte, Belohnungspfad und Werkzeugkiste teilen sich beide Inseln (liegen in s.insel).
+  let welt = "sommer";
+  const W = () => WELTEN[welt];
+  function geteilt() {
     const s = S();
     s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
     s.insel ??= { frei: ["lager"], truhen: [], punkte: 0, pfad: 0, quests: [], naechste: 0, kisteT: Date.now(), runde: 1, gesehen: false };
-    const I = s.insel;
+    return s.insel;
+  }
+  function weltStand(w) {
+    const s = S(); geteilt();
+    if (w === "winter") s.schnee ??= { frei: ["lager"], truhen: [], quests: [], naechste: 0, runde: 1, gesehen: false };
+    const I = w === "winter" ? s.schnee : s.insel;
     while (I.quests.length < AKTIVE_QUESTS && I.naechste < QUESTS.length) I.quests.push({ q: I.naechste++, stand: 0 });
     return I;
   }
+  const stand = () => weltStand(welt);
+  const questText = Q => (welt === "winter" && Q.textWinter) || Q.text;
+  const hindernis = art => W().hindernisse[art] || HINDERNISSE[art];
   const istFrei = id => stand().frei.includes(id);
   const erreichbar = id => !istFrei(id) && (INSEL_PLAETZE[id].nach || []).some(istFrei);
   const kosten = id => TIEFE_TEUER.includes(id) ? 2 : 1;
   const alleFrei = () => Object.keys(INSEL_PLAETZE).every(istFrei);
   function kisteAnzahl() {
-    const I = stand(), ms = WERKZEUG_KISTE.minuten * 60000;
-    return Math.min(WERKZEUG_KISTE.max, Math.floor((Date.now() - I.kisteT) / ms));
+    const G = geteilt(), ms = WERKZEUG_KISTE.minuten * 60000;
+    return Math.min(WERKZEUG_KISTE.max, Math.floor((Date.now() - G.kisteT) / ms));
   }
 
   /* ---------- Quests und Punkte ---------- */
   function punkte(n, d) {
-    stand().punkte += n;
+    geteilt().punkte += n;
     if (d) schwebt(d, `+${n} ⭐`);
     zeigeHud();
   }
-  function ereignis(typ) {
-    const I = stand();
-    let geschafft = false;
-    for (const q of I.quests) {
-      const Q = QUESTS[q.q];
-      if (Q.typ === typ || (Q.typ === "hindernis" && ["axt", "schaufel", "spitzhacke"].includes(typ))) q.stand++;
-      if (q.stand >= Q.n && !q.fertig) {
-        q.fertig = true; I.punkte += Q.punkte; geschafft = true;
-        api.meldung(`Quest geschafft: ${Q.text} (+${Q.punkte} Punkte)`);
+  // Inselaktionen zählen nur für die Insel, auf der man ist; Aufträge und Puzzle (vom Hof) für beide Inseln
+  function ereignis(typ, nurHier = false) {
+    const s = S(), G = geteilt();
+    const welten = nurHier ? [welt] : ["sommer", ...(s.schnee ? ["winter"] : [])];
+    for (const w of welten) {
+      const I = weltStand(w);
+      let geschafft = false;
+      for (const q of I.quests) {
+        const Q = QUESTS[q.q];
+        if (Q.typ === typ || (Q.typ === "hindernis" && ["axt", "schaufel", "spitzhacke"].includes(typ))) q.stand++;
+        if (q.stand >= Q.n && !q.fertig) {
+          q.fertig = true; G.punkte += Q.punkte; geschafft = true;
+          api.meldung(`Quest geschafft: ${(w === "winter" && Q.textWinter) || Q.text} (+${Q.punkte} Punkte)`);
+        }
       }
-    }
-    if (geschafft) {
-      I.quests = I.quests.filter(q => !q.fertig);
-      while (I.quests.length < AKTIVE_QUESTS && I.naechste < QUESTS.length) I.quests.push({ q: I.naechste++, stand: 0 });
-      // Quests, die sofort erfüllt sind (z. B. Ziel schon erreicht), gleich prüfen
-      if (alleFrei()) setTimeout(() => ereignis("alles"), 50);
+      if (geschafft) {
+        I.quests = I.quests.filter(q => !q.fertig);
+        while (I.quests.length < AKTIVE_QUESTS && I.naechste < QUESTS.length) I.quests.push({ q: I.naechste++, stand: 0 });
+        if (w === welt && alleFrei()) setTimeout(() => ereignis("alles", true), 50);
+      }
     }
     zeigeHud();
   }
@@ -129,7 +145,7 @@ export function inselStarten(api) {
         ding(id, istFrei(id) ? "bruecke" : "bruecke-kaputt", P.x, P.y, 150, () => brueckeTipp(id), istFrei(id) ? "deko-ding" : "");
         continue;
       }
-      if (!istFrei(id)) { const H = HINDERNISSE[P.art]; ding(id, H.bild, P.x, P.y, H.breite, () => hindernisTipp(id)); }
+      if (!istFrei(id)) { const H = hindernis(P.art); ding(id, H.bild, P.x, P.y, H.breite, () => hindernisTipp(id)); }
       else if (P.truhe && !I.truhen.includes(id)) ding(id, "truhe", P.x, P.y, 72, () => truheTipp(id), "truhe-ding");
     }
     aktualisieren();
@@ -150,7 +166,7 @@ export function inselStarten(api) {
       if (!offen) { ov(d, ""); continue; }
       if (P.art === "bruecke") ov(d, `<div class="preis">🔧 ${P.name}</div>`);
       else {
-        const w = HINDERNISSE[P.art].werkzeug, n = kosten(id), genug = (S().werkzeug[w] || 0) >= n;
+        const w = hindernis(P.art).werkzeug, n = kosten(id), genug = (S().werkzeug[w] || 0) >= n;
         ov(d, `<div class="preis ${genug ? "" : "fehlt"}">${wz(w, "ic klein")} ${n}</div>`);
       }
     }
@@ -159,7 +175,7 @@ export function inselStarten(api) {
 
   /* ---------- Antippen ---------- */
   function hindernisTipp(id) {
-    const P = INSEL_PLAETZE[id], H = HINDERNISSE[P.art], d = dinge.get(id);
+    const P = INSEL_PLAETZE[id], H = hindernis(P.art), d = dinge.get(id);
     if (!erreichbar(id)) { api.meldung("Räume zuerst den Weg bis hierher frei."); return; }
     const w = H.werkzeug, n = kosten(id), s = S();
     if ((s.werkzeug[w] || 0) < n) {
@@ -170,11 +186,9 @@ export function inselStarten(api) {
     stand().frei.push(id);
     d.el.classList.add("verschwindet");
     punkte(PUNKTE.hindernis, d);
-    ereignis(w);
-    if (P.ziel) ereignis("ziel:" + P.ziel);
-    if (P.ziel === "dorf") api.meldung("Du hast das alte Dorf entdeckt!");
-    if (P.ziel === "wasserfall") api.meldung("Was für ein Ausblick: der Wasserfall!");
-    if (alleFrei()) ereignis("alles");
+    ereignis(w, true);
+    if (P.ziel) { ereignis("ziel:" + P.ziel, true); api.meldung(W().ziele[P.ziel]); }
+    if (alleFrei()) ereignis("alles", true);
     api.speichern();
     setTimeout(() => { aufbauen(); if (alleFrei()) fertigPanel(); }, 550);
   }
@@ -182,13 +196,13 @@ export function inselStarten(api) {
     const d = dinge.get(id), I = stand(), s = S();
     if (I.truhen.includes(id)) return;
     I.truhen.push(id);
-    const muenzen = 20 + Math.floor(Math.random() * 40), w1 = zufallsWerkzeug(), w2 = Math.random() < .5 ? zufallsWerkzeug() : null;
+    const muenzen = Math.round((20 + Math.floor(Math.random() * 40)) * W().schatz), w1 = zufallsWerkzeug(), w2 = Math.random() < .5 ? zufallsWerkzeug() : null;
     s.muenzen += muenzen; s.werkzeug[w1]++; if (w2) s.werkzeug[w2]++;
     d.el.querySelector(".spr").src = api.bildUrl("truhe-offen");
     d.el.classList.add("offen");
     punkte(PUNKTE.truhe, d);
     api.meldung(`Schatz gefunden: ${muenzen} Münzen, ${WERKZEUGE[w1].name}${w2 ? " und " + WERKZEUGE[w2].name : ""}`);
-    ereignis("truhe");
+    ereignis("truhe", true); api.eventGeben?.(3, d);
     api.speichern(); api.aktualisieren();
     setTimeout(() => { d.el.classList.add("verschwindet"); setTimeout(aufbauen, 500); }, 1300);
   }
@@ -207,8 +221,8 @@ export function inselStarten(api) {
   }
   function kistePanel() {
     api.oeffnen("i-kiste", () => {
-      const n = kisteAnzahl(), I = stand();
-      const rest = WERKZEUG_KISTE.minuten * 60000 - ((Date.now() - I.kisteT) % (WERKZEUG_KISTE.minuten * 60000));
+      const n = kisteAnzahl(), G = geteilt();
+      const rest = WERKZEUG_KISTE.minuten * 60000 - ((Date.now() - G.kisteT) % (WERKZEUG_KISTE.minuten * 60000));
       return `<div class="kopf"><h2>Werkzeugkiste am Zelt</h2>${api.zu()}</div>
         <p>Hier legt die Entdeckerin alle ${WERKZEUG_KISTE.minuten} Minuten ein Werkzeug für dich bereit (höchstens ${WERKZEUG_KISTE.max}).</p>
         ${werkzeugZeile()}
@@ -226,7 +240,7 @@ export function inselStarten(api) {
         <div class="gastgeberin"><img src="${api.bildUrl("gastgeberin")}" alt="Die Entdeckerin"><p>„Hilf mir, die Insel zu erkunden! Für jede Quest bekommst du Punkte für den Belohnungspfad.“</p></div>
         <div class="quests">${I.quests.length ? I.quests.map(q => {
           const Q = QUESTS[q.q], pr = Math.min(1, q.stand / Q.n);
-          return `<div class="quest"><div><b>${Q.text}</b><small>${Math.min(q.stand, Q.n)}/${Q.n}</small></div>
+          return `<div class="quest"><div><b>${questText(Q)}</b><small>${Math.min(q.stand, Q.n)}/${Q.n}</small></div>
             <span class="questpunkte">+${Q.punkte} ⭐</span><i class="questbalken"><i style="width:${pr * 100}%"></i></i></div>`;
         }).join("") : `<p class="hinweis">Alle Quests dieser Insel sind geschafft!</p>`}</div>
         ${werkzeugZeile()}`;
@@ -234,7 +248,7 @@ export function inselStarten(api) {
   }
   function pfadPanel() {
     api.oeffnen("i-pfad", () => {
-      const I = stand();
+      const I = geteilt();
       return `<div class="kopf"><h2>Belohnungspfad</h2>${api.zu()}</div>
         <p>Du hast <b>${I.punkte} ⭐ Punkte</b>.</p>
         <div class="pfad">${PFAD.map((P, k) => {
@@ -252,36 +266,36 @@ export function inselStarten(api) {
   }
   function fertigPanel() {
     api.oeffnen("i-fertig", () => `<div class="kopf"><h2>Insel erkundet!</h2>${api.zu()}</div>
-      <div class="gastgeberin"><img src="${api.bildUrl("gastgeberin")}" alt=""><p>„Fantastisch, du hast jede Ecke freigeräumt! Wenn du magst, wächst der Dschungel nach und wir legen neue Schätze aus.“</p></div>
+      <div class="gastgeberin"><img src="${api.bildUrl("gastgeberin")}" alt=""><p>„${W().fertig}“</p></div>
       <button class="los" data-aktion="i-neu">Neue Expedition starten</button>`);
   }
   document.querySelector("#fenster").addEventListener("click", e => {
     const b = e.target.closest("[data-aktion^='i-']"); if (!b || b.disabled) return;
-    const a = b.dataset.aktion, s = S(), I = stand();
+    const a = b.dataset.aktion, s = S(), I = stand(), G = geteilt();
     if (a === "i-reparieren") {
       const id = b.dataset.id, P = INSEL_PLAETZE[id];
       if (!api.hat(P.kosten)) return;
       api.nehmen(P.kosten); I.frei.push(id); api.schliessen();
-      punkte(PUNKTE.bruecke, dinge.get(id)); ereignis("bruecke:" + id);
+      punkte(PUNKTE.bruecke, dinge.get(id)); ereignis("bruecke:" + id, true);
       api.meldung(`Die ${P.name} ist repariert!`);
-      if (alleFrei()) ereignis("alles");
+      if (alleFrei()) ereignis("alles", true);
       aufbauen();
     }
     if (a === "i-kiste") {
       const n = kisteAnzahl(); if (!n) return;
       const bekommen = [];
       for (let k = 0; k < n; k++) { const w = zufallsWerkzeug(); s.werkzeug[w]++; bekommen.push(WERKZEUGE[w].name); }
-      I.kisteT = n >= WERKZEUG_KISTE.max ? Date.now() : I.kisteT + n * WERKZEUG_KISTE.minuten * 60000;
+      G.kisteT = n >= WERKZEUG_KISTE.max ? Date.now() : G.kisteT + n * WERKZEUG_KISTE.minuten * 60000;
       api.meldung("Du bekommst: " + bekommen.join(", "));
     }
     if (a === "i-pfad") {
-      const P = PFAD[I.pfad]; if (!P || I.punkte < P.punkte) return;
+      const P = PFAD[G.pfad]; if (!P || G.punkte < P.punkte) return;
       if (P.muenzen) s.muenzen += P.muenzen;
       if (P.werkzeug) for (const [w, n] of Object.entries(P.werkzeug)) s.werkzeug[w] += n;
       if (P.helfer) for (const [h, n] of Object.entries(P.helfer)) s.helfer[h] = (s.helfer[h] || 0) + n;
       if (P.deko) { s.dekoFrei ??= {}; s.dekoFrei[P.deko] = (s.dekoFrei[P.deko] || 0) + 1; api.meldung(`${BAUTEN[P.deko].name} wartet im Bauen-Menü auf dich!`); }
       else api.meldung("Belohnung abgeholt!");
-      I.pfad++;
+      G.pfad++;
     }
     if (a === "i-neu") {
       I.frei = ["lager"]; I.truhen = []; I.runde++;
@@ -294,31 +308,36 @@ export function inselStarten(api) {
   /* ---------- Hin und zurück ---------- */
   let aktiv = false;
   function zeigeHud() {
-    const I = stand(), s = S();
+    const I = geteilt(), s = S();
     q$("#anz-punkte b").textContent = I.punkte;
     q$("#anz-werkzeug").innerHTML = Object.keys(WERKZEUGE).map(w => `${wz(w)}<b>${s.werkzeug[w] || 0}</b>`).join("");
     const bereit = PFAD[I.pfad] && I.punkte >= PFAD[I.pfad].punkte;
     q$("#pfad-zahl").hidden = !bereit;
   }
-  function betreten() {
-    if (S().level < INSEL_LEVEL) { api.meldung(`Das Boot fährt ab Level ${INSEL_LEVEL}. Sammle noch etwas Erfahrung auf dem Hof!`); return; }
+  function betreten(w = "sommer") {
+    const Wd = WELTEN[w];
+    if (S().level < Wd.level) { api.meldung(`Das Boot zur ${Wd.name} fährt ab Level ${Wd.level}. Sammle noch etwas Erfahrung auf dem Hof!`); return; }
     api.schliessen();
+    welt = w;
+    q$("#insel-karte").src = api.bildUrl(Wd.karte);
+    rahmen.style.background = Wd.meer;
+    document.body.classList.toggle("schnee", w === "winter");
     aktiv = true; document.body.classList.add("auf-insel");
     zufallsWerkzeugAnzeige = zufallsWerkzeug();
     startKamera(); aufbauen(); zeigeHud();
     const I = stand();
     if (!I.gesehen) {
       I.gesehen = true; api.speichern();
-      api.oeffnen("i-start", () => `<div class="kopf"><h2>Willkommen auf der Abenteuerinsel!</h2>${api.zu()}</div>
-        <div class="gastgeberin"><img src="${api.bildUrl("gastgeberin")}" alt=""><p>„Hallo, ich bin Mila! Der Dschungel hat alle Wege zugewuchert. Mit Axt, Schaufel und Spitzhacke räumst du sie frei. Dahinter warten Schätze und ein altes Dorf.“</p></div>
+      api.oeffnen("i-start", () => `<div class="kopf"><h2>Willkommen auf der ${Wd.name}!</h2>${api.zu()}</div>
+        <div class="gastgeberin"><img src="${api.bildUrl("gastgeberin")}" alt=""><p>„${Wd.begruessung}“</p></div>
         <p class="hinweis">Leuchtende Hindernisse kannst du jetzt freiräumen. Das Werkzeug dafür steht darüber.</p>
         <button class="los" data-aktion="zu">Los geht's</button>`);
     }
   }
-  function verlassen() { aktiv = false; document.body.classList.remove("auf-insel"); api.schliessen(); api.aktualisieren(); }
+  function verlassen() { aktiv = false; document.body.classList.remove("auf-insel", "schnee"); api.schliessen(); api.aktualisieren(); }
   q$("#knopf-hof").onclick = verlassen;
   q$("#knopf-quests").onclick = questPanel;
   q$("#knopf-pfad").onclick = pfadPanel;
 
-  return { betreten, verlassen, aktualisieren, ereignis, get aktiv() { return aktiv; } };
+  return { betreten, verlassen, aktualisieren, ereignis: t => ereignis(t), get aktiv() { return aktiv; } };
 }

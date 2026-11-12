@@ -52,6 +52,14 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Puzzle-Weltkarte** mit 41 Steinen pro Kapitel, Sterne pro Level, alte Level wiederholbar (kleiner Lohn)
 - Echte Bilder für Hammer, Besen, Regenbogen und für das Dickicht
 
+## Paket C: Schneeinsel und Jahreszeiten-Events
+
+- **Schneeinsel** ab Level 8 (über den Steg wählbar): eigene Karte, Eisbüsche (Axt), Schneehaufen (Schaufel), Eisfelsen (Spitzhacke), wertvollere Truhen, eigene Quests; Punkte und Belohnungspfad teilen sich beide Inseln
+- **Winterkarte** für jedes zweite Puzzle-Kapitel
+- **Jahreszeiten-Events** nach Kalender: Osterfest (März–Mai, Ostereier), Sommerfest (Juni–August, Geschenke), Kürbisfest (September–November, Kürbisse), Winterzauber (Dezember–Februar, Schneeflocken)
+  - Teile gibt es beim Ernten, für Aufträge, Eilaufträge, Wünsche, Puzzle, Truhen, Tagesbelohnung und als Fundstücke auf dem Hof
+  - 7 Belohnungsstufen nur mit Münzen, Werkzeugen und Puzzle-Helfern (keine Deko)
+
 ## Mehr Platz
 
 - Hof auf 2700 × 2000 vergrößert (neues Land rechts und unten, zwei weitere Dickichte ab Level 8 und 9), Wasser am Steg ist jetzt ein See
