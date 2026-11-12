@@ -4,7 +4,7 @@ import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
-  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR,
+  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, HAUS_STUFEN, ABRISS_ERSTATTUNG,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -55,7 +55,7 @@ function ergaenzen(s) {
   s.dekoFrei ??= {}; s.helfer ??= { ...START_HELFER }; s.ausbau ??= {}; s.dickicht ??= [];
   s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
   s.tag ??= { zuletzt: "", serie: 0 };
-  s.bewohner ??= {};
+  s.bewohner ??= {}; s.pos ??= {};
   for (const k of Object.keys(TIERE)) s.tiere[k] ??= []; s.zaehler ??= {}; s.erfolge ??= {};
   // Deko, die auf einem neuen Bauplatz steht, ein Stück zur Seite rücken
   for (const [k, g] of Object.entries(GEBAEUDE)) {
@@ -81,7 +81,11 @@ function speichern() {
   sync?.aenderung();
 }
 
-const einwohner = () => S.bauten.reduce((n, b) => n + (BAUTEN[b.typ].einwohner || 0), 0);
+const hausEinwohner = b => Math.round((BAUTEN[b.typ].einwohner || 0) * HAUS_STUFEN[(b.stufe || 1) - 1].faktor);
+const einwohner = () => S.bauten.reduce((n, b) => n + hausEinwohner(b), 0);
+// Position eines festen Gebäudes (umgestellt oder Standard)
+const gpos = key => ({ ...GEBAEUDE[key], ...(S.pos?.[key] || {}) });
+const VERSCHIEBBAR = key => S.gebaut[key] && !["steg", "schafweide"].includes(key);
 const kapazitaet = () => SCHEUNE.start + (S.scheuneLvl - 1) * SCHEUNE.plus;
 const belegt = () => Object.values(S.lager).reduce((a, b) => a + b, 0);
 const hat = z => Object.entries(z).every(([k, n]) => (S.lager[k] || 0) >= n);
@@ -195,11 +199,20 @@ function zeigerEnde(e) {
 }
 addEventListener("pointerup", zeigerEnde); addEventListener("pointercancel", zeigerEnde);
 view.addEventListener("wheel", e => { e.preventDefault(); zoom(e.deltaY < 0 ? 1.1 : 1 / 1.1, e.clientX, e.clientY); }, { passive: false });
+let bearbeiten = false;
+function bearbeitenAn() { schliessen(); bearbeiten = true; document.body.classList.add("bearbeiten"); $("#bearbeitleiste").hidden = false; }
+function bearbeitenAus() { bearbeiten = false; document.body.classList.remove("bearbeiten"); $("#bearbeitleiste").hidden = true; schliessen(); }
 view.addEventListener("click", e => {
   if (bewegt) return;
   const p = zuWelt(e.clientX, e.clientY);
   if (platzieren) { geistSetzen(p.x, p.y); return; }
   const el = e.target.closest(".ding");
+  if (bearbeiten && el) {
+    const id = el.dataset.id;
+    if (/^bau\d+$/.test(id)) { bauTipp(+id.slice(3)); return; }
+    if (GEBAEUDE[id] && VERSCHIEBBAR(id)) { gebaeudeBearbeiten(id); return; }
+    meldung("Das kann man nicht umstellen."); return;
+  }
   if (el && dinge.has(el.dataset.id)) { dinge.get(el.dataset.id).tipp(e); return; }
   if (offen) schliessen();
 });
@@ -320,7 +333,8 @@ function weltAufbauen() {
   for (const [key, g] of Object.entries(GEBAEUDE)) {
     if (key === "schafweide") continue;
     if (!S.gebaut[key] && key !== "steg") { bauplatz(key, g); continue; }
-    neuesDing(key, g.bild, g.x, g.y, g.breite, { cls: "gebaeude", tipp: () => gebaeudeTipp(key), upd: d => gebaeudeUpd(key, d) });
+    const q = gpos(key);
+    neuesDing(key, g.bild, q.x, q.y, g.breite, { cls: "gebaeude", tipp: () => gebaeudeTipp(key), upd: d => gebaeudeUpd(key, d) });
   }
   if (!S.gebaut.schafweide) bauplatz("schafweide", GEBAEUDE.schafweide);
   else weideZaun();
@@ -354,7 +368,10 @@ function weltAufbauen() {
           const t = S.bauten[i]?.t || 0;
           overlay(d, t <= jetzt() ? blase(icon("apfel", "ic mittel"), -36) : uhr(t - jetzt(), APFEL.zeit, d.h * .15));
         } });
-    } else neuesDing("bau" + i, B.bild, b.x, b.y, B.breite, { cls: B.art, tipp: () => bauTipp(i) });
+    } else {
+      const d = neuesDing("bau" + i, B.bild, b.x, b.y, B.breite * (1 + ((b.stufe || 1) - 1) * .06), { cls: B.art, tipp: () => bauTipp(i) });
+      if (B.art === "haus" && (b.stufe || 1) > 1) overlay(d, `<div class="hausstufe">${"★".repeat(b.stufe)}</div>`);
+    }
   });
 }
 function bauplatz(key, g) {
@@ -943,7 +960,8 @@ function baumenu() {
         <img class="bauicon" src="${bildUrl(B.bild)}" alt=""><b>${B.name}</b>
         <small>${frei ? `${muenze("ic klein")} ${B.preis}${B.einwohner ? ` · +${B.einwohner} Einwohner` : ""}` : `ab Level ${B.level}`}</small></button>`;
     }).join("")}</div>
-    <p class="hinweis">Um etwas umzustellen, tippe es auf dem Hof an.</p>`);
+    <button class="los zweit" data-aktion="bearbeiten">Umstellen und abreißen</button>
+    <p class="hinweis">Häuser kannst du antippen und ausbauen: das bringt mehr Einwohner, ohne mehr Platz zu brauchen.</p>`);
 }
 function apfelTipp(i) {
   const b = S.bauten[i], d = dinge.get("bau" + i);
@@ -953,14 +971,51 @@ function apfelTipp(i) {
   b.t = jetzt() + APFEL.zeit * 1000; erfahrung(2); huepf(d); fliegt(d, "apfel", APFEL.ertrag); zaehle("ernte");
   speichern(); aktualisieren();
 }
+let abrissFrage = null;
 function bauTipp(i) {
-  const b = S.bauten[i], B = BAUTEN[b.typ];
-  oeffnen("bau" + i, () => `
-    <div class="kopf"><h2>${B.name}</h2>${zu()}</div>
-    ${B.einwohner ? `<p>Hier wohnen ${B.einwohner} Einwohner.</p>` : `<p>Schön sieht es aus.</p>`}
-    <button class="los" data-aktion="verschieben" data-i="${i}">Umstellen</button>`);
+  abrissFrage = null;
+  oeffnen("bau" + i, () => {
+    const b = S.bauten[i]; if (!b) return "";
+    const B = BAUTEN[b.typ], st = b.stufe || 1, N = HAUS_STUFEN[st];
+    const erstattung = B.insel ? 0 : Math.floor(B.preis * ABRISS_ERSTATTUNG);
+    let ausbau = "";
+    if (B.art === "haus") {
+      if (!N) ausbau = `<p class="hinweis">Höchste Stufe erreicht.</p>`;
+      else {
+        const preis = Math.round(B.preis * N.preis), mehr = Math.round(B.einwohner * N.faktor) - hausEinwohner(b);
+        const wz = N.werkzeug || {}, okWz = Object.entries(wz).every(([w, n]) => (S.werkzeug[w] || 0) >= n);
+        const ok = S.level >= N.level && S.muenzen >= preis && okWz;
+        ausbau = `<button class="los zweit" data-aktion="hausausbau" data-i="${i}" ${ok ? "" : "disabled"}>
+          ${S.level < N.level ? `Ausbau auf Stufe ${st + 1} ab Level ${N.level}` : `Auf Stufe ${st + 1} ausbauen (+${mehr} Einwohner) · ${muenze("ic klein")} ${preis}${Object.entries(wz).map(([w, n]) => ` ${werkzeugIcon(w, "ic klein")}${n}`).join("")}`}</button>`;
+      }
+    }
+    return `<div class="kopf"><h2>${B.name}${B.art === "haus" ? ` <small class="stufe-tag">Stufe ${st}</small>` : ""}</h2>${zu()}</div>
+      ${B.einwohner ? `<p>Hier wohnen ${hausEinwohner(b)} Einwohner.</p>` : `<p>Schön sieht es aus.</p>`}
+      ${ausbau}
+      ${abrissFrage === i
+        ? `<p class="fehlt"><b>Wirklich abreißen?</b> ${B.einwohner ? `Dir fehlen dann ${hausEinwohner(b)} Einwohner. ` : ""}Du bekommst ${erstattung} Münzen zurück${B.insel ? " (Belohnungs-Deko kommt zurück ins Bauen-Menü)" : ""}.</p>
+           <div class="knoepfe"><button class="los rot" data-aktion="abreissen" data-i="${i}">Ja, abreißen</button><button class="los zweit" style="width:auto;margin:0" data-aktion="abrissnein">Nein</button></div>`
+        : `<div class="knoepfe"><button class="los" data-aktion="verschieben" data-i="${i}">Umstellen</button><button class="los rot" data-aktion="abrissfrage" data-i="${i}">Abreißen</button></div>`}`;
+  });
+}
+function gebaeudeBearbeiten(key) {
+  oeffnen("gb:" + key, () => `<div class="kopf"><h2>${GEBAEUDE[key].name}</h2>${zu()}</div>
+    <p>Feste Gebäude kannst du umstellen, aber nicht abreißen.</p>
+    <div class="knoepfe"><button class="los" data-aktion="gebaeudeumstellen" data-k="${key}">Umstellen</button>
+    <button class="los zweit" style="width:auto;margin:0" data-aktion="gebaeudeoeffnen" data-k="${key}">Öffnen</button></div>`);
 }
 const geist = $("#geist");
+// Was gerade aufgestellt wird: Bild, Breite und Platzbedarf
+const pdef = () => platzieren.gebaeude ? GEBAEUDE[platzieren.gebaeude] : BAUTEN[platzieren.typ];
+function gebaeudeUmstellen(key) {
+  schliessen();
+  platzieren = { gebaeude: key, index: null, x: null, y: null };
+  const G = GEBAEUDE[key];
+  geist.innerHTML = `<img src="${bildUrl(G.bild)}" alt="">`; geist.style.width = G.breite + "px";
+  dinge.get(key)?.el.classList.add("weg");
+  const q = gpos(key); geistSetzen(q.x, q.y - hoehe(G.bild, G.breite) * .35);
+  $("#platzleiste").hidden = false; $("#bearbeitleiste").hidden = true; welt.appendChild(geist); geist.hidden = false;
+}
 function platzierenStart(typ, index = null) {
   schliessen();
   platzieren = { typ, index, x: null, y: null };
@@ -970,14 +1025,14 @@ function platzierenStart(typ, index = null) {
   if (index !== null) dinge.get("bau" + index).el.classList.add("weg");
   const mitte = zuWelt(innerWidth / 2, innerHeight / 2);
   geistSetzen(mitte.x, mitte.y);
-  $("#platzleiste").hidden = false;
+  $("#platzleiste").hidden = false; $("#bearbeitleiste").hidden = true;
   welt.appendChild(geist); geist.hidden = false;
 }
 function hindernisse() {
   const h = [];
   S.felder.forEach((_, i) => h.push({ x: FELDPLAETZE[i].x, y: FELDPLAETZE[i].y - 55, r: 85 }));
   if (S.felder.length < FELDPLAETZE.length) { const p = FELDPLAETZE[S.felder.length]; h.push({ x: p.x, y: p.y - 55, r: 85 }); }
-  for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r) h.push({ x: g.x, y: g.y - g.r * .5, r: g.r });
+  for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r && !(platzieren && platzieren.gebaeude === k)) { const q = gpos(k); h.push({ x: q.x, y: q.y - g.r * .5, r: g.r }); }
   for (const w of Object.values(WEIDEN)) h.push({ x: w.x, y: w.y + 10, r: Math.max(w.rx, w.ry * 1.6) * .85 });
   for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) h.push({ x: z.x, y: z.y, r: Math.max(z.rx, z.ry) * 1.05 });
   h.push({ x: TOUR.x, y: TOUR.y - 40, r: 80 });
@@ -985,26 +1040,27 @@ function hindernisse() {
   return h;
 }
 function platzFrei(x, y, typ) {
-  const B = BAUTEN[typ];
+  const B = typ && typeof typ === "object" ? typ : BAUTEN[typ];
   if (x < 60 || x > WELT.b - 60 || y < 120 || y > WELT.h - 30) return false;
   if (((x - SEE.x) / (SEE.rx + 50)) ** 2 + ((y - SEE.y) / (SEE.ry + 40)) ** 2 < 1) return false; // See
   return hindernisse().every(o => Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
 }
 function geistSetzen(x, y) {
-  const B = BAUTEN[platzieren.typ];
+  const B = pdef();
   platzieren.x = Math.round(x); platzieren.y = Math.round(y + hoehe(B.bild, B.breite) * .35);
   const h = hoehe(B.bild, B.breite);
   geist.style.left = (platzieren.x - B.breite / 2) + "px"; geist.style.top = (platzieren.y - h) + "px";
   geist.style.height = h + "px"; geist.style.zIndex = 5000;
-  const ok = platzFrei(platzieren.x, platzieren.y, platzieren.typ);
+  const ok = platzFrei(platzieren.x, platzieren.y, pdef());
   geist.classList.toggle("schlecht", !ok);
   $("#platz-ok").disabled = !ok;
 }
 function geistBewegen(e) { if (e.pointerType === "mouse") { const p = zuWelt(e.clientX, e.clientY); geistSetzen(p.x, p.y); } }
 function platzierenEnde(ok) {
-  if (ok && platzieren && platzFrei(platzieren.x, platzieren.y, platzieren.typ)) {
-    const B = BAUTEN[platzieren.typ];
-    if (platzieren.index !== null) Object.assign(S.bauten[platzieren.index], { x: platzieren.x, y: platzieren.y });
+  if (ok && platzieren && platzFrei(platzieren.x, platzieren.y, pdef())) {
+    const B = pdef();
+    if (platzieren.gebaeude) { S.pos[platzieren.gebaeude] = { x: platzieren.x, y: platzieren.y }; meldung(`${B.name} umgestellt`); }
+    else if (platzieren.index !== null) Object.assign(S.bauten[platzieren.index], { x: platzieren.x, y: platzieren.y });
     else {
       if (S.muenzen < B.preis) return;
       if (B.insel) { if (!(S.dekoFrei[platzieren.typ] > 0)) return; S.dekoFrei[platzieren.typ]--; }
@@ -1015,8 +1071,10 @@ function platzierenEnde(ok) {
   }
   platzieren = null; geist.hidden = true; $("#platzleiste").hidden = true;
   weltAufbauen(); speichern(); aktualisieren();
+  if (bearbeiten) $("#bearbeitleiste").hidden = false;
 }
 $("#platz-ok").onclick = () => platzierenEnde(true);
+$("#bearbeit-fertig").onclick = () => bearbeitenAus();
 $("#platz-ab").onclick = () => platzierenEnde(false);
 
 /* ================= Fenster (unten) ================= */
@@ -1123,6 +1181,28 @@ host.addEventListener("click", e => {
   }
   if (a === "tonumschalten") { leben.tonUmschalten(); }
   if (a === "zummarkt") { marktPanel(); return; }
+  if (a === "abrissfrage") { abrissFrage = +b.dataset.i; fensterKey = ""; fensterZeichnen(); return; }
+  if (a === "abrissnein") { abrissFrage = null; fensterKey = ""; fensterZeichnen(); return; }
+  if (a === "abreissen") {
+    const i = +b.dataset.i, x = S.bauten[i]; if (!x) return;
+    const B = BAUTEN[x.typ];
+    if (B.insel) S.dekoFrei[x.typ] = (S.dekoFrei[x.typ] || 0) + 1; else S.muenzen += Math.floor(B.preis * ABRISS_ERSTATTUNG);
+    S.bauten.splice(i, 1); abrissFrage = null; schliessen(); weltAufbauen(); meldung(`${B.name} abgerissen`);
+  }
+  if (a === "hausausbau") {
+    const i = +b.dataset.i, x = S.bauten[i], B = BAUTEN[x.typ], st = x.stufe || 1, N = HAUS_STUFEN[st];
+    if (!N) return;
+    const preis = Math.round(B.preis * N.preis), wz = N.werkzeug || {};
+    if (S.level < N.level || S.muenzen < preis || !Object.entries(wz).every(([w, n]) => (S.werkzeug[w] || 0) >= n)) return;
+    const vorher = hausEinwohner(x);
+    S.muenzen -= preis; for (const [w, n] of Object.entries(wz)) S.werkzeug[w] -= n;
+    x.stufe = st + 1; erfahrung(6 * st); leben.ton("level");
+    meldung(`${B.name} auf Stufe ${x.stufe}: +${hausEinwohner(x) - vorher} Einwohner`);
+    weltAufbauen(); huepf(dinge.get("bau" + i));
+  }
+  if (a === "gebaeudeumstellen") { gebaeudeUmstellen(b.dataset.k); return; }
+  if (a === "gebaeudeoeffnen") { const k = b.dataset.k; schliessen(); gebaeudeTipp(k); return; }
+  if (a === "bearbeiten") { bearbeitenAn(); return; }
   if (a === "nachsaeen") {
     for (const g of letzteErnte) { const f = S.felder[g.i]; if (f && !f.p && S.level >= PFLANZEN[g.p].level) saeen(g.i, g.p); }
     letzteErnte = []; schliessen(); meldung("Alles wieder gesät!");
@@ -1292,6 +1372,7 @@ function neustartFragen() { oeffnen("neu", () => `
 function standUebernehmen(neu) {
   if (!neu || neu.v !== 1) return;
   if (platzieren) { platzieren = null; geist.hidden = true; $("#platzleiste").hidden = true; }
+  if (bearbeiten) bearbeitenAus();
   S = ergaenzen(neu);
   if (insel.aktiv) insel.verlassen();
   auftraegeAuffuellen(); lokalSichern();

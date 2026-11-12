@@ -463,3 +463,14 @@ FREISCHALTUNG[6] = [...(FREISCHALTUNG[6] || []), "Schweinestall: Schweine finden
 FREISCHALTUNG[7] = [...(FREISCHALTUNG[7] || []), "Ziegenstall mit Ziegenmilch", "Ziegenkäse und Joghurt in der Molkerei"];
 AUFTRAGS_WAREN[6] = [...(AUFTRAGS_WAREN[6] || []), "trueffel"];
 AUFTRAGS_WAREN[7] = [...(AUFTRAGS_WAREN[7] || []), "ziegenmilch", "ziegenkaese", "joghurt"];
+
+/* ================= Häuser ausbauen ================= */
+// Einwohner pro Stufe als Vielfaches der Grundzahl; Ausbau kostet Münzen (und ab Stufe 3 Werkzeug)
+export const HAUS_STUFEN = [
+  { faktor: 1 },
+  { faktor: 2,   level: 2, preis: 2.5 },
+  { faktor: 3.2, level: 4, preis: 5, werkzeug: { axt: 1, spitzhacke: 1 } },
+  { faktor: 4.6, level: 6, preis: 9, werkzeug: { axt: 2, spitzhacke: 2 } },
+  { faktor: 6.2, level: 8, preis: 14, werkzeug: { axt: 3, spitzhacke: 3, schaufel: 2 } },
+];
+export const ABRISS_ERSTATTUNG = .5;
