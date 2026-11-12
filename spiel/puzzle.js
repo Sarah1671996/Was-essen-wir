@@ -392,7 +392,7 @@ export function puzzleStarten(api) {
     s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
     const bekommen = {};
     for (let k = 0; k < lohn.werkzeuge; k++) { const w = Object.keys(WERKZEUGE)[Math.floor(Math.random() * 3)]; s.werkzeug[w]++; bekommen[w] = (bekommen[w] || 0) + 1; }
-    if (erstmals) { api.inselEreignis("puzzle"); if (s.insel) s.insel.punkte += lohn.punkte; P.level = nummer + 1; }
+    if (erstmals) { api.eventGeben?.(4); api.inselEreignis("puzzle"); if (s.insel) s.insel.punkte += lohn.punkte; P.level = nummer + 1; }
     P.gewonnen++;
     api.speichern();
     zeigeDialog(`<h2>Gewonnen!</h2><div class="pz-sterne">${[1, 2, 3].map(k => `<span class="${k <= sterne ? "an" : ""}">★</span>`).join("")}</div>

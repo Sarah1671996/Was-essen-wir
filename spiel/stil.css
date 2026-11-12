@@ -393,3 +393,27 @@ body.nacht .gebaeude .spr, body.nacht .haus .spr { filter: drop-shadow(0 0 10px 
 body.im-puzzle .zoomknoepfe { display: none; }
 #pz-karte.winter { background: #e6f0f8; }
 #pz-karte.winter .pz-stein.zu { background: radial-gradient(circle at 35% 30%, #f4f8fc, #b8c6d6); color: #5b6b80; box-shadow: 0 3px 0 #8495aa; }
+
+/* Schneeinsel */
+.reiseziele { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.reiseziel { border: 2px solid #f0dfbf; background: #fff; border-radius: 16px; padding: 6px 6px 10px; display: flex; flex-direction: column; gap: 4px; cursor: pointer; text-align: center; }
+.reiseziel img { width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: 12px; }
+.reiseziel b { font-size: 16px; } .reiseziel small { color: #8a6a45; font-size: 13px; }
+.reiseziel:disabled { cursor: default; } .reiseziel:disabled img { filter: grayscale(.7) brightness(.9); }
+
+/* Jahreszeiten-Event */
+#anz-event { position: relative; cursor: pointer; }
+.fundstueck .spr { animation: wippen 1.3s ease-in-out infinite; filter: drop-shadow(0 0 8px rgba(255, 250, 200, .95)); }
+.fundstueck { z-index: 4600 !important; }
+.float-event { position: fixed; z-index: 600; transform: translateX(-50%); display: flex; align-items: center; gap: 4px; pointer-events: none;
+  font-weight: 700; font-size: 22px; color: #fff; text-shadow: 0 2px 0 var(--tinte); animation: steigen 1.3s ease-out forwards; }
+.float-event img { width: 34px; height: 34px; }
+.event-kopf { display: flex; gap: 12px; align-items: center; background: #fff; border: 2px solid #f0dfbf; border-radius: 16px; padding: 8px 12px; margin-bottom: 10px; }
+.event-kopf .ic.riesig { width: 72px; height: 72px; flex: none; }
+.event-kopf p { margin: 2px 0; }
+@media (max-width: 480px) { #anz-event { padding-right: 8px; } #anz-event img { width: 24px; height: 24px; } }
+body.schnee .ding.fern .spr { filter: saturate(.55) brightness(.97) opacity(.8); }
+@media (max-width: 480px) {
+  .hud-rechts { gap: 4px; } .pille { padding: 2px 9px 2px 3px; } .pille.rund { width: 38px; height: 38px; }
+  .schritt { top: calc(108px + env(safe-area-inset-top, 0px)); }
+}

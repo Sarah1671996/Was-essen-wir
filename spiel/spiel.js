@@ -4,6 +4,7 @@ import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
+  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -320,6 +321,8 @@ function weltAufbauen() {
     neuesDing("bewohner-" + k, B.bild, B.x, B.y, 64, { cls: "bewohner", tipp: () => bewohnerPanel(k),
       upd: d => { const w = wunsch(k); overlay(d, w && w.ab <= jetzt() ? blase(`<img class="ic mittel" src="${bildUrl("i-herz")}" alt="Wunsch">`, -44) : ""); } });
   }
+  // Fundstücke des Jahreszeiten-Events
+  setTimeout(fundstueckeZeigen, 0);
   // Lieferwagen, solange ein Eilauftrag läuft
   neuesDing("lieferwagen", "lieferwagen", 1090, 905, 120, { cls: "lieferwagen", tipp: () => auftragsPanel(),
     upd: d => { d.el.hidden = !eilAktiv(); } });
@@ -421,6 +424,7 @@ function feldTipp(i) {
     const P = PFLANZEN[f.p];
     if (!geben(f.p, P.ertrag)) return;
     fliegt(d, f.p, P.ertrag); erfahrung(P.xp); ereignis("ernte");
+    if (Math.random() < EVENT_QUELLEN.ernteChance) eventGeben(1, d);
     f.p = null; f.t = 0; huepf(d);
   } else if (f.p) {
     meldung(`${WAREN[f.p].name} wächst noch ${dauer(f.t - jetzt())}`); return;
@@ -491,9 +495,11 @@ function gebaeudeTipp(key) {
   else if (key === "schafweide") stallPanel("schaf");
   else if (key === "steg") oeffnen("steg", () => `
     <div class="kopf"><h2>Steg zur Insel</h2>${zu()}</div>
-    <div class="insel-vorschau"><img src="${bildUrl("insel")}" alt="Die Abenteuerinsel"></div>
-    <p>Mit dem Boot geht es zur Abenteuerinsel: Wege freiräumen, Schätze finden, Brücken reparieren und Quests erfüllen.</p>
-    <button class="los" data-aktion="zurinsel" ${S.level >= 2 ? "" : "disabled"}>${S.level >= 2 ? "Losfahren" : "Ab Level 2"}</button>`);
+    <p>Mit dem Boot geht es auf Entdeckungsreise: Wege freiräumen, Schätze finden, Brücken reparieren und Quests erfüllen.</p>
+    <div class="reiseziele">
+      <button class="reiseziel" data-aktion="zurinsel" data-w="sommer" ${S.level >= 2 ? "" : "disabled"}><img src="${bildUrl("insel")}" alt=""><b>Abenteuerinsel</b><small>${S.level >= 2 ? "Losfahren" : "ab Level 2"}</small></button>
+      <button class="reiseziel" data-aktion="zurinsel" data-w="winter" ${S.level >= 8 ? "" : "disabled"}><img src="${bildUrl("schneeinsel")}" alt=""><b>Schneeinsel</b><small>${S.level >= 8 ? "Losfahren · wertvollere Schätze" : "🔒 ab Level 8"}</small></button>
+    </div>`);
 }
 function abholen(key) {
   const F = S.fabrik[key], e = F.fertig[0];
@@ -647,6 +653,67 @@ function lohnGeben(L) {
   for (let k = 0; k < (L.werkzeug || 0); k++) { const w = wahl(Object.keys(WERKZEUGE)); S.werkzeug[w]++; erhalten.push(WERKZEUGE[w].name); }
   if (L.helfer) for (const [h, n] of Object.entries(L.helfer)) S.helfer[h] = (S.helfer[h] || 0) + n;
   return erhalten;
+}
+
+/* ---------- Jahreszeiten-Event ---------- */
+function eventJetzt() {
+  const d = new Date(), m = d.getMonth() + 1;
+  const [key, E] = Object.entries(EVENTS).find(([, e]) => e.monate.includes(m));
+  const jahr = m <= 2 ? d.getFullYear() - 1 : d.getFullYear();
+  const letzterMonat = E.monate[2], endJahr = letzterMonat < m ? d.getFullYear() + 1 : d.getFullYear();
+  const ende = new Date(endJahr, letzterMonat, 1).getTime();
+  return { id: `${key}-${jahr}`, key, E, ende };
+}
+function eventStand() {
+  const J = eventJetzt();
+  if (!S.event || S.event.id !== J.id) S.event = { id: J.id, menge: 0, stufe: 0, liegen: [], naechstes: jetzt() + 30000 };
+  return S.event;
+}
+function eventGeben(n, d) {
+  if (!n) return;
+  const ev = eventStand(), J = eventJetzt();
+  ev.menge += n;
+  if (d) {
+    const f = document.createElement("div"); f.className = "float-event";
+    f.innerHTML = `<img src="${bildUrl(J.E.token)}" alt=""><b>+${n}</b>`;
+    const r = d.el.getBoundingClientRect(); f.style.left = (r.left + r.width / 2) + "px"; f.style.top = (r.top + r.height * .2) + "px";
+    document.body.appendChild(f); setTimeout(() => f.remove(), 1300);
+  }
+  speichern();
+}
+function fundstueckePruefen() {
+  const ev = eventStand();
+  if (ev.liegen.length >= FUNDSTUECK.max || ev.naechstes > jetzt()) return;
+  for (let k = 0; k < 40; k++) {
+    const x = 150 + Math.random() * (WELT.b - 300), y = 200 + Math.random() * (WELT.h - 300);
+    if (!platzFrei(x, y, "busch")) continue;
+    ev.liegen.push({ x: Math.round(x), y: Math.round(y) }); ev.naechstes = jetzt() + FUNDSTUECK.minuten * 60000;
+    fundstueckeZeigen(); speichern(); return;
+  }
+}
+function fundstueckeZeigen() {
+  for (const id of [...dinge.keys()]) if (id.startsWith("fund-")) { dinge.get(id).el.remove(); dinge.delete(id); }
+  const ev = eventStand(), J = eventJetzt();
+  ev.liegen.forEach((p, i) => {
+    const d = neuesDing("fund-" + i, J.E.token, p.x, p.y, 54, { cls: "fundstueck", tipp: () => {
+      ev.liegen.splice(i, 1); eventGeben(EVENT_QUELLEN.fundstueck, d); leben.ton("muenze"); fundstueckeZeigen(); aktualisieren();
+    } });
+  });
+}
+function eventPanel() {
+  oeffnen("event", () => {
+    const ev = eventStand(), J = eventJetzt(), tage = Math.max(1, Math.ceil((J.ende - jetzt()) / 864e5));
+    const tok = c => `<img class="ic ${c}" src="${bildUrl(J.E.token)}" alt="${J.E.mehrzahl}">`;
+    return `<div class="kopf"><h2>${J.E.name}</h2>${zu()}</div>
+      <div class="event-kopf">${tok("riesig")}<div><p>${J.E.text}</p><p><b>${ev.menge} ${J.E.mehrzahl}</b> gesammelt · noch ${tage} ${tage === 1 ? "Tag" : "Tage"}</p></div></div>
+      <div class="pfad">${EVENT_STUFEN.map((St, k) => {
+        const geholt = k < ev.stufe, bereit = k === ev.stufe && ev.menge >= St.n;
+        return `<div class="stufe ${geholt ? "geholt" : bereit ? "bereit" : ""}">
+          <span class="stufenpunkte">${tok("klein")} ${St.n}</span><span class="stufenlohn">${lohnText(St)}</span>
+          ${geholt ? `<span class="haken">✓</span>` : `<button class="los" data-aktion="eventholen" ${bereit ? "" : "disabled"}>Holen</button>`}</div>`;
+      }).join("")}</div>
+      <p class="hinweis">${J.E.mehrzahl} bekommst du beim Ernten, für Aufträge und Eilaufträge, für Wünsche der Bewohner, im Puzzle, in Schatztruhen auf den Inseln, in der Tagesbelohnung und wenn du sie auf dem Hof findest.</p>`;
+  });
 }
 
 /* ---------- Bewohner ---------- */
@@ -854,7 +921,7 @@ host.addEventListener("click", e => {
     if (A.werkzeug) { S.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 }; S.werkzeug[A.werkzeug]++; }
     insel.ereignis("auftrag");
     S.auftraege[i] = { ...neuerAuftrag(), ab: t + 8000 };
-    fliegtMuenzen(dinge.get("tafel")); ereignis("liefern");
+    fliegtMuenzen(dinge.get("tafel")); ereignis("liefern"); eventGeben(EVENT_QUELLEN.auftrag, dinge.get("tafel"));
   }
   if (a === "ausbauen") {
     const key = b.dataset.k, st = stufe(key), istStall = !FABRIKEN[key];
@@ -881,7 +948,7 @@ host.addEventListener("click", e => {
     nehmen(A.waren); S.muenzen += A.muenzen; erfahrung(A.xp);
     S.helfer[A.helfer] = (S.helfer[A.helfer] || 0) + 1; lohnGeben({ werkzeug: A.werkzeug });
     S.eil = { naechster: t + EIL.pauseMin * 60000 };
-    insel.ereignis("auftrag"); fliegtMuenzen(dinge.get("tafel"));
+    insel.ereignis("auftrag"); fliegtMuenzen(dinge.get("tafel")); eventGeben(EVENT_QUELLEN.eil, dinge.get("tafel"));
     meldung(`Eilauftrag geschafft! +${A.muenzen} Münzen, ein ${HELFER[A.helfer].name} und Werkzeuge`);
   }
   if (a === "tagholen") {
@@ -889,11 +956,17 @@ host.addEventListener("click", e => {
     const i = tagIndex(), L = TAGESLOHN[i];
     const w = lohnGeben(L);
     S.tag = { zuletzt: heute(), serie: i + 1 };
+    eventGeben(EVENT_QUELLEN.tag);
     leben.ton("muenze");
     meldung(`Tag ${i + 1}: ${[L.muenzen ? L.muenzen + " Münzen" : "", ...w, ...Object.entries(L.helfer || {}).map(([h, n]) => `${n} ${HELFER[h].name}`)].filter(Boolean).join(", ")}`);
     $("#tag-zahl").hidden = true;
   }
   if (a === "tonumschalten") { leben.tonUmschalten(); }
+  if (a === "eventholen") {
+    const ev = eventStand(), St = EVENT_STUFEN[ev.stufe];
+    if (!St || ev.menge < St.n) return;
+    lohnGeben(St); ev.stufe++; leben.ton("level"); meldung("Event-Belohnung abgeholt!");
+  }
   if (a === "wunsch") {
     const k = b.dataset.k, B = BEWOHNER[k], st = S.bewohner[k], w = st?.w;
     if (!w || w.ab > t || !hat(w.waren)) return;
@@ -903,13 +976,13 @@ host.addEventListener("click", e => {
       lohnGeben({ muenzen: B.lohn.muenzen, werkzeug: B.lohn.werkzeug, helfer: B.lohn.helfer ? { [B.lohn.helfer]: 1 } : null });
     }
     st.w = null; wunsch(k); st.w.ab = t + BEWOHNER_PAUSE_MIN * 60000;
-    huepf(dinge.get("bewohner-" + k)); leben.ton("level");
+    huepf(dinge.get("bewohner-" + k)); leben.ton("level"); eventGeben(EVENT_QUELLEN.wunsch, dinge.get("bewohner-" + k));
     meldung(`${B.name} freut sich riesig! Freundschaft: ${st.herzen} von ${HERZ_MAX} Herzen`);
   }
   if (a === "ablehnen") { const i = +b.dataset.i; S.auftraege[i] = { ...neuerAuftrag(), ab: t + 20000 }; }
   if (a === "scheuneausbauen") { const p = SCHEUNE.preis(S.scheuneLvl); if (S.muenzen >= p) { S.muenzen -= p; S.scheuneLvl++; erfahrung(5); } }
   if (a === "platzieren") { platzierenStart(b.dataset.t); return; }
-  if (a === "zurinsel") { insel.betreten(); return; }
+  if (a === "zurinsel") { insel.betreten(b.dataset.w); return; }
   if (a === "verschieben") { platzierenStart(S.bauten[+b.dataset.i].typ, +b.dataset.i); return; }
   speichern(); aktualisieren();
 });
@@ -980,6 +1053,9 @@ function aktualisieren() {
   eilPruefen();
   const bd = $("#auftrag-zahl"); bd.hidden = !n && !eilAktiv(); bd.textContent = eilAktiv() && !n ? "⏰" : n;
   $("#tag-zahl").hidden = !tagOffen();
+  { const ev = eventStand(), J = eventJetzt(), St = EVENT_STUFEN[ev.stufe];
+    $("#anz-event img").src = bildUrl(J.E.token); $("#anz-event b").textContent = ev.menge;
+    $("#event-zahl").hidden = !(St && ev.menge >= St.n); fundstueckePruefen(); }
   for (const d of dinge.values()) d.upd(d);
   insel.aktualisieren();
   fensterZeichnen();
@@ -991,13 +1067,13 @@ const leben = lebenStarten({ welt, WELT });
 /* ================= Insel ================= */
 const insel = inselStarten({
   S: () => S, speichern, meldung, oeffnen, schliessen, zu, icon, muenze, bildUrl, hoehe, hat, nehmen, dauer, aktualisieren,
-  helferIcon: (h, c) => helferIcon(h, c),
+  helferIcon: (h, c) => helferIcon(h, c), eventGeben: (n, d) => eventGeben(n, d),
 });
 
 /* ================= Puzzle ================= */
 const puzzle = puzzleStarten({
   S: () => S, speichern, meldung, schliessen, bildUrl, muenze, aktualisieren, inselEreignis: t => insel.ereignis(t),
-  helferIcon, ton: (a, n) => leben.ton(a, n),
+  helferIcon, ton: (a, n) => leben.ton(a, n), eventGeben: n => eventGeben(n),
 });
 $("#knopf-puzzle").onclick = () => puzzle.oeffnen();
 $("#knopf-puzzle2").onclick = () => puzzle.oeffnen();
@@ -1029,6 +1105,7 @@ function standUebernehmen(neu) {
 sync = syncStarten({ getS: () => S, setS: standUebernehmen, meldung, oeffnen, zu, schliessen, neustartFragen,
   zusatz: () => `<h3>Töne</h3><button class="los zweit" data-aktion="tonumschalten">${leben.tonAn() ? "🔊 Töne sind an · ausschalten" : "🔇 Töne sind aus · einschalten"}</button>` });
 $("#knopf-tag").onclick = () => tagesPanel();
+$("#anz-event").onclick = () => eventPanel();
 $("#knopf-neu").onclick = () => sync.panel();
 host.addEventListener("click", e => {
   if (e.target.closest("[data-aktion='neustart']")) { S = ergaenzen(neuerStand()); if (insel.aktiv) insel.verlassen(); auftraegeAuffuellen(); try { localStorage.removeItem(SPEICHER); } catch {} schliessen(); weltAufbauen(); zeichneSchritt(); aktualisieren(); speichern(); }

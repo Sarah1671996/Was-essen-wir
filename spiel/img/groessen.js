@@ -74,6 +74,8 @@ export const GROESSE = {
   "schaf": [220, 220],
   "schaufel": [128, 131],
   "scheune": [500, 495],
+  "schneehaufen": [260, 194],
+  "schneeinsel": [1800, 982],
   "schneiderei": [400, 422],
   "spitzhacke": [128, 126],
   "steg": [560, 483],

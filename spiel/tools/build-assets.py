@@ -70,6 +70,8 @@ BILDER = {
     "puzzle-weg": ("100-puzzle-weg.jpg", 1116, "bild"),
     "puzzle-weg-winter": ("101-puzzle-weg-winter.jpg", 1116, "bild"),
     "eisbusch": ("98-gefrorener-busch.jpg", 260, "pink"),
+    "schneehaufen": ("97-schneehaufen.jpg", 260, "pink"),
+    "schneeinsel": ("96-schneeinsel.jpg", 1800, "bild"),
 }
 
 # Sammelbilder: Datei, Namen der Teile (Reihenfolge zeilenweise), Breite
