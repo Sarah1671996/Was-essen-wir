@@ -572,3 +572,28 @@ export const EVENT_AUFGABEN_AKTIV = 3;
 // Nach der letzten festen Stufe: alle so viele Teile eine Bonusstufe
 export const EVENT_BONUS_ABSTAND = 60;
 export const eventBonusLohn = b => ({ muenzen: 300 + 150 * b, werkzeug: 3 + b, helfer: { [["hammer", "besen", "regenbogen"][b % 3]]: 1 + Math.floor(b / 3) } });
+
+/* ================= Ausbau bis Level 100 ================= */
+// Fabriken und Ställe bis Stufe 10; ab Stufe 4 braucht jede Stufe ein Mindestlevel
+AUSBAU.maxStufe = 10;
+AUSBAU.stufeLevel = st => [0, 0, 0, 0, 18, 26, 34, 45, 58, 72, 88][st] || 0;
+AUSBAU.plaetze = st => Math.min(8, 2 + st);
+AUSBAU.tempo = st => st <= 3 ? 1 - (st - 1) * 0.15 : Math.max(.42, .7 - (st - 3) * .04);
+AUSBAU.fabrikPreis = st => st < 3 ? 150 * st : 200 * st * st;
+AUSBAU.fabrikWerkzeug = st => st < 3 ? st : st + 2;
+AUSBAU.stallPreis = st => st < 3 ? 120 * st : 150 * st * st;
+// Häuser bis Stufe 10
+HAUS_STUFEN.push(
+  { faktor: 8,    level: 30, preis: 20, werkzeug: { axt: 3, spitzhacke: 3, schaufel: 3 } },
+  { faktor: 10,   level: 45, preis: 28, werkzeug: { axt: 4, spitzhacke: 4, schaufel: 3 } },
+  { faktor: 12.5, level: 60, preis: 38, werkzeug: { axt: 5, spitzhacke: 5, schaufel: 4 } },
+  { faktor: 15,   level: 75, preis: 50, werkzeug: { axt: 6, spitzhacke: 6, schaufel: 5 } },
+  { faktor: 18,   level: 90, preis: 65, werkzeug: { axt: 8, spitzhacke: 8, schaufel: 6 } },
+);
+// Mehr Felder mit steigendem Level: ab Level 20 alle 4 Level eins mehr, bis 70
+export const felderMax = level => Math.min(70, 40 + Math.max(0, Math.floor((level - 20) / 4)));
+// Freischaltungen der höheren Level für die Level-Anzeige
+for (const [st, lv] of [[4, 18], [5, 26], [6, 34], [7, 45], [8, 58], [9, 72], [10, 88]])
+  FREISCHALTUNG[lv] = [...(FREISCHALTUNG[lv] || []), `Fabriken und Ställe: Ausbau auf Stufe ${st}`];
+for (const [i, H] of HAUS_STUFEN.entries()) if (i >= 5) FREISCHALTUNG[H.level] = [...(FREISCHALTUNG[H.level] || []), `Häuser: Ausbau auf Stufe ${i + 1}`];
+for (let lv = 24; lv <= 100; lv += 4) FREISCHALTUNG[lv] = [...(FREISCHALTUNG[lv] || []), "Ein weiteres Feld"];
