@@ -61,6 +61,8 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Lieferwagen-Touren** ab Level 3: 6 Kisten füllen und losschicken, Bonus bei vollen Kisten, nach 45 Minuten neue Bestellungen
 - Aufträge, Wünsche, Markt und Lieferwagen fragen nur nach Waren, die man schon herstellen kann
 
+- **Schweine** (Schweinestall ab Level 6) finden Trüffel, **Ziegen** (Ziegenstall ab Level 7) geben Ziegenmilch; die Molkerei macht daraus Ziegenkäse und Joghurt
+
 ## Paket C: Schneeinsel und Jahreszeiten-Events
 
 - **Schneeinsel** ab Level 8 (über den Steg wählbar): eigene Karte, Eisbüsche (Axt), Schneehaufen (Schaufel), Eisfelsen (Spitzhacke), wertvollere Truhen, eigene Quests; Punkte und Belohnungspfad teilen sich beide Inseln

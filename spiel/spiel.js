@@ -55,7 +55,8 @@ function ergaenzen(s) {
   s.dekoFrei ??= {}; s.helfer ??= { ...START_HELFER }; s.ausbau ??= {}; s.dickicht ??= [];
   s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
   s.tag ??= { zuletzt: "", serie: 0 };
-  s.bewohner ??= {}; s.zaehler ??= {}; s.erfolge ??= {};
+  s.bewohner ??= {};
+  for (const k of Object.keys(TIERE)) s.tiere[k] ??= []; s.zaehler ??= {}; s.erfolge ??= {};
   // Deko, die auf einem neuen Bauplatz steht, ein Stück zur Seite rücken
   for (const [k, g] of Object.entries(GEBAEUDE)) {
     if (!g.r || s.gebaut[k]) continue;
@@ -487,8 +488,8 @@ function gebaeudeUpd(key, d) {
   } else if (key === "tafel") {
     const n = S.auftraege.filter(a => a.ab <= jetzt() && hat(a.waren)).length;
     overlay(d, eilAktiv() ? blase(`<b class="zahl eil">⏰</b>`, -30) : n ? blase(`<b class="zahl">${n}</b>`, -30) : "");
-  } else if (key === "kuhstall" || key === "huehnerstall") {
-    const art = key === "kuhstall" ? "kuh" : "huhn";
+  } else if (Object.values(TIERE).some(T => T.stall === key) && key !== "schafweide") {
+    const art = Object.keys(TIERE).find(k => TIERE[k].stall === key);
     const fertig = S.tiere[art].filter(t => t.t !== null && t.t <= jetzt()).length;
     overlay(d, fertig ? blase(icon(TIERE[art].ware, "ic mittel"), -10) : "");
   }
@@ -507,9 +508,7 @@ function gebaeudeTipp(key) {
     fabrikPanel(key);
   } else if (key === "tafel") auftragsPanel();
   else if (key === "scheune") lagerPanel();
-  else if (key === "kuhstall") stallPanel("kuh");
-  else if (key === "huehnerstall") stallPanel("huhn");
-  else if (key === "schafweide") stallPanel("schaf");
+  else if (Object.values(TIERE).some(T => T.stall === key)) stallPanel(Object.keys(TIERE).find(k => TIERE[k].stall === key));
   else if (key === "steg") oeffnen("steg", () => `
     <div class="kopf"><h2>Steg zur Insel</h2>${zu()}</div>
     <p>Mit dem Boot geht es auf Entdeckungsreise: Wege freiräumen, Schätze finden, Brücken reparieren und Quests erfüllen.</p>
@@ -569,7 +568,7 @@ function stallPanel(art) {
     const hungrig = liste.filter(t => t.t === null).length, fertig = liste.filter(t => t.t !== null && t.t <= jetzt()).length;
     const max = tierMax(art);
     return `<div class="kopf"><h2>${GEBAEUDE[T.stall].name} <small class="stufe-tag">Stufe ${stufe(T.stall)}</small></h2>${zu()}</div>
-      <p>${liste.length} ${liste.length === 1 ? T.name : T.name === "Schaf" ? "Schafe" : T.name === "Kuh" ? "Kühe" : "Hühner"} · 1 ${icon("futter", "ic klein")} ergibt 1 ${icon(T.ware, "ic klein")} in ${dauer(T.zeit * 1000)}</p>
+      <p>${liste.length} ${liste.length === 1 ? T.name : T.mehrzahl} · 1 ${icon("futter", "ic klein")} ergibt 1 ${icon(T.ware, "ic klein")} in ${dauer(T.zeit * 1000)}</p>
       <div class="knoepfe">
         <button class="los" data-aktion="allefuettern" data-a="${art}" ${hungrig && S.lager.futter ? "" : "disabled"}>Alle füttern (${hungrig})</button>
         <button class="los" data-aktion="allesammeln" data-a="${art}" ${fertig ? "" : "disabled"}>Alles einsammeln (${fertig})</button>
@@ -1071,8 +1070,7 @@ host.addEventListener("click", e => {
     if (S.muenzen >= g.preis && S.level >= g.level && einwohner() >= g.einwohner) {
       S.muenzen -= g.preis; S.gebaut[key] = 1; erfahrung(10);
       if (FABRIKEN[key]) S.fabrik[key] = { q: [], fertig: [] };
-      if (key === "huehnerstall") S.tiere.huhn = [{ t: null }, { t: null }];
-      if (key === "schafweide") S.tiere.schaf = [{ t: null }, { t: null }];
+      for (const [art, T] of Object.entries(TIERE)) if (T.stall === key && !S.tiere[art]?.length) S.tiere[art] = [{ t: null }, { t: null }];
       schliessen(); weltAufbauen(); meldung(`${g.name} ist fertig!`);
     }
   }

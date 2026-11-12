@@ -72,6 +72,10 @@ BILDER = {
     "eisbusch": ("98-gefrorener-busch.jpg", 260, "pink"),
     "schneehaufen": ("97-schneehaufen.jpg", 260, "pink"),
     "schneeinsel": ("96-schneeinsel.jpg", 1800, "bild"),
+    "schwein": ("102-schwein.jpg", 200, "frei"),
+    "ziege": ("103-ziege.jpg", 200, "frei"),
+    "schweinestall": ("104-schweinestall.jpg", 420, "frei"),
+    "ziegenstall": ("105-ziegenstall.jpg", 420, "frei"),
 }
 
 # Sammelbilder: Datei, Namen der Teile (Reihenfolge zeilenweise), Breite
@@ -81,6 +85,7 @@ SAMMEL = [
     ("50-55-steine-sammelbild.jpg", ["stein-rot", "stein-blau", "stein-gruen", "stein-gelb", "stein-lila", "stein-orange"], 128),
     ("56-59-puzzle-extras-sammelbild.jpg", ["rakete", "bombe", "kiste", "eis"], 128),
     ("80-87-waren-sammelbild.jpg", ["i-saft", "i-suppe", "i-pullover", "i-muetze", "i-kuchen", "i-kekse", "i-honig", "i-apfel"], 128),
+    ("106-109-tierwaren-sammelbild.jpg", ["i-trueffel", "i-ziegenmilch", "i-ziegenkaese", "i-joghurt"], 128),
     ("88-95-helfer-sammelbild.jpg", ["i-hammer", "i-besen", "i-regenbogen", "i-geschenk", "i-herz", "i-kuerbis", "i-schneeflocke", "i-osterei"], 128),
 ]
 
