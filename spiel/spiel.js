@@ -4,7 +4,7 @@ import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
-  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK,
+  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -55,7 +55,7 @@ function ergaenzen(s) {
   s.dekoFrei ??= {}; s.helfer ??= { ...START_HELFER }; s.ausbau ??= {}; s.dickicht ??= [];
   s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
   s.tag ??= { zuletzt: "", serie: 0 };
-  s.bewohner ??= {};
+  s.bewohner ??= {}; s.zaehler ??= {}; s.erfolge ??= {};
   // Deko, die auf einem neuen Bauplatz steht, ein Stück zur Seite rücken
   for (const [k, g] of Object.entries(GEBAEUDE)) {
     if (!g.r || s.gebaut[k]) continue;
@@ -91,6 +91,7 @@ function geben(ware, n) {
 }
 
 /* ================= Fortschritt ================= */
+function zaehle(k, n = 1) { S.zaehler[k] = (S.zaehler[k] || 0) + n; }
 function erfahrung(n) {
   S.xp += n;
   while (S.xp >= xpFuer(S.level)) { S.xp -= xpFuer(S.level); S.level++; levelAuf(); }
@@ -105,10 +106,21 @@ function ereignis(name) {
 }
 
 /* ================= Aufträge ================= */
+// Kann die Ware gerade hergestellt werden (Level erreicht und Gebäude/Baum vorhanden)?
+function herstellbar(w) {
+  if (PFLANZEN[w]) return S.level >= PFLANZEN[w].level;
+  for (const T of Object.values(TIERE)) if (T.ware === w) return !!(S.gebaut[T.stall] && S.tiere[TIERE_ART(T)]?.length);
+  if (w === "apfel") return S.level >= APFEL.level && S.bauten.some(b => b.typ === "apfelbaum");
+  for (const [k, F] of Object.entries(FABRIKEN)) for (const R of F.rezepte)
+    if (R.ware === w && S.gebaut[k] && S.level >= R.level && Object.keys(R.zutaten).every(herstellbar)) return true;
+  return false;
+}
+const TIERE_ART = T => Object.keys(TIERE).find(k => TIERE[k] === T);
 function verfuegbareWaren() {
   const w = [];
   for (let l = 1; l <= S.level; l++) w.push(...(AUFTRAGS_WAREN[l] || []));
-  return w;
+  const ok = w.filter(herstellbar);
+  return ok.length ? ok : w;
 }
 function neuerAuftrag() {
   const pool = verfuegbareWaren().sort(() => Math.random() - .5);
@@ -321,6 +333,11 @@ function weltAufbauen() {
     neuesDing("bewohner-" + k, B.bild, B.x, B.y, 64, { cls: "bewohner", tipp: () => bewohnerPanel(k),
       upd: d => { const w = wunsch(k); overlay(d, w && w.ab <= jetzt() ? blase(`<img class="ic mittel" src="${bildUrl("i-herz")}" alt="Wunsch">`, -44) : ""); } });
   }
+  // Lieferwagen für Touren
+  if (S.level >= TOUR.level) neuesDing("tour", "lieferwagen", TOUR.x, TOUR.y, TOUR.breite, { cls: "gebaeude", tipp: () => tourPanel(),
+    upd: d => { const T = tourStand(); d.el.classList.toggle("weg", !!T.unterwegs);
+      const n = T.kisten.filter(k => !k.voll && (S.lager[k.w] || 0) >= k.n).length;
+      overlay(d, T.unterwegs ? uhr(T.unterwegs - jetzt(), TOUR.fahrtMin * 60, -10) : n ? blase(`<b class="zahl">${n}</b>`, -30) : ""); } });
   // Fundstücke des Jahreszeiten-Events
   setTimeout(fundstueckeZeigen, 0);
   // Lieferwagen, solange ein Eilauftrag läuft
@@ -411,7 +428,7 @@ function tierTipp(art, i, d) {
     meldung(`${T.name}: noch ${dauer(t.t - jetzt())}`);
   } else {
     if (!geben(T.ware, 1)) return;
-    t.t = null; erfahrung(T.xp); huepf(d); fliegt(d, T.ware, 1); ereignis("sammeln");
+    t.t = null; erfahrung(T.xp); huepf(d); fliegt(d, T.ware, 1); ereignis("sammeln"); zaehle("tiere");
   }
   speichern(); aktualisieren();
 }
@@ -423,7 +440,7 @@ function feldTipp(i) {
   if (f.p && f.t <= jetzt()) {
     const P = PFLANZEN[f.p];
     if (!geben(f.p, P.ertrag)) return;
-    fliegt(d, f.p, P.ertrag); erfahrung(P.xp); ereignis("ernte");
+    fliegt(d, f.p, P.ertrag); erfahrung(P.xp); ereignis("ernte"); zaehle("ernte");
     if (Math.random() < EVENT_QUELLEN.ernteChance) eventGeben(1, d);
     f.p = null; f.t = 0; huepf(d);
   } else if (f.p) {
@@ -504,7 +521,7 @@ function gebaeudeTipp(key) {
 function abholen(key) {
   const F = S.fabrik[key], e = F.fertig[0];
   if (!geben(e.ware, e.menge)) return;
-  F.fertig.shift(); erfahrung(e.xp); fliegt(dinge.get(key), e.ware, e.menge); huepf(dinge.get(key));
+  F.fertig.shift(); erfahrung(e.xp); zaehle("fabrik"); fliegt(dinge.get(key), e.ware, e.menge); huepf(dinge.get(key));
   speichern(); aktualisieren();
 }
 function fabrikPanel(key) {
@@ -655,6 +672,149 @@ function lohnGeben(L) {
   return erhalten;
 }
 
+/* ---------- 1: Woher kommt eine Ware? ---------- */
+function herkunft(w) {
+  const t = [];
+  if (PFLANZEN[w]) t.push(`auf einem Feld säen${PFLANZEN[w].level > 1 ? ` (ab Level ${PFLANZEN[w].level})` : ""}, wächst ${dauer(PFLANZEN[w].zeit * 1000)}`);
+  for (const [k, T] of Object.entries(TIERE)) if (T.ware === w) t.push(`${T.name} mit Futter füttern (${GEBAEUDE[T.stall].name}${GEBAEUDE[T.stall].level ? `, ab Level ${GEBAEUDE[T.stall].level}` : ""})`);
+  if (w === "apfel") t.push(`von Apfelbäumen ernten (im Bauen-Menü, tragen ab Level ${APFEL.level})`);
+  for (const [k, F] of Object.entries(FABRIKEN)) for (const R of F.rezepte) if (R.ware === w) {
+    t.push(`${F.name}: ${Object.entries(R.zutaten).map(([z, n]) => `${n} ${WAREN[z].name}`).join(" + ")}${R.level > 1 ? ` (ab Level ${R.level})` : ""}`); break;
+  }
+  return `${WAREN[w].name}: ${t.join(" · ") || "unbekannt"}`;
+}
+// Fehlende Waren antippen zeigt, woher sie kommen
+document.querySelector("#fenster").addEventListener("click", e => {
+  const f = e.target.closest(".fehlt"); if (!f) return;
+  const img = f.querySelector("img[alt]"); if (!img) return;
+  const w = Object.keys(WAREN).find(k => WAREN[k].name === img.alt); if (!w) return;
+  e.stopPropagation(); meldung(herkunft(w), 6000);
+}, true);
+
+/* ---------- 2: Alles ernten ---------- */
+function allesErnten() {
+  const t = jetzt(), geerntet = [];
+  let voll = false;
+  S.felder.forEach((f, i) => {
+    if (!f.p || f.t > t || voll) return;
+    const P = PFLANZEN[f.p];
+    if (belegt() + P.ertrag > kapazitaet()) { voll = true; return; }
+    S.lager[f.p] = (S.lager[f.p] || 0) + P.ertrag; erfahrung(P.xp); zaehle("ernte"); ereignis("ernte");
+    if (Math.random() < EVENT_QUELLEN.ernteChance) eventGeben(1);
+    geerntet.push({ i, p: f.p }); f.p = null; f.t = 0; huepf(dinge.get("feld" + i));
+  });
+  let aepfel = 0;
+  if (S.level >= APFEL.level) S.bauten.forEach((b, i) => {
+    if (b.typ !== "apfelbaum" || (b.t || 0) > t || voll) return;
+    if (belegt() + APFEL.ertrag > kapazitaet()) { voll = true; return; }
+    S.lager.apfel = (S.lager.apfel || 0) + APFEL.ertrag; b.t = t + APFEL.zeit * 1000; erfahrung(2); zaehle("ernte"); aepfel += APFEL.ertrag;
+    huepf(dinge.get("bau" + i));
+  });
+  if (!geerntet.length && !aepfel) { meldung(voll ? "Die Scheune ist voll." : "Gerade ist nichts reif."); return; }
+  leben.ton("ernte");
+  const summe = {}; for (const g of geerntet) summe[g.p] = (summe[g.p] || 0) + PFLANZEN[g.p].ertrag;
+  if (aepfel) summe.apfel = aepfel;
+  const text = Object.entries(summe).map(([w, n]) => `${n} ${WAREN[w].name}`).join(", ");
+  speichern(); aktualisieren();
+  if (!geerntet.length) { meldung(`Geerntet: ${text}${voll ? " · Die Scheune ist voll." : ""}`); return; }
+  letzteErnte = geerntet;
+  oeffnen("ernte", () => `<div class="kopf"><h2>Geerntet!</h2>${zu()}</div>
+    <p>${Object.entries(summe).map(([w, n]) => `<span class="it">${icon(w)} ${n}</span>`).join(" ")}</p>
+    ${voll ? `<p class="fehlt">Die Scheune ist voll, ein paar Felder sind noch reif.</p>` : ""}
+    <p><b>Soll ich auf den ${geerntet.length} Feldern dasselbe wieder säen?</b></p>
+    <div class="knoepfe"><button class="los" data-aktion="nachsaeen">Ja, dasselbe säen</button><button class="los zweit" data-aktion="zu">Nein, danke</button></div>`);
+}
+let letzteErnte = [];
+
+/* ---------- 4: Markt ---------- */
+const preisVon = w => Math.max(1, Math.round(WAREN[w].wert * MARKT.verkauf));
+function marktTag() {
+  const h = heute();
+  if (S.markt?.tag === h) return S.markt;
+  const pool = verfuegbareWaren().filter((w, i, a) => a.indexOf(w) === i).sort(() => Math.random() - .5);
+  const sonder = pool.slice(0, MARKT.sonderAnzahl).map(w => ({ w, rest: 5 + Math.floor(Math.random() * 6) }));
+  const selten = pool.filter(w => WAREN[w].wert >= 9).sort((a, b) => WAREN[b].wert - WAREN[a].wert)[0] || pool[0];
+  S.markt = { tag: h, sonder, kauf: { w: selten, rest: 3 } };
+  return S.markt;
+}
+function marktPanel() {
+  oeffnen("markt", () => {
+    const M = marktTag(), waren = Object.keys(WAREN).filter(w => S.lager[w] > 0);
+    const sonderPreis = w => preisVon(w) * MARKT.sonderFaktor, kaufPreis = Math.round(WAREN[M.kauf.w].wert * MARKT.kaufFaktor);
+    return `<div class="kopf"><h2>Markt</h2>${zu()}</div>
+      <div class="gastgeberin"><img src="${bildUrl("handwerker")}" alt=""><p>„Willkommen auf dem Markt! Heute zahle ich für ein paar Waren besonders gut.“</p></div>
+      <h3>Heute besonders gefragt</h3>
+      <div class="rezepte">${M.sonder.map((o, k) => `<div class="rezept">
+        <div class="aus">${icon(o.w, "ic gross")}</div><div class="ein"><b>${WAREN[o.w].name}</b><small>noch ${o.rest} Stück · du hast ${S.lager[o.w] || 0}</small></div>
+        <button class="los" data-aktion="sonderverkauf" data-k="${k}" ${o.rest > 0 && S.lager[o.w] > 0 ? "" : "disabled"}>Verkaufen ${muenze("ic klein")} ${sonderPreis(o.w)}</button></div>`).join("")}
+      <div class="rezept"><div class="aus">${icon(M.kauf.w, "ic gross")}</div><div class="ein"><b>Angebot: ${WAREN[M.kauf.w].name}</b><small>noch ${M.kauf.rest} Stück zu kaufen</small></div>
+        <button class="los" data-aktion="marktkauf" ${M.kauf.rest > 0 && S.muenzen >= kaufPreis ? "" : "disabled"}>Kaufen ${muenze("ic klein")} ${kaufPreis}</button></div></div>
+      <h3 class="lager-zwischen">Aus der Scheune verkaufen</h3>
+      <div class="lagerraster">${waren.length ? waren.map(w => `<div class="lagerding">${icon(w, "ic gross")}<b>${S.lager[w]}</b><small>${WAREN[w].name}</small>
+        <button class="los mini-los" data-aktion="verkaufen" data-w="${w}">${muenze("ic klein")} ${preisVon(w)}</button></div>`).join("") : `<p class="hinweis">Die Scheune ist leer.</p>`}</div>
+      <p class="hinweis">Neue Angebote gibt es jeden Tag.</p>`;
+  });
+}
+
+/* ---------- 5: Erfolge ---------- */
+function erfolgWert(id) {
+  if (id === "herzen") return Object.values(S.bewohner).reduce((n, b) => n + (b.herzen || 0), 0);
+  if (id === "puzzle") return S.puzzle?.gewonnen || 0;
+  if (id === "sterne") return Object.values(S.puzzle?.sterne || {}).filter(n => n >= 3).length;
+  if (id === "einwohner") return einwohner();
+  if (id === "level") return S.level;
+  return S.zaehler[id] || 0;
+}
+const erfolgeBereit = () => ERFOLGE.filter(E => { const st = S.erfolge[E.id] || 0; return st < E.stufen.length && erfolgWert(E.id) >= E.stufen[st]; }).length;
+function erfolgePanel() {
+  oeffnen("erfolge", () => `<div class="kopf"><h2>Erfolge</h2>${zu()}</div>
+    <div class="quests">${ERFOLGE.map(E => {
+      const st = S.erfolge[E.id] || 0, fertig = st >= E.stufen.length, ziel = E.stufen[Math.min(st, E.stufen.length - 1)];
+      const wert = erfolgWert(E.id), bereit = !fertig && wert >= ziel;
+      return `<div class="quest erfolg ${bereit ? "bereit" : ""}"><div><b>${E.name} ${"★".repeat(st)}<span class="leerstern">${"★".repeat(E.stufen.length - st)}</span></b>
+        <small>${fertig ? "Alle Stufen geschafft!" : `${E.text(ziel)} · ${Math.min(wert, ziel)}/${ziel}`}</small></div>
+        ${fertig ? `<span class="haken">✓</span>` : bereit ? `<button class="los" data-aktion="erfolg" data-id="${E.id}">Holen</button>` : `<span class="stufenlohn">${lohnText(ERFOLG_LOHN[st])}</span>`}
+        <i class="questbalken"><i style="width:${fertig ? 100 : Math.min(1, wert / ziel) * 100}%"></i></i></div>`;
+    }).join("")}</div>`);
+}
+
+/* ---------- 7: Lieferwagen-Touren ---------- */
+function tourNeu() {
+  const pool = verfuegbareWaren();
+  const kisten = Array.from({ length: TOUR.kisten }, () => {
+    const w = wahl(pool), n = WAREN[w].wert < 10 ? 4 + Math.floor(Math.random() * (3 + S.level / 2)) : 1 + Math.floor(Math.random() * 3);
+    return { w, n, voll: false };
+  });
+  return { kisten, unterwegs: 0 };
+}
+function tourStand() {
+  if (!S.tour) S.tour = tourNeu();
+  if (S.tour.unterwegs && S.tour.unterwegs <= jetzt()) { S.tour = tourNeu(); meldung("Der Lieferwagen ist zurück und hat neue Bestellungen dabei!"); speichern(); }
+  return S.tour;
+}
+function tourLohn(T) {
+  let wert = 0; for (const k of T.kisten) if (k.voll) wert += k.n * WAREN[k.w].wert;
+  const alle = T.kisten.every(k => k.voll);
+  return { muenzen: Math.round(wert * (alle ? 1.8 : 1.3)), xp: Math.round(wert / 4), helfer: alle, werkzeug: alle ? 3 : 1 };
+}
+function tourPanel() {
+  oeffnen("tour", () => {
+    const T = tourStand();
+    if (T.unterwegs) return `<div class="kopf"><h2>Lieferwagen</h2>${zu()}</div>
+      <div class="bauvorschau"><img src="${bildUrl("lieferwagen")}" alt=""></div>
+      <p>Der Lieferwagen ist unterwegs und bringt deine Waren in die Stadt. Zurück in <b>${dauer(T.unterwegs - jetzt())}</b>.</p>`;
+    const n = T.kisten.filter(k => k.voll).length, L = tourLohn(T);
+    return `<div class="kopf"><h2>Lieferwagen</h2>${zu()}</div>
+      <p>Fülle die Kisten mit Waren. Sind alle ${TOUR.kisten} voll, gibt es einen großen Bonus mit Puzzle-Helfer.</p>
+      <div class="kisten">${T.kisten.map((k, i) => `<div class="kiste-tour ${k.voll ? "voll" : ""}">
+        ${icon(k.w, "ic gross")}<b>${k.n}</b><small>${k.voll ? "gepackt" : `hast ${S.lager[k.w] || 0}`}</small>
+        ${k.voll ? `<span class="haken">✓</span>` : `<button class="los mini-los" data-aktion="kiste" data-i="${i}" ${(S.lager[k.w] || 0) >= k.n ? "" : "disabled"}>Packen</button>`}</div>`).join("")}</div>
+      <p class="hinweis">Lohn jetzt: ${muenze("ic klein")} ${L.muenzen} · ${stern("ic klein")} ${L.xp} · 🧰 ${L.werkzeug}${L.helfer ? " · ein Puzzle-Helfer" : ""}</p>
+      <button class="los" data-aktion="tourlos" ${n ? "" : "disabled"}>${!n ? "Pack zuerst eine Kiste" : n === TOUR.kisten ? "Losschicken!" : `Mit ${n} von ${TOUR.kisten} Kisten losschicken`}</button>
+      <button class="los zweit" data-aktion="tourneu">Andere Bestellungen</button>`;
+  });
+}
+
 /* ---------- Jahreszeiten-Event ---------- */
 function eventJetzt() {
   const d = new Date(), m = d.getMonth() + 1;
@@ -762,7 +922,8 @@ function lagerPanel() {
     return `<div class="kopf"><h2>Scheune</h2>${zu()}</div>
       <div class="fuellstand"><span>${belegt()} von ${kapazitaet()} Plätzen belegt</span><i style="width:${belegt() / kapazitaet() * 100}%"></i></div>
       <div class="lagerraster">${waren.length ? waren.map(w => `<div class="lagerding">${icon(w, "ic gross")}<b>${S.lager[w]}</b><small>${WAREN[w].name}</small></div>`).join("") : `<p class="hinweis">Die Scheune ist leer. Ernte Felder und sammle bei den Tieren ein.</p>`}</div>
-      <button class="los zweit" data-aktion="scheuneausbauen" ${S.muenzen >= preis ? "" : "disabled"}>Scheune ausbauen (+${SCHEUNE.plus}) · ${muenze("ic klein")} ${preis}</button>
+      <div class="knoepfe"><button class="los" data-aktion="zummarkt">Zum Markt</button>
+      <button class="los zweit" style="width:auto;margin:0;flex:1" data-aktion="scheuneausbauen" ${S.muenzen >= preis ? "" : "disabled"}>Ausbauen (+${SCHEUNE.plus}) · ${muenze("ic klein")} ${preis}</button></div>
       <h3 class="lager-zwischen">Werkzeuge und Puzzle-Helfer</h3>
       <p class="hinweis">Brauchen keinen Platz in der Scheune.</p>
       <div class="lagerraster">${Object.keys(WERKZEUGE).map(w => `<div class="lagerding">${werkzeugIcon(w, "ic gross")}<b>${S.werkzeug[w] || 0}</b><small>${WERKZEUGE[w].name}</small></div>`).join("")}
@@ -790,7 +951,7 @@ function apfelTipp(i) {
   if (S.level < APFEL.level) { bauTipp(i); return; }
   if ((b.t || 0) > jetzt()) { meldung(`Die Äpfel reifen noch ${dauer(b.t - jetzt())}`); return; }
   if (!geben("apfel", APFEL.ertrag)) return;
-  b.t = jetzt() + APFEL.zeit * 1000; erfahrung(2); huepf(d); fliegt(d, "apfel", APFEL.ertrag);
+  b.t = jetzt() + APFEL.zeit * 1000; erfahrung(2); huepf(d); fliegt(d, "apfel", APFEL.ertrag); zaehle("ernte");
   speichern(); aktualisieren();
 }
 function bauTipp(i) {
@@ -820,6 +981,7 @@ function hindernisse() {
   for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r) h.push({ x: g.x, y: g.y - g.r * .5, r: g.r });
   for (const w of Object.values(WEIDEN)) h.push({ x: w.x, y: w.y + 10, r: Math.max(w.rx, w.ry * 1.6) * .85 });
   for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) h.push({ x: z.x, y: z.y, r: Math.max(z.rx, z.ry) * 1.05 });
+  h.push({ x: TOUR.x, y: TOUR.y - 40, r: 80 });
   S.bauten.forEach((b, i) => { if (platzieren && platzieren.index === i) return; const B = BAUTEN[b.typ]; h.push({ x: b.x, y: b.y - B.r * .5, r: B.r }); });
   return h;
 }
@@ -898,7 +1060,7 @@ host.addEventListener("click", e => {
   }
   if (a === "allesammeln") {
     const art = b.dataset.a, T = TIERE[art];
-    S.tiere[art].forEach((tier, i) => { if (tier.t !== null && tier.t <= t && geben(T.ware, 1)) { tier.t = null; erfahrung(T.xp); fliegt(dinge.get(art + i), T.ware, 1); ereignis("sammeln"); } });
+    S.tiere[art].forEach((tier, i) => { if (tier.t !== null && tier.t <= t && geben(T.ware, 1)) { tier.t = null; erfahrung(T.xp); fliegt(dinge.get(art + i), T.ware, 1); ereignis("sammeln"); zaehle("tiere"); } });
   }
   if (a === "tierkaufen") {
     const art = b.dataset.a, T = TIERE[art];
@@ -921,7 +1083,7 @@ host.addEventListener("click", e => {
     if (A.werkzeug) { S.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 }; S.werkzeug[A.werkzeug]++; }
     insel.ereignis("auftrag");
     S.auftraege[i] = { ...neuerAuftrag(), ab: t + 8000 };
-    fliegtMuenzen(dinge.get("tafel")); ereignis("liefern"); eventGeben(EVENT_QUELLEN.auftrag, dinge.get("tafel"));
+    fliegtMuenzen(dinge.get("tafel")); ereignis("liefern"); zaehle("liefern"); eventGeben(EVENT_QUELLEN.auftrag, dinge.get("tafel"));
   }
   if (a === "ausbauen") {
     const key = b.dataset.k, st = stufe(key), istStall = !FABRIKEN[key];
@@ -948,7 +1110,7 @@ host.addEventListener("click", e => {
     nehmen(A.waren); S.muenzen += A.muenzen; erfahrung(A.xp);
     S.helfer[A.helfer] = (S.helfer[A.helfer] || 0) + 1; lohnGeben({ werkzeug: A.werkzeug });
     S.eil = { naechster: t + EIL.pauseMin * 60000 };
-    insel.ereignis("auftrag"); fliegtMuenzen(dinge.get("tafel")); eventGeben(EVENT_QUELLEN.eil, dinge.get("tafel"));
+    insel.ereignis("auftrag"); zaehle("eil"); zaehle("liefern"); fliegtMuenzen(dinge.get("tafel")); eventGeben(EVENT_QUELLEN.eil, dinge.get("tafel"));
     meldung(`Eilauftrag geschafft! +${A.muenzen} Münzen, ein ${HELFER[A.helfer].name} und Werkzeuge`);
   }
   if (a === "tagholen") {
@@ -962,6 +1124,38 @@ host.addEventListener("click", e => {
     $("#tag-zahl").hidden = true;
   }
   if (a === "tonumschalten") { leben.tonUmschalten(); }
+  if (a === "zummarkt") { marktPanel(); return; }
+  if (a === "nachsaeen") {
+    for (const g of letzteErnte) { const f = S.felder[g.i]; if (f && !f.p && S.level >= PFLANZEN[g.p].level) saeen(g.i, g.p); }
+    letzteErnte = []; schliessen(); meldung("Alles wieder gesät!");
+  }
+  if (a === "verkaufen") { const w = b.dataset.w; if (S.lager[w] > 0) { S.lager[w]--; S.muenzen += preisVon(w); leben.ton("muenze"); } }
+  if (a === "sonderverkauf") {
+    const o = marktTag().sonder[+b.dataset.k];
+    if (o && o.rest > 0 && S.lager[o.w] > 0) { S.lager[o.w]--; o.rest--; S.muenzen += preisVon(o.w) * MARKT.sonderFaktor; leben.ton("muenze"); }
+  }
+  if (a === "marktkauf") {
+    const K = marktTag().kauf, p = Math.round(WAREN[K.w].wert * MARKT.kaufFaktor);
+    if (K.rest > 0 && S.muenzen >= p && geben(K.w, 1)) { S.muenzen -= p; K.rest--; }
+  }
+  if (a === "erfolg") {
+    const E = ERFOLGE.find(x => x.id === b.dataset.id), st = S.erfolge[E.id] || 0;
+    if (st < E.stufen.length && erfolgWert(E.id) >= E.stufen[st]) { lohnGeben(ERFOLG_LOHN[st]); S.erfolge[E.id] = st + 1; leben.ton("level"); meldung(`Erfolg „${E.name}“ Stufe ${st + 1}!`); }
+  }
+  if (a === "kiste") {
+    const k = tourStand().kisten[+b.dataset.i];
+    if (k && !k.voll && (S.lager[k.w] || 0) >= k.n) { S.lager[k.w] -= k.n; k.voll = true; leben.ton("ernte"); }
+  }
+  if (a === "tourneu") { const T = tourStand(); if (!T.unterwegs) { const alt = T.kisten.filter(k => k.voll); for (const k of alt) S.lager[k.w] = (S.lager[k.w] || 0) + k.n; S.tour = tourNeu(); } }
+  if (a === "tourlos") {
+    const T = tourStand(); if (T.unterwegs || !T.kisten.some(k => k.voll)) return;
+    const L = tourLohn(T);
+    S.muenzen += L.muenzen; erfahrung(L.xp); lohnGeben({ werkzeug: L.werkzeug, helfer: L.helfer ? { [wahl(Object.keys(HELFER))]: 1 } : null });
+    if (T.kisten.every(k => k.voll)) zaehle("tour");
+    eventGeben(EVENT_QUELLEN.eil, dinge.get("tour")); insel.ereignis("auftrag");
+    T.unterwegs = t + TOUR.fahrtMin * 60000; fliegtMuenzen(dinge.get("tour")); leben.ton("level");
+    meldung(`Der Lieferwagen fährt los! +${L.muenzen} Münzen`); schliessen();
+  }
   if (a === "eventholen") {
     const ev = eventStand(), St = EVENT_STUFEN[ev.stufe];
     if (!St || ev.menge < St.n) return;
@@ -994,10 +1188,10 @@ function saatLeiste() {
 }
 
 /* ================= Anzeigen ================= */
-function meldung(text) {
+function meldung(text, ms = 2600) {
   const m = $("#meldung"); m.textContent = text; m.hidden = false;
   m.classList.remove("neu"); void m.offsetWidth; m.classList.add("neu");
-  clearTimeout(meldung.t); meldung.t = setTimeout(() => { m.hidden = true; }, 2600);
+  clearTimeout(meldung.t); meldung.t = setTimeout(() => { m.hidden = true; }, ms);
 }
 function fliegt(d, ware, n) {
   if (!d) return;
@@ -1053,6 +1247,9 @@ function aktualisieren() {
   eilPruefen();
   const bd = $("#auftrag-zahl"); bd.hidden = !n && !eilAktiv(); bd.textContent = eilAktiv() && !n ? "⏰" : n;
   $("#tag-zahl").hidden = !tagOffen();
+  { const n = erfolgeBereit(), z = $("#erfolg-zahl"); z.hidden = !n; z.textContent = n; }
+  { const t = jetzt(), n = S.felder.filter(f => f.p && f.t <= t).length + (S.level >= APFEL.level ? S.bauten.filter(b => b.typ === "apfelbaum" && (b.t || 0) <= t).length : 0);
+    const z = $("#ernte-zahl"); z.hidden = !n; z.textContent = n; }
   { const ev = eventStand(), J = eventJetzt(), St = EVENT_STUFEN[ev.stufe];
     $("#anz-event img").src = bildUrl(J.E.token); $("#anz-event b").textContent = ev.menge;
     $("#event-zahl").hidden = !(St && ev.menge >= St.n); fundstueckePruefen(); }
@@ -1067,7 +1264,7 @@ const leben = lebenStarten({ welt, WELT });
 /* ================= Insel ================= */
 const insel = inselStarten({
   S: () => S, speichern, meldung, oeffnen, schliessen, zu, icon, muenze, bildUrl, hoehe, hat, nehmen, dauer, aktualisieren,
-  helferIcon: (h, c) => helferIcon(h, c), eventGeben: (n, d) => eventGeben(n, d),
+  helferIcon: (h, c) => helferIcon(h, c), eventGeben: (n, d) => eventGeben(n, d), zaehle,
 });
 
 /* ================= Puzzle ================= */
@@ -1106,6 +1303,8 @@ sync = syncStarten({ getS: () => S, setS: standUebernehmen, meldung, oeffnen, zu
   zusatz: () => `<h3>Töne</h3><button class="los zweit" data-aktion="tonumschalten">${leben.tonAn() ? "🔊 Töne sind an · ausschalten" : "🔇 Töne sind aus · einschalten"}</button>` });
 $("#knopf-tag").onclick = () => tagesPanel();
 $("#anz-event").onclick = () => eventPanel();
+$("#knopf-erfolge").onclick = () => erfolgePanel();
+$("#knopf-ernten").onclick = () => allesErnten();
 $("#knopf-neu").onclick = () => sync.panel();
 host.addEventListener("click", e => {
   if (e.target.closest("[data-aktion='neustart']")) { S = ergaenzen(neuerStand()); if (insel.aktiv) insel.verlassen(); auftraegeAuffuellen(); try { localStorage.removeItem(SPEICHER); } catch {} schliessen(); weltAufbauen(); zeichneSchritt(); aktualisieren(); speichern(); }

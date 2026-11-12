@@ -401,3 +401,36 @@ export const EVENT_STUFEN = [
 // Wie viele Teile es wofür gibt
 export const EVENT_QUELLEN = { ernteChance: .25, auftrag: 3, eil: 10, wunsch: 5, tag: 5, puzzle: 4, truhe: 3, fundstueck: 2 };
 export const FUNDSTUECK = { minuten: 3, max: 3 };   // so oft liegt ein Teil irgendwo auf dem Hof
+
+/* ================= Paket D: Markt, Erfolge, Lieferwagen-Touren ================= */
+export const MARKT = {
+  verkauf: .5,             // Anteil vom Warenwert beim normalen Verkauf
+  sonderFaktor: 2,         // Händler kauft heute bestimmte Waren zum doppelten Preis
+  kaufFaktor: 2.5,         // Händler verkauft eine seltene Ware zu diesem Faktor
+  sonderAnzahl: 2,
+};
+
+// Erfolge mit Stufen. wert: woher die Zahl kommt (Zähler im Spielstand oder berechnet)
+export const ERFOLGE = [
+  { id: "ernte",     name: "Fleißige Ernte",    text: n => `Ernte ${n} Mal Felder oder Bäume`, stufen: [25, 150, 600, 2000] },
+  { id: "tiere",     name: "Tierfreundin",      text: n => `Sammle ${n} Mal bei Tieren ein`,  stufen: [20, 120, 500, 1500] },
+  { id: "fabrik",    name: "Fabrikchefin",      text: n => `Hole ${n} fertige Waren aus Fabriken ab`, stufen: [20, 120, 500, 1500] },
+  { id: "liefern",   name: "Zuverlässig",       text: n => `Liefere ${n} Aufträge`,           stufen: [10, 50, 200, 600] },
+  { id: "eil",       name: "Blitzschnell",      text: n => `Schaffe ${n} Eilaufträge`,        stufen: [1, 5, 20, 60] },
+  { id: "tour",      name: "Auf Achse",         text: n => `Schicke den Lieferwagen ${n} Mal voll beladen los`, stufen: [1, 5, 20, 60] },
+  { id: "herzen",    name: "Gute Nachbarin",    text: n => `Sammle insgesamt ${n} Herzen bei den Bewohnern`, stufen: [5, 15, 30, 40] },
+  { id: "puzzle",    name: "Steinreich",        text: n => `Gewinne ${n} Puzzle-Level`,       stufen: [5, 25, 80, 200] },
+  { id: "sterne",    name: "Sternensammlerin",  text: n => `Hole in ${n} Puzzle-Leveln 3 Sterne`, stufen: [3, 15, 50, 120] },
+  { id: "hindernis", name: "Entdeckerin",       text: n => `Räume ${n} Hindernisse auf den Inseln frei`, stufen: [10, 40, 120, 300] },
+  { id: "einwohner", name: "Wachsender Hof",    text: n => `Erreiche ${n} Einwohner`,          stufen: [25, 75, 150, 300] },
+  { id: "level",     name: "Erfahren",          text: n => `Erreiche Level ${n}`,              stufen: [5, 10, 15, 25] },
+];
+export const ERFOLG_LOHN = [
+  { muenzen: 100, werkzeug: 2 },
+  { muenzen: 300, helfer: { hammer: 1 } },
+  { muenzen: 800, werkzeug: 5, helfer: { besen: 1 } },
+  { muenzen: 2000, helfer: { regenbogen: 2, hammer: 1 } },
+];
+
+// Lieferwagen-Touren: 6 Kisten füllen, dann losschicken
+export const TOUR = { level: 3, kisten: 6, fahrtMin: 45, x: 1830, y: 880, breite: 170 };

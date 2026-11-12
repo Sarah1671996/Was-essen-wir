@@ -185,7 +185,7 @@ export function inselStarten(api) {
     s.werkzeug[w] -= n;
     stand().frei.push(id);
     d.el.classList.add("verschwindet");
-    punkte(PUNKTE.hindernis, d);
+    punkte(PUNKTE.hindernis, d); api.zaehle?.("hindernis");
     ereignis(w, true);
     if (P.ziel) { ereignis("ziel:" + P.ziel, true); api.meldung(W().ziele[P.ziel]); }
     if (alleFrei()) ereignis("alles", true);

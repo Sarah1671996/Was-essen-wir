@@ -52,6 +52,15 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Puzzle-Weltkarte** mit 41 Steinen pro Kapitel, Sterne pro Level, alte Level wiederholbar (kleiner Lohn)
 - Echte Bilder für Hammer, Besen, Regenbogen und für das Dickicht
 
+## Paket D: Komfort, Markt, Erfolge, Lieferwagen
+
+- **Fehlende Waren antippen** (rot in Rezepten, Aufträgen, Wünschen) zeigt, woher sie kommen
+- **Alles ernten** (Weizen-Knopf rechts): erntet reife Felder und Apfelbäume, fragt dann, ob dasselbe wieder gesät werden soll
+- **Markt** (Scheune → Zum Markt): Waren verkaufen, täglich zwei Waren zum doppelten Preis, eine seltene Ware zum Kaufen
+- **Erfolge** (🏆): 12 Erfolge mit je 4 Stufen, Belohnungen aus Münzen, Werkzeugen und Puzzle-Helfern
+- **Lieferwagen-Touren** ab Level 3: 6 Kisten füllen und losschicken, Bonus bei vollen Kisten, nach 45 Minuten neue Bestellungen
+- Aufträge, Wünsche, Markt und Lieferwagen fragen nur nach Waren, die man schon herstellen kann
+
 ## Paket C: Schneeinsel und Jahreszeiten-Events
 
 - **Schneeinsel** ab Level 8 (über den Steg wählbar): eigene Karte, Eisbüsche (Axt), Schneehaufen (Schaufel), Eisfelsen (Spitzhacke), wertvollere Truhen, eigene Quests; Punkte und Belohnungspfad teilen sich beide Inseln
