@@ -7,6 +7,7 @@ import {
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
+import { syncStarten } from "./sync.js";
 
 /* ================= Hilfen ================= */
 const $ = s => document.querySelector(s);
@@ -43,10 +44,14 @@ let S;
 try { S = JSON.parse(localStorage.getItem(SPEICHER) || "null"); } catch { S = null; }
 if (!S || S.v !== 1) S = neuerStand();
 S.dekoFrei ??= {};
-let speicherTimer = 0;
+let speicherTimer = 0, sync = null;
+function lokalSichern() { try { localStorage.setItem(SPEICHER, JSON.stringify(S)); } catch {} }
+// Nach jeder Aktion: merken, wann sich etwas geändert hat (für den Abgleich zwischen Geräten)
 function speichern() {
+  S.geaendert = Date.now();
   clearTimeout(speicherTimer);
-  speicherTimer = setTimeout(() => { try { localStorage.setItem(SPEICHER, JSON.stringify(S)); } catch {} }, 200);
+  speicherTimer = setTimeout(lokalSichern, 200);
+  sync?.aenderung();
 }
 
 const einwohner = () => S.bauten.reduce((n, b) => n + (BAUTEN[b.typ].einwohner || 0), 0);
@@ -749,10 +754,21 @@ addEventListener("keydown", e => { if (e.key === "Escape") { if (platzieren) pla
 $("#knopf-auftraege").onclick = () => auftragsPanel();
 $("#knopf-lager").onclick = () => lagerPanel();
 $("#knopf-bauen").onclick = () => baumenu();
-$("#knopf-neu").onclick = () => oeffnen("neu", () => `
+function neustartFragen() { oeffnen("neu", () => `
   <div class="kopf"><h2>Spiel neu beginnen?</h2>${zu()}</div>
   <p>Dein ganzer Hof wird gelöscht und du fängst wieder bei Level 1 an.</p>
-  <div class="knoepfe"><button class="los rot" data-aktion="neustart">Ja, neu beginnen</button><button class="los zweit" data-aktion="zu">Abbrechen</button></div>`);
+  <div class="knoepfe"><button class="los rot" data-aktion="neustart">Ja, neu beginnen</button><button class="los zweit" data-aktion="zu">Abbrechen</button></div>`); }
+// Spielstand vom anderen Gerät übernehmen
+function standUebernehmen(neu) {
+  if (!neu || neu.v !== 1) return;
+  if (platzieren) { platzieren = null; geist.hidden = true; $("#platzleiste").hidden = true; }
+  S = neu; S.dekoFrei ??= {};
+  if (insel.aktiv) insel.verlassen();
+  auftraegeAuffuellen(); lokalSichern();
+  weltAufbauen(); zeichneSchritt(); aktualisieren();
+}
+sync = syncStarten({ getS: () => S, setS: standUebernehmen, meldung, oeffnen, zu, schliessen, neustartFragen });
+$("#knopf-neu").onclick = () => sync.panel();
 host.addEventListener("click", e => {
   if (e.target.closest("[data-aktion='neustart']")) { S = neuerStand(); S.dekoFrei = {}; if (insel.aktiv) insel.verlassen(); auftraegeAuffuellen(); try { localStorage.removeItem(SPEICHER); } catch {} schliessen(); weltAufbauen(); zeichneSchritt(); aktualisieren(); speichern(); }
 });
@@ -762,6 +778,6 @@ startKamera();
 zeichneSchritt();
 aktualisieren();
 setInterval(aktualisieren, 500);
-setInterval(speichern, 5000);
-addEventListener("visibilitychange", () => { if (document.hidden) try { localStorage.setItem(SPEICHER, JSON.stringify(S)); } catch {} });
+setInterval(lokalSichern, 5000);
+addEventListener("visibilitychange", () => { if (document.hidden) lokalSichern(); });
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});

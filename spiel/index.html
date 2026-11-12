@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
   <meta name="referrer" content="no-referrer">
   <title>Sonnenhof</title>
   <meta name="description" content="Eigenes Farmspiel: Felder, Tiere, Fabriken und Aufträge – ganz ohne Bezahlinhalte.">
@@ -32,7 +32,7 @@
     <div class="pille nur-insel" id="anz-punkte" title="Inselpunkte"><span class="ew" aria-hidden="true">⭐</span><b>0</b></div>
     <div class="pille nur-hof" id="anz-einwohner" title="Einwohner"><span class="ew" aria-hidden="true">🏠</span><b>0</b></div>
     <div class="pille" id="anz-muenzen" title="Münzen"><img src="img/i-muenze.webp" alt=""><b>0</b></div>
-    <button class="pille rund" id="knopf-neu" aria-label="Spiel neu beginnen">↺</button>
+    <button class="pille rund" id="knopf-neu" aria-label="Einstellungen und Sync">⚙</button>
   </div>
 </div>
 <div class="schritt" id="schritt" hidden></div>

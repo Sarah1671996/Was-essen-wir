@@ -32,6 +32,12 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - Gewinn: Münzen, Werkzeuge und Inselpunkte; verlieren kostet nichts, einfach noch mal
 - Tipp nach ein paar Sekunden, automatisches Mischen, wenn kein Zug mehr geht
 
+## Auf Handy und PC spielen (Sync)
+
+⚙ oben rechts → **Sync-Code für diesen Hof erstellen**, dann auf dem anderen Gerät den Code eingeben und **Verbinden**.
+Der Spielstand liegt dann zusätzlich in Firebase (gleiches Projekt wie die anderen Apps, Dokument `reisen/sonnenhof-{code}`,
+dieselbe Regel wie Kanada- und Film-App, also keine neue Firestore-Regel nötig). Der jeweils neuere Stand gewinnt.
+
 Die Spielregeln (Zeiten, Preise, Rezepte, Inselplätze, Quests, Puzzle-Level) stehen alle in `daten.js`.
 
 ## Dateien
