@@ -357,3 +357,32 @@ body.im-puzzle .schwarm, body.auf-insel .falter { display: none; }
   pointer-events: none; z-index: 3000; transition: transform 3.2s ease-in-out; animation: gluehen 2.6s ease-in-out infinite; }
 @keyframes gluehen { 50% { opacity: .2; } }
 body.nacht .gebaeude .spr, body.nacht .haus .spr { filter: drop-shadow(0 0 10px rgba(255, 210, 120, .55)); }
+
+/* Paket B */
+.bewohner .spr { animation: wippen 2.6s ease-in-out infinite; transform-origin: 50% 100%; }
+.bewohner { z-index: 4500 !important; }
+.lieferwagen .spr { animation: wackeln 1.2s ease-in-out infinite; }
+@keyframes wackeln { 50% { transform: translateY(-2px) rotate(-1deg); } }
+.herzen { display: flex; gap: 2px; flex-wrap: wrap; margin-top: 6px; }
+.herzen .leer { filter: grayscale(1) opacity(.35); }
+.gastgeberin > div { min-width: 0; }
+
+/* Puzzle-Karte */
+#pz-karte { position: fixed; inset: 0; z-index: 340; overflow: auto; background: #cfe9f5; -webkit-overflow-scrolling: touch; }
+#pz-karte-inhalt { position: relative; width: max(100%, 640px); max-width: 720px; margin: 0 auto; }
+#pz-karte-inhalt > img { display: block; width: 100%; height: auto; pointer-events: none; -webkit-user-drag: none; }
+.pz-karte-kopf { position: sticky; top: 0; left: 0; z-index: 5; display: flex; align-items: center; gap: 10px; width: min(100% - 24px, 536px); margin: 0 auto -62px;
+  padding: calc(8px + env(safe-area-inset-top, 0px)) 12px 8px; background: rgba(255, 247, 230, .95); border: 3px solid var(--holz-hell); border-top: 0;
+  border-radius: 0 0 18px 18px; box-shadow: 0 4px 0 var(--holz); box-sizing: border-box; }
+.pz-karte-kopf b { flex: 1; font-size: 20px; }
+.pz-karte-helfer { display: flex; gap: 10px; }
+.pz-karte-helfer span { display: flex; align-items: center; gap: 2px; font-weight: 700; }
+.pz-stein { position: absolute; transform: translate(-50%, -50%); width: 7.4%; aspect-ratio: 1; max-width: 100%; border-radius: 50%; border: 3px solid #fff;
+  display: grid; place-items: center; font: 700 17px var(--schrift); padding: 0; cursor: pointer;
+  background: radial-gradient(circle at 35% 30%, #ffe68a, #f0a91e); color: var(--tinte); box-shadow: 0 4px 0 #b97a0d, 0 6px 10px rgba(0, 0, 0, .3); }
+.pz-stein.zu { background: radial-gradient(circle at 35% 30%, #e8e0d2, #b9ad95); color: #7a6e5a; box-shadow: 0 3px 0 #8d826e; cursor: default; opacity: .9; }
+.pz-stein.jetzt { background: radial-gradient(circle at 35% 30%, #b6f58a, #4fa524); color: #fff; text-shadow: 0 1px 0 var(--gruen-dunkel);
+  box-shadow: 0 4px 0 var(--gruen-dunkel), 0 0 0 6px rgba(255, 255, 255, .6), 0 0 22px 6px rgba(255, 240, 120, .9); animation: wippen 1.4s ease-in-out infinite; width: 9%; font-size: 20px; }
+.pz-stein i { position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 12px; color: var(--gold);
+  text-shadow: 0 1px 0 #7a4a00, 0 0 3px #fff; white-space: nowrap; letter-spacing: -1px; }
+.pz-stein i em { font-style: normal; color: rgba(255, 255, 255, .8); }

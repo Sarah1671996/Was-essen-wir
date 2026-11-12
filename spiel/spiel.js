@@ -3,7 +3,7 @@ import { GROESSE } from "./img/groessen.js";
 import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, BAUTEN, WELT, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
-  WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT,
+  WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -41,8 +41,8 @@ function neuerStand() {
     fabrik: { muehle: { q: [], fertig: [] } },
     bauten: [
       { typ: "haus1", x: 250, y: 560 }, { typ: "laubbaum", x: 120, y: 330 }, { typ: "tanne", x: 190, y: 260 },
-      { typ: "busch", x: 760, y: 300 }, { typ: "laubbaum", x: 1560, y: 520 }, { typ: "tanne", x: 1640, y: 610 },
-      { typ: "busch", x: 120, y: 1150 }, { typ: "laubbaum", x: 1500, y: 980 }, { typ: "tanne", x: 980, y: 230 },
+      { typ: "busch", x: 880, y: 250 }, { typ: "laubbaum", x: 1660, y: 470 }, { typ: "tanne", x: 1660, y: 640 },
+      { typ: "busch", x: 120, y: 1150 }, { typ: "laubbaum", x: 1400, y: 960 }, { typ: "tanne", x: 980, y: 230 },
     ],
     auftraege: [], schritt: 0,
   };
@@ -54,6 +54,16 @@ function ergaenzen(s) {
   s.dekoFrei ??= {}; s.helfer ??= { ...START_HELFER }; s.ausbau ??= {}; s.dickicht ??= [];
   s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
   s.tag ??= { zuletzt: "", serie: 0 };
+  s.bewohner ??= {};
+  // Deko, die auf einem neuen Bauplatz steht, ein Stück zur Seite rücken
+  for (const [k, g] of Object.entries(GEBAEUDE)) {
+    if (!g.r || s.gebaut[k]) continue;
+    for (const b of s.bauten) {
+      if (BAUTEN[b.typ].art !== "deko") continue;
+      const d = Math.hypot(b.x - g.x, b.y - g.y);
+      if (d < g.r + 30) { const w = Math.atan2(b.y - g.y, b.x - g.x) || 0; b.x = Math.round(g.x + Math.cos(w) * (g.r + 70)); b.y = Math.round(g.y + Math.sin(w) * (g.r + 50)); }
+    }
+  }
   // Dickicht, in dem schon etwas gebaut wurde, gilt als freigeräumt
   for (const z of DICKICHT) if (!s.dickicht.includes(z.id) && s.bauten.some(b => ((b.x - z.x) / z.rx) ** 2 + ((b.y - z.y) / z.ry) ** 2 < 1)) s.dickicht.push(z.id);
   return s;
@@ -300,10 +310,26 @@ function weltAufbauen() {
   for (const [art, liste] of Object.entries(S.tiere)) liste.forEach((_, i) => tierErzeugen(art, i));
   // Dickicht am Rand
   for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) dickichtErzeugen(z);
+  // Bewohner
+  for (const [k, B] of Object.entries(BEWOHNER)) {
+    if (S.level < B.level) continue;
+    neuesDing("bewohner-" + k, B.bild, B.x, B.y, 64, { cls: "bewohner", tipp: () => bewohnerPanel(k),
+      upd: d => { const w = wunsch(k); overlay(d, w && w.ab <= jetzt() ? blase(`<img class="ic mittel" src="${bildUrl("i-herz")}" alt="Wunsch">`, -44) : ""); } });
+  }
+  // Lieferwagen, solange ein Eilauftrag läuft
+  neuesDing("lieferwagen", "lieferwagen", 1090, 905, 120, { cls: "lieferwagen", tipp: () => auftragsPanel(),
+    upd: d => { d.el.hidden = !eilAktiv(); } });
   // Häuser und Deko
   S.bauten.forEach((b, i) => {
     const B = BAUTEN[b.typ];
-    neuesDing("bau" + i, B.bild, b.x, b.y, B.breite, { cls: B.art, tipp: () => bauTipp(i) });
+    if (b.typ === "apfelbaum") {
+      neuesDing("bau" + i, B.bild, b.x, b.y, B.breite, { cls: B.art, tipp: () => apfelTipp(i),
+        upd: d => {
+          if (S.level < APFEL.level) { overlay(d, ""); return; }
+          const t = S.bauten[i]?.t || 0;
+          overlay(d, t <= jetzt() ? blase(icon("apfel", "ic mittel"), -36) : uhr(t - jetzt(), APFEL.zeit, d.h * .15));
+        } });
+    } else neuesDing("bau" + i, B.bild, b.x, b.y, B.breite, { cls: B.art, tipp: () => bauTipp(i) });
   });
 }
 function bauplatz(key, g) {
@@ -312,19 +338,9 @@ function bauplatz(key, g) {
   overlay(d, `<div class="schild">${offen ? `${muenze("ic klein")} ${g.preis}` : `🔒 Level ${g.level}`}<br><small>${g.name}</small></div>`);
 }
 function dickichtErzeugen(z) {
-  let seed = [...z.id].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 7) % 2147483647;
-  const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const arten = [["laubbaum", 120], ["tanne", 90], ["busch", 72], ["laubbaum", 105], ["tanne", 80], ["felsen", 90]];
-  const n = 7 + Math.floor(r() * 4), teile = [];
-  for (let k = 0; k < n; k++) {
-    const a = r() * Math.PI * 2, rr = Math.sqrt(r()) * .9;
-    teile.push({ x: z.x + Math.cos(a) * z.rx * rr, y: z.y + Math.sin(a) * z.ry * rr + 30, art: arten[Math.floor(r() * arten.length)] });
-  }
-  teile.sort((a, b) => a.y - b.y);
-  teile.forEach((t, k) => neuesDing(`dickicht-${z.id}-${k}`, t.art[0], t.x, t.y, t.art[1], { cls: "dickicht", tipp: () => dickichtTipp(z) }));
-  const mitte = neuesDing(`dickicht-${z.id}-schild`, "busch", z.x, z.y + 40, 60, { cls: "dickicht unsichtbar", tipp: () => dickichtTipp(z) });
-  mitte.el.style.zIndex = 4000;
-  overlay(mitte, `<div class="schild">${S.level >= z.level ? `${muenze("ic klein")} ${z.muenzen}` : `🔒 Level ${z.level}`}<br><small>Dickicht</small></div>`);
+  const breite = Math.max(z.rx * 2.4, z.ry * 3.4);
+  const d = neuesDing(`dickicht-${z.id}`, "dickicht", z.x, z.y + z.ry * .9, breite, { cls: "dickicht", tipp: () => dickichtTipp(z) });
+  overlay(d, `<div class="schild" style="top:38%">${S.level >= z.level ? `${muenze("ic klein")} ${z.muenzen}` : `🔒 Level ${z.level}`}<br><small>Dickicht</small></div>`);
 }
 function dickichtTipp(z) {
   oeffnen("dickicht:" + z.id, () => {
@@ -629,6 +645,44 @@ function lohnGeben(L) {
   return erhalten;
 }
 
+/* ---------- Bewohner ---------- */
+function wunsch(k) {
+  const B = BEWOHNER[k];
+  S.bewohner[k] ??= { herzen: 0, w: null };
+  const st = S.bewohner[k];
+  if (!st.w) {
+    const moeglich = B.waren.filter(w => verfuegbareWaren().includes(w));
+    const pool = (moeglich.length ? moeglich : verfuegbareWaren()).sort(() => Math.random() - .5).slice(0, Math.random() < .5 ? 1 : 2);
+    const waren = {}; let wert = 0;
+    for (const w of pool) { const m = WAREN[w].wert < 10 ? 3 + Math.floor(Math.random() * 3) : 1 + Math.floor(Math.random() * 2); waren[w] = m; wert += m * WAREN[w].wert; }
+    st.w = { waren, muenzen: Math.round(wert * 1.2), xp: Math.round(wert / 3) + 3, ab: st.w === null && st.herzen === 0 ? 0 : jetzt() };
+  }
+  return st.w;
+}
+function herzen(n) {
+  return `<div class="herzen">${Array.from({ length: HERZ_MAX }, (_, k) => `<img class="ic klein ${k < n ? "" : "leer"}" src="${bildUrl("i-herz")}" alt="">`).join("")}</div>`;
+}
+function freundLohnText(L) {
+  const t = [];
+  if (L.muenzen) t.push(`${muenze("ic klein")} ${L.muenzen}`);
+  if (L.werkzeug) t.push(`🧰 ${L.werkzeug}`);
+  if (L.helfer) t.push(`${helferIcon(L.helfer, "ic klein")} ${HELFER[L.helfer].name}`);
+  return t.join(" · ");
+}
+function bewohnerPanel(k) {
+  oeffnen("bewohner:" + k, () => {
+    const B = BEWOHNER[k], st = S.bewohner[k] || { herzen: 0 }, w = wunsch(k);
+    const bereit = w.ab <= jetzt(), ok = bereit && hat(w.waren);
+    return `<div class="kopf"><h2>${B.name}</h2>${zu()}</div>
+      <div class="gastgeberin"><img src="${bildUrl(B.bild)}" alt=""><div><p>„${B.text}“</p>${herzen(st.herzen)}</div></div>
+      ${bereit ? `<p><b>Mein Wunsch:</b></p>
+        <div class="waren gross-waren">${Object.entries(w.waren).map(([x, n]) => `<span class="${(S.lager[x] || 0) >= n ? "" : "fehlt"}">${icon(x)} ${Math.min(S.lager[x] || 0, n)}/${n} ${WAREN[x].name}</span>`).join("")}</div>
+        <p class="hinweis">Dafür: ${muenze("ic klein")} ${w.muenzen} · ${stern("ic klein")} ${w.xp} · ein Herz${st.herzen < HERZ_MAX ? ` und ${freundLohnText(B.lohn)}` : ""}</p>
+        <button class="los" data-aktion="wunsch" data-k="${k}" ${ok ? "" : "disabled"}>Schenken</button>`
+      : `<p>Danke noch mal! Bald habe ich einen neuen Wunsch (in ${dauer(w.ab - jetzt())}).</p>`}`;
+  });
+}
+
 /* ---------- Lager ---------- */
 function lagerPanel() {
   oeffnen("lager", () => {
@@ -659,6 +713,14 @@ function baumenu() {
         <small>${frei ? `${muenze("ic klein")} ${B.preis}${B.einwohner ? ` · +${B.einwohner} Einwohner` : ""}` : `ab Level ${B.level}`}</small></button>`;
     }).join("")}</div>
     <p class="hinweis">Um etwas umzustellen, tippe es auf dem Hof an.</p>`);
+}
+function apfelTipp(i) {
+  const b = S.bauten[i], d = dinge.get("bau" + i);
+  if (S.level < APFEL.level) { bauTipp(i); return; }
+  if ((b.t || 0) > jetzt()) { meldung(`Die Äpfel reifen noch ${dauer(b.t - jetzt())}`); return; }
+  if (!geben("apfel", APFEL.ertrag)) return;
+  b.t = jetzt() + APFEL.zeit * 1000; erfahrung(2); huepf(d); fliegt(d, "apfel", APFEL.ertrag);
+  speichern(); aktualisieren();
 }
 function bauTipp(i) {
   const b = S.bauten[i], B = BAUTEN[b.typ];
@@ -828,6 +890,18 @@ host.addEventListener("click", e => {
     $("#tag-zahl").hidden = true;
   }
   if (a === "tonumschalten") { leben.tonUmschalten(); }
+  if (a === "wunsch") {
+    const k = b.dataset.k, B = BEWOHNER[k], st = S.bewohner[k], w = st?.w;
+    if (!w || w.ab > t || !hat(w.waren)) return;
+    nehmen(w.waren); S.muenzen += w.muenzen; erfahrung(w.xp);
+    if (st.herzen < HERZ_MAX) {
+      st.herzen++;
+      lohnGeben({ muenzen: B.lohn.muenzen, werkzeug: B.lohn.werkzeug, helfer: B.lohn.helfer ? { [B.lohn.helfer]: 1 } : null });
+    }
+    st.w = null; wunsch(k); st.w.ab = t + BEWOHNER_PAUSE_MIN * 60000;
+    huepf(dinge.get("bewohner-" + k)); leben.ton("level");
+    meldung(`${B.name} freut sich riesig! Freundschaft: ${st.herzen} von ${HERZ_MAX} Herzen`);
+  }
   if (a === "ablehnen") { const i = +b.dataset.i; S.auftraege[i] = { ...neuerAuftrag(), ab: t + 20000 }; }
   if (a === "scheuneausbauen") { const p = SCHEUNE.preis(S.scheuneLvl); if (S.muenzen >= p) { S.muenzen -= p; S.scheuneLvl++; erfahrung(5); } }
   if (a === "platzieren") { platzierenStart(b.dataset.t); return; }
