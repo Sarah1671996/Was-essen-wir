@@ -73,6 +73,14 @@ BILDER = {
     "schneehaufen": ("97-schneehaufen.jpg", 260, "pink"),
     "schneeinsel": ("96-schneeinsel.jpg", 1800, "bild"),
     "schwein": ("102-schwein.jpg", 200, "frei"),
+    "feld-reif-erdbeere": ("110-erdbeerfeld.jpg", 420, "frei"),
+    "feld-reif-sonnenblume": ("111-sonnenblumenfeld.jpg", 420, "frei"),
+    "feld-reif-traube": ("112-weinreben.jpg", 420, "frei"),
+    "kirschbaum": ("113-kirschbaum.jpg", 300, "frei"),
+    "birnbaum": ("114-birnbaum.jpg", 300, "frei"),
+    "marmeladenkueche": ("115-marmeladenkueche.jpg", 420, "frei"),
+    "kelterei": ("116-kelterei.jpg", 420, "frei"),
+    "oelmuehle": ("117-oelmuehle.jpg", 420, "frei"),
     "ziege": ("103-ziege.jpg", 200, "frei"),
     "schweinestall": ("104-schweinestall.jpg", 420, "frei"),
     "ziegenstall": ("105-ziegenstall.jpg", 420, "frei"),
@@ -86,6 +94,7 @@ SAMMEL = [
     ("56-59-puzzle-extras-sammelbild.jpg", ["rakete", "bombe", "kiste", "eis"], 128),
     ("80-87-waren-sammelbild.jpg", ["i-saft", "i-suppe", "i-pullover", "i-muetze", "i-kuchen", "i-kekse", "i-honig", "i-apfel"], 128),
     ("106-109-tierwaren-sammelbild.jpg", ["i-trueffel", "i-ziegenmilch", "i-ziegenkaese", "i-joghurt"], 128),
+    ("118-125-obstwaren-sammelbild.jpg", ["i-erdbeere", "i-kerne", "i-traube", "i-kirsche", "i-birne", "i-marmelade", "i-traubensaft", "i-oel"], 128),
     ("88-95-helfer-sammelbild.jpg", ["i-hammer", "i-besen", "i-regenbogen", "i-geschenk", "i-herz", "i-kuerbis", "i-schneeflocke", "i-osterei"], 128),
 ]
 

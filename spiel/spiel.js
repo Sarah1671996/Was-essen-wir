@@ -4,7 +4,7 @@ import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, FELDER_MAX, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
-  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, HAUS_STUFEN, ABRISS_ERSTATTUNG,
+  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -116,7 +116,7 @@ function ereignis(name) {
 function herstellbar(w) {
   if (PFLANZEN[w]) return S.level >= PFLANZEN[w].level;
   for (const T of Object.values(TIERE)) if (T.ware === w) return !!(S.gebaut[T.stall] && S.tiere[TIERE_ART(T)]?.length);
-  if (w === "apfel") return S.level >= APFEL.level && S.bauten.some(b => b.typ === "apfelbaum");
+  for (const [typ, Fr] of Object.entries(FRUCHT)) if (Fr.ware === w) return S.level >= Fr.level && S.bauten.some(b => b.typ === typ);
   for (const [k, F] of Object.entries(FABRIKEN)) for (const R of F.rezepte)
     if (R.ware === w && S.gebaut[k] && S.level >= R.level && Object.keys(R.zutaten).every(herstellbar)) return true;
   return false;
@@ -149,13 +149,14 @@ auftraegeAuffuellen();
 /* ================= Welt / Kamera ================= */
 const view = $("#welt-rahmen"), welt = $("#welt");
 welt.style.width = WELT.b + "px"; welt.style.height = WELT.h + "px";
+const breite = () => S.obsthof ? WELT.b : OBSTHOF.grenze + 140;
 const cam = { s: 1, x: 0, y: 0 };
 function grenzen() {
   const W = innerWidth, H = innerHeight;
   // so weit heraus, dass der ganze Hof auf den Bildschirm passt
-  const min = Math.max(Math.min(W / WELT.b, H / WELT.h) * .96, Math.min(.22, Math.max(W / WELT.b, H / WELT.h)));
+  const min = Math.max(Math.min(W / breite(), H / WELT.h) * .96, Math.min(.22, Math.max(W / breite(), H / WELT.h)));
   cam.s = Math.min(1.6, Math.max(min, cam.s));
-  const w = WELT.b * cam.s, h = WELT.h * cam.s;
+  const w = breite() * cam.s, h = WELT.h * cam.s;
   cam.x = w <= W ? (W - w) / 2 : Math.min(0, Math.max(W - w, cam.x));
   cam.y = h <= H ? (H - h) / 2 : Math.min(0, Math.max(H - h, cam.y));
 }
@@ -244,6 +245,18 @@ function zeichneBoden() {
     const w = r() * Math.PI * 2, rr = Math.sqrt(r()) * .8, x = SEE.x + Math.cos(w) * SEE.rx * rr, y = SEE.y + Math.sin(w) * SEE.ry * rr;
     g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 8 + r() * 14, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
   }
+  // Fluss zum Obsthof
+  { const [a, b] = OBSTHOF.fluss, m = (a + b) / 2;
+    const ufer = (off, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath();
+      for (let y = 0; y <= WELT.h; y += 20) { const x = m + Math.sin(y / 160) * 22 + off; y ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); };
+    g.lineCap = "round"; ufer(0, "#e7d39b", b - a + 34); ufer(0, "#4fb3d6", b - a);
+    for (let k = 0; k < 40; k++) { const y = r() * WELT.h, x = m + Math.sin(y / 160) * 22 + (r() - .5) * 50;
+      g.strokeStyle = "rgba(255,255,255,.45)"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 6 + r() * 10, Math.PI * 1.1, Math.PI * 1.9); g.stroke(); }
+    // Brücke
+    const B = OBSTHOF.bruecke; g.save(); g.translate(B.x, B.y);
+    g.fillStyle = "#8a5a2b"; g.fillRect(-90, -34, 180, 68);
+    for (let k = -84; k < 84; k += 14) { g.fillStyle = k % 28 ? "#c98b4b" : "#b9783c"; g.fillRect(k, -30, 12, 60); }
+    g.fillStyle = "#6b4420"; g.fillRect(-92, -40, 184, 8); g.fillRect(-92, 32, 184, 8); g.restore(); }
   // Wege
   g.lineCap = "round"; g.lineJoin = "round";
   const wege = [
@@ -255,6 +268,9 @@ function zeichneBoden() {
     [[1130, 990], [1060, 1350], [980, 1700], [1050, 1990]],
     [[1980, 1200], [2050, 1500], [2400, 1700]],
     [[1800, 780], [1980, 1200]],
+    [[2550, 760], [2650, 980], [2850, 1000], [3150, 760]],
+    [[2850, 1000], [3300, 1060], [3550, 1100], [3800, 1000]],
+    [[3300, 1060], [3200, 1470], [3500, 1750]],
   ];
   for (const [w, col] of [[64, "#c7a36c"], [52, "#dcc090"]]) for (const weg of wege) {
     g.strokeStyle = col; g.lineWidth = w; g.beginPath(); weg.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
@@ -271,14 +287,14 @@ function zeichneBoden() {
   g.fillStyle = "rgba(95,70,30,.16)"; g.beginPath(); g.ellipse(620, 560, 330, 190, 0, 0, 7); g.fill();
   // Grasbüschel und Blumen
   for (let k = 0; k < 1500 * flaeche; k++) {
-    const x = r() * WELT.b, y = r() * WELT.h; if (imSee(x, y)) continue;
+    const x = r() * WELT.b, y = r() * WELT.h; if (imSee(x, y) || (x > OBSTHOF.fluss[0] - 20 && x < OBSTHOF.fluss[1] + 20)) continue;
     g.strokeStyle = r() < .5 ? "#5e9935" : "#a3d46c"; g.lineWidth = 2;
     for (let b = -1; b <= 1; b++) { g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + b * 3, y - 5, x + b * 5, y - 9 - r() * 4); g.stroke(); }
   }
   const fc = ["#fff", "#ffd84d", "#ff9fb2", "#c9a2ff", "#9fd0ff"];
   for (let k = 0; k < 260 * flaeche; k++) {
     const x = r() * WELT.b, y = r() * WELT.h; if (Math.hypot(x - 620, (y - 560) * 1.7) < 380) continue;
-    if (imSee(x, y)) continue;
+    if (imSee(x, y) || (x > OBSTHOF.fluss[0] - 20 && x < OBSTHOF.fluss[1] + 20)) continue;
     g.fillStyle = fc[k % fc.length];
     for (let p = 0; p < 5; p++) { const a = p * 1.2566; g.beginPath(); g.arc(x + Math.cos(a) * 3, y + Math.sin(a) * 3, 2.4, 0, 7); g.fill(); }
     g.fillStyle = "#f5b82e"; g.beginPath(); g.arc(x, y, 1.8, 0, 7); g.fill();
@@ -336,6 +352,7 @@ function weltAufbauen() {
   // feste Gebäude
   for (const [key, g] of Object.entries(GEBAEUDE)) {
     if (key === "schafweide") continue;
+    if (g.obsthof && !S.obsthof) continue;
     if (!S.gebaut[key] && key !== "steg") { bauplatz(key, g); continue; }
     const q = gpos(key);
     neuesDing(key, g.bild, q.x, q.y, g.breite, { cls: "gebaeude", tipp: () => gebaeudeTipp(key), upd: d => gebaeudeUpd(key, d) });
@@ -352,6 +369,12 @@ function weltAufbauen() {
     neuesDing("bewohner-" + k, B.bild, B.x, B.y, 64, { cls: "bewohner", tipp: () => bewohnerPanel(k),
       upd: d => { const w = wunsch(k); overlay(d, w && w.ab <= jetzt() ? blase(`<img class="ic mittel" src="${bildUrl("i-herz")}" alt="Wunsch">`, -44) : ""); } });
   }
+  // Obsthof: Nebel und Kaufschild, solange er nicht gekauft ist
+  $("#nebel").hidden = !!S.obsthof;
+  if (!S.obsthof) {
+    const d = neuesDing("obsthof-schild", "tafel", OBSTHOF.bruecke.x + 150, OBSTHOF.bruecke.y + 60, 110, { cls: "gebaeude", tipp: () => obsthofPanel() });
+    overlay(d, `<div class="schild" style="top:-30px">${S.level >= OBSTHOF.level ? `${muenze("ic klein")} ${OBSTHOF.preis}` : `🔒 Level ${OBSTHOF.level}`}<br><small>Obsthof</small></div>`);
+  }
   // Lieferwagen für Touren
   if (S.level >= TOUR.level) neuesDing("tour", "lieferwagen", TOUR.x, TOUR.y, TOUR.breite, { cls: "gebaeude", tipp: () => tourPanel(),
     upd: d => { const T = tourStand(); d.el.classList.toggle("weg", !!T.unterwegs);
@@ -365,12 +388,13 @@ function weltAufbauen() {
   // Häuser und Deko
   S.bauten.forEach((b, i) => {
     const B = BAUTEN[b.typ];
-    if (b.typ === "apfelbaum") {
+    const Fr = FRUCHT[b.typ];
+    if (Fr) {
       neuesDing("bau" + i, B.bild, b.x, b.y, B.breite, { cls: B.art, tipp: () => apfelTipp(i),
         upd: d => {
-          if (S.level < APFEL.level) { overlay(d, ""); return; }
+          if (S.level < Fr.level) { overlay(d, ""); return; }
           const t = S.bauten[i]?.t || 0;
-          overlay(d, t <= jetzt() ? blase(icon("apfel", "ic mittel"), -36) : uhr(t - jetzt(), APFEL.zeit, d.h * .15));
+          overlay(d, t <= jetzt() ? blase(icon(Fr.ware, "ic mittel"), -36) : uhr(t - jetzt(), Fr.zeit, d.h * .15));
         } });
     } else {
       const d = neuesDing("bau" + i, B.bild, b.x, b.y, B.breite * (1 + ((b.stufe || 1) - 1) * .06), { cls: B.art, tipp: () => bauTipp(i) });
@@ -483,7 +507,7 @@ function saatAuswahl(i) {
     <div class="raster3">${Object.entries(PFLANZEN).map(([k, P]) => {
       const frei = S.level >= P.level;
       return `<button class="karte" data-aktion="saeen" data-p="${k}" data-i="${i}" ${frei ? "" : "disabled"}>
-        ${icon(k, "ic gross")}<b>${WAREN[k].name}</b>
+        ${icon(k, "ic gross")}<b>${P.name || WAREN[k].name}</b>
         <small>${frei ? `${dauer(P.zeit * 1000)} · ergibt ${P.ertrag}` : `ab Level ${P.level}`}</small></button>`;
     }).join("")}</div>
     <p class="hinweis">Danach kannst du weitere leere Felder einfach antippen, um dasselbe zu säen.</p>`);
@@ -699,12 +723,24 @@ function lohnGeben(L) {
   return erhalten;
 }
 
+/* ---------- Obsthof ---------- */
+function obsthofPanel() {
+  oeffnen("obsthof", () => {
+    const lv = S.level >= OBSTHOF.level, geld = S.muenzen >= OBSTHOF.preis;
+    return `<div class="kopf"><h2>Der Obsthof</h2>${zu()}</div>
+      <div class="gastgeberin"><img src="${bildUrl("opa")}" alt=""><p>„Hinter dem Fluss liegt der alte Obsthof meines Bruders. Er sucht jemanden, der ihn weiterführt. Wie wär's mit dir?“</p></div>
+      <p>Mit dem Obsthof bekommst du viel neues Land, Erdbeeren, Sonnenblumen, Weintrauben, Kirsch- und Birnbäume und drei neue Fabriken: Marmeladenküche, Kelterei und Ölmühle.</p>
+      <ul class="beding"><li class="${lv ? "ok" : ""}">Level ${OBSTHOF.level}</li><li class="${geld ? "ok" : ""}">${muenze("ic klein")} ${OBSTHOF.preis}</li></ul>
+      <button class="los" data-aktion="obsthofkaufen" ${lv && geld ? "" : "disabled"}>Obsthof kaufen</button>`;
+  });
+}
+
 /* ---------- 1: Woher kommt eine Ware? ---------- */
 function herkunft(w) {
   const t = [];
   if (PFLANZEN[w]) t.push(`auf einem Feld säen${PFLANZEN[w].level > 1 ? ` (ab Level ${PFLANZEN[w].level})` : ""}, wächst ${dauer(PFLANZEN[w].zeit * 1000)}`);
   for (const [k, T] of Object.entries(TIERE)) if (T.ware === w) t.push(`${T.name} mit Futter füttern (${GEBAEUDE[T.stall].name}${GEBAEUDE[T.stall].level ? `, ab Level ${GEBAEUDE[T.stall].level}` : ""})`);
-  if (w === "apfel") t.push(`von Apfelbäumen ernten (im Bauen-Menü, tragen ab Level ${APFEL.level})`);
+  for (const [typ, Fr] of Object.entries(FRUCHT)) if (Fr.ware === w) t.push(`vom ${BAUTEN[typ].name} ernten (im Bauen-Menü, trägt ab Level ${Fr.level})`);
   for (const [k, F] of Object.entries(FABRIKEN)) for (const R of F.rezepte) if (R.ware === w) {
     t.push(`${F.name}: ${Object.entries(R.zutaten).map(([z, n]) => `${n} ${WAREN[z].name}`).join(" + ")}${R.level > 1 ? ` (ab Level ${R.level})` : ""}`); break;
   }
@@ -730,17 +766,20 @@ function allesErnten() {
     if (Math.random() < EVENT_QUELLEN.ernteChance) eventGeben(1);
     geerntet.push({ i, p: f.p }); f.p = null; f.t = 0; huepf(dinge.get("feld" + i));
   });
-  let aepfel = 0;
-  if (S.level >= APFEL.level) S.bauten.forEach((b, i) => {
-    if (b.typ !== "apfelbaum" || (b.t || 0) > t || voll) return;
-    if (belegt() + APFEL.ertrag > kapazitaet()) { voll = true; return; }
-    S.lager.apfel = (S.lager.apfel || 0) + APFEL.ertrag; b.t = t + APFEL.zeit * 1000; erfahrung(2); zaehle("ernte"); aepfel += APFEL.ertrag;
+  const obst = {};
+  S.bauten.forEach((b, i) => {
+    const Fr = FRUCHT[b.typ];
+    if (!Fr || S.level < Fr.level || (b.t || 0) > t || voll) return;
+    if (belegt() + Fr.ertrag > kapazitaet()) { voll = true; return; }
+    S.lager[Fr.ware] = (S.lager[Fr.ware] || 0) + Fr.ertrag; b.t = t + Fr.zeit * 1000; erfahrung(2); zaehle("ernte");
+    obst[Fr.ware] = (obst[Fr.ware] || 0) + Fr.ertrag;
     huepf(dinge.get("bau" + i));
   });
+  const aepfel = Object.values(obst).reduce((a, n) => a + n, 0);
   if (!geerntet.length && !aepfel) { meldung(voll ? "Die Scheune ist voll." : "Gerade ist nichts reif."); return; }
   leben.ton("ernte");
   const summe = {}; for (const g of geerntet) summe[g.p] = (summe[g.p] || 0) + PFLANZEN[g.p].ertrag;
-  if (aepfel) summe.apfel = aepfel;
+  for (const [w, n] of Object.entries(obst)) summe[w] = (summe[w] || 0) + n;
   const text = Object.entries(summe).map(([w, n]) => `${n} ${WAREN[w].name}`).join(", ");
   speichern(); aktualisieren();
   if (!geerntet.length) { meldung(`Geerntet: ${text}${voll ? " · Die Scheune ist voll." : ""}`); return; }
@@ -872,7 +911,7 @@ function fundstueckePruefen() {
   const ev = eventStand();
   if (ev.liegen.length >= FUNDSTUECK.max || ev.naechstes > jetzt()) return;
   for (let k = 0; k < 40; k++) {
-    const x = 150 + Math.random() * (WELT.b - 300), y = 200 + Math.random() * (WELT.h - 300);
+    const x = 150 + Math.random() * (breite() - 300), y = 200 + Math.random() * (WELT.h - 300);
     if (!platzFrei(x, y, "busch")) continue;
     ev.liegen.push({ x: Math.round(x), y: Math.round(y) }); ev.naechstes = jetzt() + FUNDSTUECK.minuten * 60000;
     fundstueckeZeigen(); speichern(); return;
@@ -977,11 +1016,11 @@ function baumenu() {
     <p class="hinweis">Häuser kannst du antippen und ausbauen: das bringt mehr Einwohner, ohne mehr Platz zu brauchen.</p>`);
 }
 function apfelTipp(i) {
-  const b = S.bauten[i], d = dinge.get("bau" + i);
-  if (S.level < APFEL.level) { bauTipp(i); return; }
-  if ((b.t || 0) > jetzt()) { meldung(`Die Äpfel reifen noch ${dauer(b.t - jetzt())}`); return; }
-  if (!geben("apfel", APFEL.ertrag)) return;
-  b.t = jetzt() + APFEL.zeit * 1000; erfahrung(2); huepf(d); fliegt(d, "apfel", APFEL.ertrag); zaehle("ernte");
+  const b = S.bauten[i], d = dinge.get("bau" + i), Fr = FRUCHT[b.typ];
+  if (S.level < Fr.level) { bauTipp(i); return; }
+  if ((b.t || 0) > jetzt()) { meldung(`Die ${Fr.name} reifen noch ${dauer(b.t - jetzt())}`); return; }
+  if (!geben(Fr.ware, Fr.ertrag)) return;
+  b.t = jetzt() + Fr.zeit * 1000; erfahrung(2); huepf(d); fliegt(d, Fr.ware, Fr.ertrag); zaehle("ernte");
   speichern(); aktualisieren();
 }
 let abrissFrage = null;
@@ -1079,7 +1118,8 @@ function platzFrei(x, y, typ, fuerRaster = false) {
   try { return platzFreiIntern(x, y, B); } finally { ohneNeuesFeld = false; }
 }
 function platzFreiIntern(x, y, B) {
-  if (x < 60 || x > WELT.b - 60 || y < 120 || y > WELT.h - 30) return false;
+  if (x < 60 || x > breite() - 60 || y < 120 || y > WELT.h - 30) return false;
+  if (x > OBSTHOF.fluss[0] - 30 && x < OBSTHOF.fluss[1] + 30) return false; // Fluss
   if (((x - SEE.x) / (SEE.rx + 50)) ** 2 + ((y - SEE.y) / (SEE.ry + 40)) ** 2 < 1) return false; // See
   // Felder dürfen dicht an dicht liegen wie im Raster
   return hindernisse().every(o => o.feld && B === FELD_DEF ? Math.hypot(o.x - x, (o.y - (y - 55)) * 1.4) > 95 : Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
@@ -1226,6 +1266,11 @@ host.addEventListener("click", e => {
   }
   if (a === "tonumschalten") { leben.tonUmschalten(); }
   if (a === "zummarkt") { marktPanel(); return; }
+  if (a === "obsthofkaufen") {
+    if (S.obsthof || S.level < OBSTHOF.level || S.muenzen < OBSTHOF.preis) return;
+    S.muenzen -= OBSTHOF.preis; S.obsthof = true; erfahrung(30); leben.ton("level"); schliessen(); weltAufbauen();
+    cam.x -= 600 * cam.s; kameraSetzen(); meldung("Der Obsthof gehört jetzt dir!");
+  }
   if (a === "abrissfrage") { abrissFrage = +b.dataset.i; fensterKey = ""; fensterZeichnen(); return; }
   if (a === "abrissnein") { abrissFrage = null; fensterKey = ""; fensterZeichnen(); return; }
   if (a === "abreissen") {
@@ -1377,7 +1422,7 @@ function aktualisieren() {
   const bd = $("#auftrag-zahl"); bd.hidden = !n && !eilAktiv(); bd.textContent = eilAktiv() && !n ? "⏰" : n;
   $("#tag-zahl").hidden = !tagOffen();
   { const n = erfolgeBereit(), z = $("#erfolg-zahl"); z.hidden = !n; z.textContent = n; }
-  { const t = jetzt(), n = S.felder.filter(f => f.p && f.t <= t).length + (S.level >= APFEL.level ? S.bauten.filter(b => b.typ === "apfelbaum" && (b.t || 0) <= t).length : 0);
+  { const t = jetzt(), n = S.felder.filter(f => f.p && f.t <= t).length + S.bauten.filter(b => FRUCHT[b.typ] && S.level >= FRUCHT[b.typ].level && (b.t || 0) <= t).length;
     const z = $("#ernte-zahl"); z.hidden = !n; z.textContent = n; }
   { const ev = eventStand(), J = eventJetzt(), St = EVENT_STUFEN[ev.stufe];
     $("#anz-event img").src = bildUrl(J.E.token); $("#anz-event b").textContent = ev.menge;

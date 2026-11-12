@@ -476,3 +476,56 @@ export const HAUS_STUFEN = [
   { faktor: 6.2, level: 8, preis: 14, werkzeug: { axt: 3, spitzhacke: 3, schaufel: 2 } },
 ];
 export const ABRISS_ERSTATTUNG = .5;
+
+/* ================= Obsthof (zweites Grundstück hinter dem Fluss) ================= */
+export const OBSTHOF = { level: 10, preis: 2500, grenze: 2700, fluss: [2700, 2800], bruecke: { x: 2750, y: 1000 } };
+WELT.b = 3900;
+
+Object.assign(WAREN, {
+  erdbeere:    { name: "Erdbeere",         icon: "i-erdbeere",    wert: 9 },
+  sonnenblume: { name: "Sonnenblumenkerne", icon: "i-kerne",      wert: 8 },
+  traube:      { name: "Trauben",          icon: "i-traube",      wert: 11 },
+  kirsche:     { name: "Kirschen",         icon: "i-kirsche",     wert: 10 },
+  birne:       { name: "Birne",            icon: "i-birne",       wert: 9 },
+  marmelade:   { name: "Marmelade",        icon: "i-marmelade",   wert: 45 },
+  traubensaft: { name: "Traubensaft",      icon: "i-traubensaft", wert: 42 },
+  oel:         { name: "Sonnenblumenöl",   icon: "i-oel",         wert: 38 },
+});
+Object.assign(PFLANZEN, {
+  erdbeere:    { zeit: 90,  ertrag: 2, xp: 3, level: 10, bild: "feld-reif-erdbeere" },
+  sonnenblume: { zeit: 120, ertrag: 3, xp: 3, level: 10, bild: "feld-reif-sonnenblume", name: "Sonnenblumen" },
+  traube:      { zeit: 160, ertrag: 2, xp: 4, level: 11, bild: "feld-reif-traube" },
+});
+// Obstbäume: aus dem Bauen-Menü, tragen ab ihrem Level Früchte
+export const FRUCHT = {
+  apfelbaum:  { ware: "apfel",   level: APFEL.level, zeit: APFEL.zeit, ertrag: APFEL.ertrag, name: "Äpfel" },
+  kirschbaum: { ware: "kirsche", level: 10, zeit: 200, ertrag: 2, name: "Kirschen" },
+  birnbaum:   { ware: "birne",   level: 11, zeit: 240, ertrag: 2, name: "Birnen" },
+};
+Object.assign(BAUTEN, {
+  kirschbaum: { name: "Kirschbaum", bild: "kirschbaum", breite: 120, r: 38, preis: 60, level: 10, xp: 4, art: "deko" },
+  birnbaum:   { name: "Birnbaum",   bild: "birnbaum",   breite: 120, r: 38, preis: 70, level: 11, xp: 4, art: "deko" },
+});
+Object.assign(FABRIKEN, {
+  marmeladenkueche: { name: "Marmeladenküche", bild: "marmeladenkueche", rezepte: [
+    { ware: "marmelade", menge: 1, zutaten: { erdbeere: 4 }, zeit: 90, level: 10 },
+    { ware: "marmelade", menge: 2, zutaten: { kirsche: 3, birne: 2 }, zeit: 120, level: 11 },
+  ]},
+  kelterei: { name: "Kelterei", bild: "kelterei", rezepte: [
+    { ware: "traubensaft", menge: 1, zutaten: { traube: 4 }, zeit: 100, level: 11 },
+  ]},
+  oelmuehle: { name: "Ölmühle", bild: "oelmuehle", rezepte: [
+    { ware: "oel", menge: 1, zutaten: { sonnenblume: 5 }, zeit: 90, level: 12 },
+  ]},
+});
+Object.assign(GEBAEUDE, {
+  marmeladenkueche: { name: "Marmeladenküche", bild: "marmeladenkueche", x: 3150, y: 720,  breite: 200, r: 85, level: 10, preis: 900,  einwohner: 90,  obsthof: true },
+  kelterei:         { name: "Kelterei",        bild: "kelterei",         x: 3550, y: 1080, breite: 200, r: 85, level: 11, preis: 1100, einwohner: 110, obsthof: true },
+  oelmuehle:        { name: "Ölmühle",         bild: "oelmuehle",        x: 3150, y: 1460, breite: 200, r: 85, level: 12, preis: 1300, einwohner: 130, obsthof: true },
+});
+FREISCHALTUNG[10] = ["Obsthof hinter dem Fluss", "Erdbeeren und Sonnenblumen", "Kirschbaum", "Marmeladenküche"];
+FREISCHALTUNG[11] = ["Weintrauben", "Birnbaum", "Kelterei"];
+FREISCHALTUNG[12] = ["Ölmühle mit Sonnenblumenöl"];
+AUFTRAGS_WAREN[10] = ["erdbeere", "sonnenblume", "kirsche", "marmelade"];
+AUFTRAGS_WAREN[11] = ["traube", "birne", "traubensaft"];
+AUFTRAGS_WAREN[12] = ["oel"];

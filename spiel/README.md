@@ -67,6 +67,13 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Felder frei aufstellen** (Bauen → Feld, bis zu 40), umstellen und leere Felder abreißen
 - **Häuser ausbauen** bis Stufe 5 (mehr Einwohner auf demselben Platz)
 
+## Obsthof
+
+- Ab Level 10 hinter dem Fluss kaufbar (2500 Münzen): viel neues Land
+- Neue Felder: Erdbeeren, Sonnenblumen (Level 10), Weintrauben (Level 11)
+- Obstbäume: Kirschbaum (Level 10), Birnbaum (Level 11) aus dem Bauen-Menü
+- Marmeladenküche, Kelterei und Ölmühle mit Marmelade, Traubensaft und Sonnenblumenöl
+
 ## Paket C: Schneeinsel und Jahreszeiten-Events
 
 - **Schneeinsel** ab Level 8 (über den Steg wählbar): eigene Karte, Eisbüsche (Axt), Schneehaufen (Schaufel), Eisfelsen (Spitzhacke), wertvollere Truhen, eigene Quests; Punkte und Belohnungspfad teilen sich beide Inseln
