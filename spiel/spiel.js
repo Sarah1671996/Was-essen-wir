@@ -2,7 +2,7 @@
 import { GROESSE } from "./img/groessen.js";
 import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
-  feldPreis, FELDER_MAX, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
+  feldPreis, felderMax, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
   EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, EVENT_AUFGABEN, EVENT_AUFGABEN_AKTIV, EVENT_BONUS_ABSTAND, eventBonusLohn, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
 } from "./daten.js";
@@ -516,7 +516,7 @@ function saatAuswahl(i) {
 // Nächster freier Platz im Feldraster (für den „Neues Feld“-Platz neben den Feldern)
 const FELD_DEF = { name: "Feld", bild: "feld-leer", breite: FELD_BREITE, r: FELD_R };
 function naechsterFeldplatz() {
-  if (S.felder.length >= FELDER_MAX) return null;
+  if (S.felder.length >= felderMax(S.level)) return null;
   return FELDPLAETZE.find(p => S.felder.every(f => Math.hypot(f.x - p.x, f.y - p.y) > 60) && platzFrei(p.x, p.y, FELD_DEF, true)) || null;
 }
 function feldKaufen() {
@@ -608,6 +608,8 @@ function fabrikPanel(key) {
 function ausbauKnopf(key) {
   const st = stufe(key);
   if (st >= AUSBAU.maxStufe) return `<p class="hinweis">Höchste Stufe erreicht.</p>`;
+  const lv = AUSBAU.stufeLevel(st + 1);
+  if (S.level < lv) return `<p class="hinweis">Stufe ${st + 1} kannst du ab Level ${lv} ausbauen.</p>`;
   const istStall = !FABRIKEN[key];
   const preis = istStall ? AUSBAU.stallPreis(st) : AUSBAU.fabrikPreis(st), wz = istStall ? 0 : AUSBAU.fabrikWerkzeug(st);
   const ok = S.muenzen >= preis && (S.werkzeug.spitzhacke || 0) >= wz && (S.werkzeug.axt || 0) >= wz;
@@ -1029,8 +1031,8 @@ let platzieren = null; // { typ, index? } index = vorhandenes Ding verschieben
 function baumenu() {
   oeffnen("bauen", () => `
     <div class="kopf"><h2>Bauen</h2>${zu()}</div>
-    <div class="baumenu"><button class="karte" data-aktion="feldfrei" ${S.muenzen >= feldPreis(S.felder.length) && S.felder.length < FELDER_MAX ? "" : "disabled"}>
-        <img class="bauicon" src="${bildUrl("feld-leer")}" alt=""><b>Feld</b><small>${S.felder.length < FELDER_MAX ? `${muenze("ic klein")} ${feldPreis(S.felder.length)} · ${S.felder.length}/${FELDER_MAX}` : "Maximum erreicht"}</small></button>
+    <div class="baumenu"><button class="karte" data-aktion="feldfrei" ${S.muenzen >= feldPreis(S.felder.length) && S.felder.length < felderMax(S.level) ? "" : "disabled"}>
+        <img class="bauicon" src="${bildUrl("feld-leer")}" alt=""><b>Feld</b><small>${S.felder.length < felderMax(S.level) ? `${muenze("ic klein")} ${feldPreis(S.felder.length)} · ${S.felder.length}/${felderMax(S.level)}` : "Maximum erreicht"}</small></button>
       ${Object.entries(BAUTEN).filter(([k, B]) => !B.insel || S.dekoFrei[k] > 0).map(([k, B]) => {
       if (B.insel) return `<button class="karte geschenk" data-aktion="platzieren" data-t="${k}">
         <img class="bauicon" src="${bildUrl(B.bild)}" alt=""><b>${B.name}</b><small>Belohnung · ${S.dekoFrei[k]}× frei</small></button>`;
@@ -1097,7 +1099,7 @@ const geist = $("#geist");
 const pdef = () => platzieren.feld != null ? FELD_DEF : platzieren.gebaeude ? GEBAEUDE[platzieren.gebaeude] : BAUTEN[platzieren.typ];
 function feldPlatzieren(wer) {
   schliessen();
-  if (wer === "neu" && S.felder.length >= FELDER_MAX) { meldung(`Mehr als ${FELDER_MAX} Felder gehen nicht.`); return; }
+  if (wer === "neu" && S.felder.length >= felderMax(S.level)) { meldung(`Mehr als ${felderMax(S.level)} Felder gehen nicht.`); return; }
   platzieren = { feld: wer, index: null, x: null, y: null };
   geist.innerHTML = `<img src="${bildUrl("feld-leer")}" alt="">`; geist.style.width = FELD_BREITE + "px";
   let q;
@@ -1290,7 +1292,7 @@ host.addEventListener("click", e => {
   if (a === "ausbauen") {
     const key = b.dataset.k, st = stufe(key), istStall = !FABRIKEN[key];
     const preis = istStall ? AUSBAU.stallPreis(st) : AUSBAU.fabrikPreis(st), wz = istStall ? 0 : AUSBAU.fabrikWerkzeug(st);
-    if (st < AUSBAU.maxStufe && S.muenzen >= preis && S.werkzeug.spitzhacke >= wz && S.werkzeug.axt >= wz) {
+    if (st < AUSBAU.maxStufe && S.level >= AUSBAU.stufeLevel(st + 1) && S.muenzen >= preis && S.werkzeug.spitzhacke >= wz && S.werkzeug.axt >= wz) {
       S.muenzen -= preis; S.werkzeug.spitzhacke -= wz; S.werkzeug.axt -= wz; S.ausbau[key] = st + 1; erfahrung(8 * st);
       huepf(dinge.get(key)); leben.ton("level"); meldung(`Ausgebaut auf Stufe ${st + 1}!`);
     }

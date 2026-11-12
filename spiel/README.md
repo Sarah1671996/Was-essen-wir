@@ -73,6 +73,12 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - Zusätzliche Stationen auf den Wegen, darunter Sonderstationen: Wimmelbild (90 Sekunden), Memory, Puzzle-Tor (öffnet sich nach einem gewonnenen Puzzle-Level)
 - Puzzle: übrige Züge werden am Ende zu Raketen und Bomben, die gezündet werden und Extra-Münzen bringen (antippen überspringt)
 
+## Ausbau bis Level 100
+
+- Fabriken und Ställe bis Stufe 10 (Stufe 4 ab Level 18, dann 26, 34, 45, 58, 72, 88); bis 8 Plätze und bis 58 % schneller, Ställe +2 Tiere pro Stufe
+- Häuser bis Stufe 10 (Stufe 6 ab Level 30, dann 45, 60, 75, 90)
+- Ab Level 24 alle 4 Level ein weiteres Feld (bis 60)
+
 ## Obsthof
 
 - Ab Level 10 hinter dem Fluss kaufbar (2500 Münzen): viel neues Land
