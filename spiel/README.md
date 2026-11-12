@@ -32,6 +32,17 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - Gewinn: Münzen, Werkzeuge und Inselpunkte; verlieren kostet nichts, einfach noch mal
 - Tipp nach ein paar Sekunden, automatisches Mischen, wenn kein Zug mehr geht
 
+## Paket A: mehr Abwechslung
+
+- **Tagesbelohnung** (Truhe oben rechts): 7-Tage-Kalender, wer einen Tag auslässt, fängt bei Tag 1 an
+- **Eilaufträge** ab Level 2 auf der Auftragstafel: große Aufträge mit 2 Stunden Zeit, Lohn mit Helfer und Werkzeugen
+- **Ausbau**: Fabriken bis Stufe 3 (mehr Plätze, schneller), Ställe bis Stufe 3 (mehr Tiere)
+- **Dickicht** am Hofrand freiräumen (ab Level 2 bis 6), danach ist dort Platz zum Bauen
+- **Puzzle-Helfer**: Hammer (ein Feld), Besen (eine Reihe), Regenbogen (eine Farbe); einsetzbar jederzeit und auch, wenn die Züge aus sind
+- **Sterne** im Puzzle (1 bis 3 nach übrigen Zügen)
+- **Leben**: Vögel, Schmetterlinge, Tag und Nacht nach Uhrzeit, Glühwürmchen nachts, Töne (⚙ zum Abschalten)
+- Belohnungspfad der Insel ohne Deko, stattdessen Münzen, Werkzeuge und Helfer
+
 ## Auf Handy und PC spielen (Sync)
 
 ⚙ oben rechts → **Sync-Code für diesen Hof erstellen**, dann auf dem anderen Gerät den Code eingeben und **Verbinden**.

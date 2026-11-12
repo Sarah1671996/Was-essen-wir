@@ -1,7 +1,7 @@
 // Sonnenhof – Abenteuerinsel (Schritt 2): Hindernisse freiräumen, Truhen öffnen, Brücken reparieren,
 // Quests erfüllen und Punkte auf dem Belohnungspfad sammeln.
 import {
-  WAREN, BAUTEN, WERKZEUGE, INSEL_LEVEL, INSEL_KARTE, WERKZEUG_KISTE, HINDERNISSE, INSEL_PLAETZE, TIEFE_TEUER,
+  WAREN, BAUTEN, WERKZEUGE, HELFER, INSEL_LEVEL, INSEL_KARTE, WERKZEUG_KISTE, HINDERNISSE, INSEL_PLAETZE, TIEFE_TEUER,
   PUNKTE, QUESTS, AKTIVE_QUESTS, PFAD,
 } from "./daten.js";
 
@@ -241,6 +241,7 @@ export function inselStarten(api) {
           const teile = [];
           if (P.muenzen) teile.push(`${api.muenze("ic klein")} ${P.muenzen}`);
           if (P.werkzeug) teile.push(Object.entries(P.werkzeug).map(([w, n]) => `${wz(w, "ic klein")}${n}`).join(" "));
+          if (P.helfer) teile.push(Object.entries(P.helfer).map(([h, n]) => `${api.helferIcon(h, "ic klein")}${n} ${HELFER[h].name}`).join(" "));
           if (P.deko) teile.push(`<img class="ic mittel" src="${api.bildUrl(BAUTEN[P.deko].bild)}" alt=""> ${P.text}`);
           return `<div class="stufe ${geholt ? "geholt" : bereit ? "bereit" : ""}">
             <span class="stufenpunkte">${P.punkte} ⭐</span><span class="stufenlohn">${teile.join(" · ")}</span>
@@ -276,6 +277,7 @@ export function inselStarten(api) {
       const P = PFAD[I.pfad]; if (!P || I.punkte < P.punkte) return;
       if (P.muenzen) s.muenzen += P.muenzen;
       if (P.werkzeug) for (const [w, n] of Object.entries(P.werkzeug)) s.werkzeug[w] += n;
+      if (P.helfer) for (const [h, n] of Object.entries(P.helfer)) s.helfer[h] = (s.helfer[h] || 0) + n;
       if (P.deko) { s.dekoFrei ??= {}; s.dekoFrei[P.deko] = (s.dekoFrei[P.deko] || 0) + 1; api.meldung(`${BAUTEN[P.deko].name} wartet im Bauen-Menü auf dich!`); }
       else api.meldung("Belohnung abgeholt!");
       I.pfad++;
