@@ -1,5 +1,5 @@
 // Hält das Spiel offline bereit. Bei Änderungen die Versionsnummer hochzählen.
-const CACHE = "sonnenhof-v23";
+const CACHE = "sonnenhof-v24";
 self.addEventListener("install", e => { self.skipWaiting(); });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys()

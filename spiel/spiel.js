@@ -178,12 +178,57 @@ function zoom(f, cx, cy) {
 
 // Ziehen, Zwei-Finger-Zoom, Mausrad. Ein Tippen ohne Bewegung zählt als Klick.
 const zeiger = new Map(); let bewegt = false, start = null, pinch = null;
+/* ---------- Mit dem Finger über Felder wischen: ernten oder säen ---------- */
+let wisch = null; // { art: "ernte" | "saat", p, x, y, aktiv, anzahl }
+const werkzeugZeiger = document.createElement("div"); werkzeugZeiger.id = "werkzeug-zeiger"; werkzeugZeiger.hidden = true; document.body.appendChild(werkzeugZeiger);
+const SICHEL = `<svg viewBox="0 0 64 64" aria-hidden="true"><path d="M14 52 L26 40" stroke="#8a5a2b" stroke-width="7" stroke-linecap="round"/><path d="M24 42 C 10 22, 30 4, 54 10 C 40 12, 28 22, 30 38 Z" fill="#dfe6ee" stroke="#5d6873" stroke-width="3" stroke-linejoin="round"/></svg>`;
+function feldBei(cx, cy) {
+  const p = zuWelt(cx, cy); let best = -1, bd = 1.1;
+  S.felder.forEach((f, i) => { const d = Math.abs((p.x - f.x) / 100) + Math.abs((p.y - (f.y - 55)) / 54); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+function wischStart(art, p, x, y) {
+  wisch = { art, p, x, y, aktiv: false, anzahl: 0, gesehen: new Set() };
+  werkzeugZeiger.innerHTML = art === "ernte" ? SICHEL : icon(p, "ic gross");
+}
+function wischAn(cx, cy) {
+  werkzeugZeiger.hidden = false;
+  werkzeugZeiger.style.transform = `translate(${cx - 34}px,${cy - 64}px)`;
+  const i = feldBei(cx, cy); if (i < 0 || wisch.gesehen.has(i)) return;
+  const f = S.felder[i];
+  if (wisch.art === "ernte" && f.p && f.t <= jetzt()) { wisch.gesehen.add(i); if (feldErnten(i)) wisch.anzahl++; else wischEnde(); }
+  else if (wisch.art === "saat" && !f.p) {
+    if (S.level < PFLANZEN[wisch.p].level) return;
+    wisch.gesehen.add(i); saeen(i, wisch.p); dinge.get("feld" + i)?.upd(dinge.get("feld" + i)); wisch.anzahl++; leben.ton("treffer", wisch.anzahl % 8);
+  }
+}
+function wischEnde() {
+  if (!wisch) return;
+  const w = wisch; wisch = null; werkzeugZeiger.hidden = true;
+  if (w.aktiv) { bewegt = true; if (w.art === "saat") { saat = w.p; } speichern(); aktualisieren(); }
+}
 view.addEventListener("pointerdown", e => {
+  if (zeiger.size === 0 && !platzieren && !bearbeiten) {
+    const i = feldBei(e.clientX, e.clientY);
+    if (i >= 0 && e.target.closest(".feld")) {
+      const f = S.felder[i];
+      if (f.p && f.t <= jetzt()) wischStart("ernte", null, e.clientX, e.clientY);
+      else if (!f.p && saat) wischStart("saat", saat, e.clientX, e.clientY);
+    }
+  }
   zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (zeiger.size === 1) { bewegt = false; start = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; }
   if (zeiger.size === 2) { const [a, b] = [...zeiger.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), s: cam.s }; bewegt = true; }
 });
 addEventListener("pointermove", e => {
+  if (wisch && zeiger.size <= 1) {
+    if (!wisch.aktiv && Math.hypot(e.clientX - wisch.x, e.clientY - wisch.y) > 10) {
+      wisch.aktiv = true; bewegt = true;
+      if (offen === "saat") schliessen();
+      wischAn(wisch.x, wisch.y);
+    }
+    if (wisch.aktiv) { e.preventDefault(); wischAn(e.clientX, e.clientY); return; }
+  }
   if (!zeiger.has(e.pointerId)) { if (platzieren) geistBewegen(e); return; }
   zeiger.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (zeiger.size === 2 && pinch) {
@@ -197,6 +242,7 @@ addEventListener("pointermove", e => {
   if (bewegt) { cam.x = start.cx + dx; cam.y = start.cy + dy; kameraSetzen(); }
 });
 function zeigerEnde(e) {
+  wischEnde();
   zeiger.delete(e.pointerId);
   if (zeiger.size < 2) pinch = null;
   if (zeiger.size === 0) { view.classList.remove("zieht"); start = null; }
@@ -501,14 +547,20 @@ function tierTipp(art, i, d) {
 
 /* ---------- Felder ---------- */
 let saat = null; // gewählte Pflanze für schnelles Säen
-function feldTipp(i) {
+function feldErnten(i) {
   const f = S.felder[i], d = dinge.get("feld" + i);
+  if (!f?.p || f.t > jetzt()) return false;
+  const P = PFLANZEN[f.p];
+  if (!geben(f.p, P.ertrag)) return false;
+  fliegt(d, f.p, P.ertrag); erfahrung(P.xp); ereignis("ernte"); zaehle("ernte");
+  if (Math.random() < EVENT_QUELLEN.ernteChance) eventGeben(1, d);
+  f.p = null; f.t = 0; huepf(d); d?.upd(d);
+  return true;
+}
+function feldTipp(i) {
+  const f = S.felder[i];
   if (f.p && f.t <= jetzt()) {
-    const P = PFLANZEN[f.p];
-    if (!geben(f.p, P.ertrag)) return;
-    fliegt(d, f.p, P.ertrag); erfahrung(P.xp); ereignis("ernte"); zaehle("ernte");
-    if (Math.random() < EVENT_QUELLEN.ernteChance) eventGeben(1, d);
-    f.p = null; f.t = 0; huepf(d);
+    if (!feldErnten(i)) return;
   } else if (f.p) {
     meldung(`${WAREN[f.p].name} wächst noch ${dauer(f.t - jetzt())}`); return;
   } else if (saat) {
@@ -534,8 +586,12 @@ function saatAuswahl(i) {
         ${icon(k, "ic gross")}<b>${P.name || WAREN[k].name}</b>
         <small>${frei ? `${dauer(P.zeit * 1000)} · ergibt ${P.ertrag}` : `ab Level ${P.level}`}</small></button>`;
     }).join("")}</div>
-    <p class="hinweis">Danach kannst du weitere leere Felder einfach antippen, um dasselbe zu säen.</p>`);
+    <p class="hinweis">Tipp: Zieh eine Pflanze mit dem Finger über mehrere leere Felder. Reife Felder erntest du, indem du mit dem Finger darüberwischst.</p>`);
 }
+document.querySelector("#fenster").addEventListener("pointerdown", e => {
+  const k = e.target.closest('.karte[data-aktion="saeen"]'); if (!k || k.disabled) return;
+  wischStart("saat", k.dataset.p, e.clientX, e.clientY);
+});
 // Nächster freier Platz im Feldraster (für den „Neues Feld“-Platz neben den Feldern)
 const FELD_DEF = { name: "Feld", bild: "feld-leer", breite: FELD_BREITE, r: FELD_R };
 function naechsterFeldplatz() {
@@ -1543,7 +1599,7 @@ host.addEventListener("click", e => {
 });
 function saatLeiste() {
   const l = $("#saatleiste");
-  l.innerHTML = `${icon(saat, "ic")}<span>Tippe weitere leere Felder an, um ${WAREN[saat].name} zu säen.</span><button id="saat-fertig">Fertig</button>`;
+  l.innerHTML = `${icon(saat, "ic")}<span>Tippe oder wische über leere Felder, um ${WAREN[saat].name} zu säen.</span><button id="saat-fertig">Fertig</button>`;
   l.hidden = false;
   $("#saat-fertig").onclick = () => { saat = null; l.hidden = true; };
 }
