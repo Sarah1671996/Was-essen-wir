@@ -90,7 +90,9 @@ export const BAUTEN = {
   entdeckerin: { name: "Entdeckerin", bild: "gastgeberin", breite: 90, r: 34, preis: 0, level: 1, xp: 10, art: "deko", insel: true },
 };
 
-export const WELT = { b: 1800, h: 1400 };
+export const WELT = { b: 2700, h: 2000 };
+// See am Steg (Ellipse); dort kann nichts gebaut werden
+export const SEE = { x: 1610, y: 1275, rx: 370, ry: 190 };
 
 export const xpFuer = level => 20 + (level - 1) * 30;
 
@@ -285,6 +287,8 @@ export const DICKICHT = [
   { id: "nordost",  x: 1640, y: 210, rx: 140, ry: 90, level: 4, muenzen: 250, werkzeug: { axt: 3, spitzhacke: 1 } },
   { id: "suedwest", x: 340, y: 1270, rx: 170, ry: 80, level: 5, muenzen: 350, werkzeug: { axt: 3, schaufel: 2 } },
   { id: "ost",      x: 1700, y: 820, rx: 110, ry: 90,  level: 6, muenzen: 500, werkzeug: { axt: 4, spitzhacke: 2 } },
+  { id: "fernost",  x: 2480, y: 300, rx: 170, ry: 90,  level: 8, muenzen: 700, werkzeug: { axt: 4, schaufel: 3 } },
+  { id: "fernsued", x: 600, y: 1880, rx: 180, ry: 80,  level: 9, muenzen: 900, werkzeug: { axt: 5, spitzhacke: 3 } },
 ];
 
 /* ================= Paket B: neue Waren, Fabriken, Apfelbäume, Bewohner, Puzzle-Karte ================= */
