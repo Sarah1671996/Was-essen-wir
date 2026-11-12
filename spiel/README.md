@@ -86,7 +86,8 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Winterkarte** für jedes zweite Puzzle-Kapitel
 - **Jahreszeiten-Events** nach Kalender: Osterfest (März–Mai, Ostereier), Sommerfest (Juni–August, Geschenke), Kürbisfest (September–November, Kürbisse), Winterzauber (Dezember–Februar, Schneeflocken)
   - Teile gibt es beim Ernten, für Aufträge, Eilaufträge, Wünsche, Puzzle, Truhen, Tagesbelohnung und als Fundstücke auf dem Hof
-  - 7 Belohnungsstufen nur mit Münzen, Werkzeugen und Puzzle-Helfern (keine Deko)
+  - 7 Belohnungsstufen nur mit Münzen, Werkzeugen und Puzzle-Helfern (keine Deko), danach alle 60 Teile eine wachsende Bonusstufe
+  - 3 Festaufgaben gleichzeitig mit Extra-Teilen, jede neue Aufgabe etwas schwerer
 
 ## Mehr Platz
 

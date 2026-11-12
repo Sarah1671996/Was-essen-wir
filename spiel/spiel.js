@@ -4,7 +4,7 @@ import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, FELDER_MAX, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
-  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
+  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, EVENT_AUFGABEN, EVENT_AUFGABEN_AKTIV, EVENT_BONUS_ABSTAND, eventBonusLohn, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -894,7 +894,24 @@ function eventJetzt() {
 function eventStand() {
   const J = eventJetzt();
   if (!S.event || S.event.id !== J.id) S.event = { id: J.id, menge: 0, stufe: 0, liegen: [], naechstes: jetzt() + 30000 };
-  return S.event;
+  const ev = S.event;
+  ev.aufgaben ??= []; ev.runde ??= 0; ev.naechsteA ??= Math.floor(Math.random() * EVENT_AUFGABEN.length);
+  while (ev.aufgaben.length < EVENT_AUFGABEN_AKTIV) {
+    const A = EVENT_AUFGABEN[ev.naechsteA % EVENT_AUFGABEN.length];
+    if (ev.aufgaben.some(a => a.typ === A.typ)) { ev.naechsteA++; continue; }
+    const f = 1 + ev.runde * .25;
+    ev.aufgaben.push({ typ: A.typ, n: Math.max(1, Math.round(A.n * f)), lohn: Math.round(A.lohn * f), start: zaehlerWert(A.typ) });
+    ev.naechsteA++; ev.runde++;
+  }
+  return ev;
+}
+function zaehlerWert(typ) { return typ === "puzzle" ? (S.puzzle?.gewonnen || 0) : (S.zaehler[typ] || 0); }
+const aufgabeStand = a => Math.min(a.n, zaehlerWert(a.typ) - a.start);
+// Stufe k: feste Stufen, danach endlose Bonusstufen
+function eventStufe(k) {
+  if (k < EVENT_STUFEN.length) return EVENT_STUFEN[k];
+  const b = k - EVENT_STUFEN.length;
+  return { n: EVENT_STUFEN[EVENT_STUFEN.length - 1].n + EVENT_BONUS_ABSTAND * (b + 1), ...eventBonusLohn(b), bonus: b + 1 };
 }
 function eventGeben(n, d) {
   if (!n) return;
@@ -933,12 +950,21 @@ function eventPanel() {
     const tok = c => `<img class="ic ${c}" src="${bildUrl(J.E.token)}" alt="${J.E.mehrzahl}">`;
     return `<div class="kopf"><h2>${J.E.name}</h2>${zu()}</div>
       <div class="event-kopf">${tok("riesig")}<div><p>${J.E.text}</p><p><b>${ev.menge} ${J.E.mehrzahl}</b> gesammelt · noch ${tage} ${tage === 1 ? "Tag" : "Tage"}</p></div></div>
-      <div class="pfad">${EVENT_STUFEN.map((St, k) => {
-        const geholt = k < ev.stufe, bereit = k === ev.stufe && ev.menge >= St.n;
-        return `<div class="stufe ${geholt ? "geholt" : bereit ? "bereit" : ""}">
-          <span class="stufenpunkte">${tok("klein")} ${St.n}</span><span class="stufenlohn">${lohnText(St)}</span>
+      <h3>Festaufgaben</h3>
+      <div class="quests">${ev.aufgaben.map((a, i) => {
+        const A = EVENT_AUFGABEN.find(x => x.typ === a.typ), st = aufgabeStand(a), ok = st >= a.n;
+        return `<div class="quest ${ok ? "erfolg bereit" : ""}"><div><b>${A.text(a.n)}</b><small>${st}/${a.n}</small></div>
+          ${ok ? `<button class="los" data-aktion="eventaufgabe" data-i="${i}">+${a.lohn} ${tok("klein")}</button>` : `<span class="questpunkte">+${a.lohn} ${tok("klein")}</span>`}
+          <i class="questbalken"><i style="width:${st / a.n * 100}%"></i></i></div>`;
+      }).join("")}</div>
+      <h3 class="lager-zwischen">Belohnungen</h3>
+      <div class="pfad">${Array.from({ length: Math.max(EVENT_STUFEN.length, ev.stufe + 1) }, (_, k) => k).filter(k => k >= ev.stufe - 2 || k < EVENT_STUFEN.length).map(k => {
+        const St = eventStufe(k), geholt = k < ev.stufe, bereit = k === ev.stufe && ev.menge >= St.n;
+        return `<div class="stufe ${geholt ? "geholt" : bereit ? "bereit" : ""} ${St.bonus ? "bonusstufe" : ""}">
+          <span class="stufenpunkte">${tok("klein")} ${St.n}</span><span class="stufenlohn">${St.bonus ? `<b>Bonus ${St.bonus}:</b> ` : ""}${lohnText(St)}</span>
           ${geholt ? `<span class="haken">✓</span>` : `<button class="los" data-aktion="eventholen" ${bereit ? "" : "disabled"}>Holen</button>`}</div>`;
       }).join("")}</div>
+      ${ev.stufe >= EVENT_STUFEN.length ? `<p class="hinweis">Stark! Alle festen Stufen sind geschafft. Jetzt gibt es alle ${EVENT_BONUS_ABSTAND} ${J.E.mehrzahl} eine Bonusstufe, und jede wird größer.</p>` : ""}
       <p class="hinweis">${J.E.mehrzahl} bekommst du beim Ernten, für Aufträge und Eilaufträge, für Wünsche der Bewohner, im Puzzle, in Schatztruhen auf den Inseln, in der Tagesbelohnung und wenn du sie auf dem Hof findest.</p>`;
   });
 }
@@ -1357,9 +1383,15 @@ host.addEventListener("click", e => {
     T.unterwegs = t + TOUR.fahrtMin * 60000; fliegtMuenzen(dinge.get("tour")); leben.ton("level");
     meldung(`Der Lieferwagen fährt los! +${L.muenzen} Münzen`); schliessen();
   }
+  if (a === "eventaufgabe") {
+    const ev = eventStand(), A = ev.aufgaben[+b.dataset.i];
+    if (!A || aufgabeStand(A) < A.n) return;
+    ev.aufgaben.splice(+b.dataset.i, 1); ev.menge += A.lohn; eventStand(); leben.ton("level");
+    meldung(`Festaufgabe geschafft: +${A.lohn}`);
+  }
   if (a === "eventholen") {
-    const ev = eventStand(), St = EVENT_STUFEN[ev.stufe];
-    if (!St || ev.menge < St.n) return;
+    const ev = eventStand(), St = eventStufe(ev.stufe);
+    if (ev.menge < St.n) return;
     lohnGeben(St); ev.stufe++; leben.ton("level"); meldung("Event-Belohnung abgeholt!");
   }
   if (a === "wunsch") {
@@ -1451,7 +1483,7 @@ function aktualisieren() {
   { const n = erfolgeBereit(), z = $("#erfolg-zahl"); z.hidden = !n; z.textContent = n; }
   { const t = jetzt(), n = S.felder.filter(f => f.p && f.t <= t).length + S.bauten.filter(b => FRUCHT[b.typ] && S.level >= FRUCHT[b.typ].level && (b.t || 0) <= t).length;
     const z = $("#ernte-zahl"); z.hidden = !n; z.textContent = n; }
-  { const ev = eventStand(), J = eventJetzt(), St = EVENT_STUFEN[ev.stufe];
+  { const ev = eventStand(), J = eventJetzt(), St0 = eventStufe(ev.stufe), St = ev.menge >= St0.n || ev.aufgaben.some(a => aufgabeStand(a) >= a.n) ? { n: 0 } : St0;
     $("#anz-event img").src = bildUrl(J.E.token); $("#anz-event b").textContent = ev.menge;
     $("#event-zahl").hidden = !(St && ev.menge >= St.n); fundstueckePruefen(); }
   for (const d of dinge.values()) d.upd(d);

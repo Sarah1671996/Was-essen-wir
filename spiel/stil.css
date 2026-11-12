@@ -483,3 +483,6 @@ body.bearbeiten .ding.feld .spr { outline: 3px dashed rgba(255, 255, 255, .85); 
 
 /* Raster beim Aufstellen */
 #raster { position: absolute; pointer-events: none; z-index: 4990; }
+
+.stufe.bonusstufe { background: #fff8dc; }
+.stufe.bonusstufe.geholt { background: #fff; }
