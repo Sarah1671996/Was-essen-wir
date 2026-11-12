@@ -6,6 +6,7 @@ import {
   WERKZEUGE,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
+import { puzzleStarten } from "./puzzle.js";
 
 /* ================= Hilfen ================= */
 const $ = s => document.querySelector(s);
@@ -735,6 +736,13 @@ function aktualisieren() {
 const insel = inselStarten({
   S: () => S, speichern, meldung, oeffnen, schliessen, zu, icon, muenze, bildUrl, hoehe, hat, nehmen, dauer, aktualisieren,
 });
+
+/* ================= Puzzle ================= */
+const puzzle = puzzleStarten({
+  S: () => S, speichern, meldung, schliessen, bildUrl, muenze, aktualisieren, inselEreignis: t => insel.ereignis(t),
+});
+$("#knopf-puzzle").onclick = () => puzzle.oeffnen();
+$("#knopf-puzzle2").onclick = () => puzzle.oeffnen();
 
 /* ================= Start ================= */
 addEventListener("keydown", e => { if (e.key === "Escape") { if (platzieren) platzierenEnde(false); else schliessen(); } });

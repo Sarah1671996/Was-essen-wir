@@ -23,7 +23,16 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - Werkzeuge gibt es für Aufträge auf dem Hof, in Truhen und alle 8 Minuten in der Kiste am Zelt
 - Ist alles freigeräumt, startet auf Wunsch eine neue Expedition
 
-Die Spielregeln (Zeiten, Preise, Rezepte, Inselplätze, Quests) stehen alle in `daten.js`.
+## Stand: Schritt 3 – das Puzzle
+
+- Über „Puzzle“ auf dem Hof und auf der Insel: Steine tauschen, drei oder mehr gleiche in einer Reihe
+- 4 in einer Reihe ergeben eine Rakete (räumt Reihe oder Spalte), 5 oder eine L/T-Form eine Bombe (3 × 3)
+- Ziele: bestimmte Steine sammeln, Kisten zerschlagen, Eis aufbrechen; begrenzte Züge
+- 11 feste Level, danach geht es endlos mit wechselnden Karten weiter
+- Gewinn: Münzen, Werkzeuge und Inselpunkte; verlieren kostet nichts, einfach noch mal
+- Tipp nach ein paar Sekunden, automatisches Mischen, wenn kein Zug mehr geht
+
+Die Spielregeln (Zeiten, Preise, Rezepte, Inselplätze, Quests, Puzzle-Level) stehen alle in `daten.js`.
 
 ## Dateien
 

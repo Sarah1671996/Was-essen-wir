@@ -176,6 +176,7 @@ export const QUESTS = [
   { text: "Räume 3 dichte Büsche mit der Axt frei", typ: "axt", n: 3, punkte: 8 },
   { text: "Grabe 2 Baumstümpfe mit der Schaufel aus", typ: "schaufel", n: 2, punkte: 6 },
   { text: "Repariere die Holzbrücke", typ: "bruecke:b1", n: 1, punkte: 12 },
+  { text: "Gewinne ein Puzzle-Level", typ: "puzzle", n: 1, punkte: 8 },
   { text: "Zerschlage 2 Felsen mit der Spitzhacke", typ: "spitzhacke", n: 2, punkte: 6 },
   { text: "Öffne 2 Schatztruhen", typ: "truhe", n: 2, punkte: 10 },
   { text: "Liefere 3 Aufträge auf dem Hof", typ: "auftrag", n: 3, punkte: 8 },
@@ -184,6 +185,7 @@ export const QUESTS = [
   { text: "Räume 10 Hindernisse frei", typ: "hindernis", n: 10, punkte: 12 },
   { text: "Erreiche den Wasserfall", typ: "ziel:wasserfall", n: 1, punkte: 18 },
   { text: "Öffne 4 Schatztruhen", typ: "truhe", n: 4, punkte: 14 },
+  { text: "Gewinne 2 Puzzle-Level", typ: "puzzle", n: 2, punkte: 10 },
   { text: "Räume die ganze Insel frei", typ: "alles", n: 1, punkte: 30 },
 ];
 export const AKTIVE_QUESTS = 3;
@@ -198,3 +200,46 @@ export const PFAD = [
   { punkte: 140, muenzen: 300, deko: "felsen", text: "Deko: Moosfelsen" },
   { punkte: 200, deko: "entdeckerin", text: "Deko: Statue der Entdeckerin", muenzen: 500 },
 ];
+
+/* ================= Puzzle (Schritt 3) ================= */
+export const STEINE = [
+  { bild: "stein-rot", name: "Herzen" }, { bild: "stein-blau", name: "Tropfen" }, { bild: "stein-gruen", name: "Blätter" },
+  { bild: "stein-gelb", name: "Sterne" }, { bild: "stein-lila", name: "Blüten" }, { bild: "stein-orange", name: "Würfel" },
+];
+export const BRETT = 8; // 8 × 8 Felder
+
+// Karten: K = Kiste (blockiert, geht durch Treffer daneben kaputt), E = Eis unter dem Stein
+const LEER = Array(8).fill("........");
+const karte = zeilen => LEER.map((z, i) => zeilen[i] ?? z);
+const KARTEN = {
+  leer: LEER,
+  kistenMitte: karte({ 3: "..KKKK..", 4: "..KKKK.." }),
+  eisUnten: karte({ 6: "EEEEEEEE", 7: "EEEEEEEE" }),
+  kistenSechs: karte({ 2: ".K....K.", 3: "...KK...", 5: ".K....K." }),
+  eisKreuz: karte({ 0: "...E....", 1: "...E....", 2: "...E....", 3: "EEEEEEEE", 4: "...E....", 5: "...E....", 6: "...E....", 7: "...E...." }),
+  kistenBand: karte({ 4: "KKKKKKKK", 5: "..KKKK.." }),
+  gemischt: karte({ 2: "KK....KK", 3: "KK....KK", 6: "EEEEEEEE", 7: "EEEEEEEE" }),
+  festung: karte({ 1: "..EEEE..", 3: ".KKKKKK.", 4: ".KKKKKK.", 6: "..EEEE..", 7: "..EEEE.." }),
+  rahmen: karte({ 1: "E......E", 2: "E.KKKK.E", 5: "E.KKKK.E", 6: "E......E", 7: "EEEEEEEE" }),
+};
+const LEVELS = [
+  { farben: 5, zuege: 20, karte: "leer", steine: { 0: 12, 1: 12 } },
+  { farben: 5, zuege: 18, karte: "leer", steine: { 2: 20 } },
+  { farben: 5, zuege: 22, karte: "kistenMitte", steine: {} },
+  { farben: 5, zuege: 22, karte: "eisUnten", steine: {} },
+  { farben: 6, zuege: 24, karte: "kistenSechs", steine: { 3: 15 } },
+  { farben: 6, zuege: 25, karte: "eisKreuz", steine: { 4: 12 } },
+  { farben: 5, zuege: 22, karte: "kistenBand", steine: {} },
+  { farben: 6, zuege: 26, karte: "gemischt", steine: {} },
+  { farben: 6, zuege: 24, karte: "leer", steine: { 0: 20, 5: 20 } },
+  { farben: 6, zuege: 28, karte: "festung", steine: {} },
+  { farben: 6, zuege: 26, karte: "rahmen", steine: { 1: 15 } },
+];
+// Ab Level 12 wiederholen sich die Karten mit mehr Steinen
+export function puzzleLevel(n) {
+  if (n <= LEVELS.length) { const L = LEVELS[n - 1]; return { ...L, karte: KARTEN[L.karte] }; }
+  const namen = Object.keys(KARTEN), k = namen[(n * 7) % namen.length];
+  const steine = {}; steine[n % 6] = 12 + Math.min(18, n); if (n % 2) steine[(n + 2) % 6] = 10 + Math.min(14, n);
+  return { farben: 6, zuege: 24 + (n % 4), karte: KARTEN[k], steine };
+}
+export const PUZZLE_LOHN = n => ({ muenzen: 30 + n * 5, werkzeuge: 2 + (n % 3 === 0 ? 1 : 0), punkte: 5 });
