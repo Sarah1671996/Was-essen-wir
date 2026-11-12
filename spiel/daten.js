@@ -25,6 +25,7 @@ export const TIERE = {
   huhn: { name: "Huhn",  bild: "huhn", breite: 62,  zeit: 30, ware: "ei",    xp: 1, preis: 40,  max: 6, stall: "huehnerstall" },
   schaf:{ name: "Schaf", bild: "schaf",breite: 100, zeit: 80, ware: "wolle", xp: 3, preis: 120, max: 4, stall: "schafweide" },
 };
+for (const [k, m] of [["kuh", "Kühe"], ["huhn", "Hühner"], ["schaf", "Schafe"]]) TIERE[k].mehrzahl = m;
 
 export const FABRIKEN = {
   muehle: { name: "Futtermühle", bild: "muehle", rezepte: [
@@ -434,3 +435,31 @@ export const ERFOLG_LOHN = [
 
 // Lieferwagen-Touren: 6 Kisten füllen, dann losschicken
 export const TOUR = { level: 3, kisten: 6, fahrtMin: 45, x: 1830, y: 880, breite: 170 };
+
+/* ================= Paket D: Schweine und Ziegen ================= */
+Object.assign(WAREN, {
+  trueffel:    { name: "Trüffel",     icon: "i-trueffel",    wert: 18 },
+  ziegenmilch: { name: "Ziegenmilch", icon: "i-ziegenmilch", wert: 11 },
+  ziegenkaese: { name: "Ziegenkäse",  icon: "i-ziegenkaese", wert: 40 },
+  joghurt:     { name: "Joghurt",     icon: "i-joghurt",     wert: 32 },
+});
+Object.assign(TIERE, {
+  schwein: { name: "Schwein", mehrzahl: "Schweine", bild: "schwein", breite: 92, zeit: 100, ware: "trueffel", xp: 4, preis: 160, max: 4, stall: "schweinestall" },
+  ziege:   { name: "Ziege",   mehrzahl: "Ziegen",   bild: "ziege",   breite: 86, zeit: 70,  ware: "ziegenmilch", xp: 3, preis: 140, max: 4, stall: "ziegenstall" },
+});
+Object.assign(GEBAEUDE, {
+  schweinestall: { name: "Schweinestall", bild: "schweinestall", x: 2230, y: 1090, breite: 200, r: 85, level: 6, preis: 500, einwohner: 55 },
+  ziegenstall:   { name: "Ziegenstall",   bild: "ziegenstall",   x: 2230, y: 1470, breite: 200, r: 85, level: 7, preis: 650, einwohner: 70 },
+});
+Object.assign(WEIDEN, {
+  schwein: { x: 2440, y: 1150, rx: 120, ry: 60 },
+  ziege:   { x: 2450, y: 1520, rx: 120, ry: 58 },
+});
+FABRIKEN.molkerei.rezepte.push(
+  { ware: "ziegenkaese", menge: 1, zutaten: { ziegenmilch: 3 }, zeit: 90, level: 7 },
+  { ware: "joghurt", menge: 2, zutaten: { ziegenmilch: 2, apfel: 1 }, zeit: 80, level: 7 },
+);
+FREISCHALTUNG[6] = [...(FREISCHALTUNG[6] || []), "Schweinestall: Schweine finden Trüffel"];
+FREISCHALTUNG[7] = [...(FREISCHALTUNG[7] || []), "Ziegenstall mit Ziegenmilch", "Ziegenkäse und Joghurt in der Molkerei"];
+AUFTRAGS_WAREN[6] = [...(AUFTRAGS_WAREN[6] || []), "trueffel"];
+AUFTRAGS_WAREN[7] = [...(AUFTRAGS_WAREN[7] || []), "ziegenmilch", "ziegenkaese", "joghurt"];
