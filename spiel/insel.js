@@ -71,7 +71,38 @@ export function inselStarten(api) {
         if (w === welt && alleFrei()) setTimeout(() => ereignis("alles", true), 50);
       }
     }
+    questsPruefen();
     zeigeHud();
+  }
+
+  // Quests, deren Ziel auf dieser Insel schon erreicht ist, zählen als geschafft
+  function zustandErfuellt(Q, w) {
+    const I = weltStand(w), frei = id => I.frei.includes(id);
+    if (Q.typ.startsWith("bruecke:")) return frei(Q.typ.slice(8));
+    if (Q.typ.startsWith("ziel:")) { const z = Q.typ.slice(5); return Object.entries(INSEL_PLAETZE).some(([id, P]) => P.ziel === z && frei(id)); }
+    if (Q.typ === "alles") return Object.keys(INSEL_PLAETZE).every(frei);
+    return false;
+  }
+  function questsPruefen() {
+    const s = S(), G = geteilt();
+    for (const w of ["sommer", ...(s.schnee ? ["winter"] : [])]) {
+      const I = weltStand(w);
+      let neu = true;
+      while (neu) {
+        neu = false;
+        for (const q of I.quests) {
+          const Q = QUESTS[q.q];
+          if (!q.fertig && zustandErfuellt(Q, w)) {
+            q.stand = Q.n; q.fertig = true; G.punkte += Q.punkte; neu = true;
+            api.meldung(`Quest geschafft: ${(w === "winter" && Q.textWinter) || Q.text} (+${Q.punkte} Punkte)`);
+          }
+        }
+        if (neu) {
+          I.quests = I.quests.filter(q => !q.fertig);
+          while (I.quests.length < AKTIVE_QUESTS && I.naechste < QUESTS.length) I.quests.push({ q: I.naechste++, stand: 0 });
+        }
+      }
+    }
   }
 
   /* ---------- Kamera ---------- */
@@ -287,6 +318,8 @@ export function inselStarten(api) {
           return `<div class="quest"><div><b>${questText(Q)}</b><small>${Math.min(q.stand, Q.n)}/${Q.n}</small></div>
             <span class="questpunkte">+${Q.punkte} ⭐</span><i class="questbalken"><i style="width:${pr * 100}%"></i></i></div>`;
         }).join("") : `<p class="hinweis">Alle Quests dieser Insel sind geschafft!</p>`}</div>
+        ${alleFrei() ? `<p class="hinweis">Die ganze Insel ist frei. Starte eine neue Expedition, dann wächst alles nach, neue Schätze liegen bereit und die Quests gehen weiter.</p>
+          <button class="los" data-aktion="i-neu">Neue Expedition starten</button>` : ""}
         ${werkzeugZeile()}`;
     });
   }
@@ -364,6 +397,7 @@ export function inselStarten(api) {
     if (S().level < Wd.level) { api.meldung(`Das Boot zur ${Wd.name} fährt ab Level ${Wd.level}. Sammle noch etwas Erfahrung auf dem Hof!`); return; }
     api.schliessen();
     welt = w;
+    questsPruefen(); api.speichern();
     q$("#insel-karte").src = api.bildUrl(Wd.karte);
     rahmen.style.background = Wd.meer;
     document.body.classList.toggle("schnee", w === "winter");
