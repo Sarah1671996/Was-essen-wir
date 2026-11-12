@@ -194,11 +194,11 @@ export const AKTIVE_QUESTS = 3;
 export const PFAD = [
   { punkte: 10,  muenzen: 50 },
   { punkte: 25,  werkzeug: { axt: 2, schaufel: 2, spitzhacke: 2 } },
-  { punkte: 45,  deko: "zelt", text: "Deko: Entdeckerzelt" },
+  { punkte: 45,  helfer: { hammer: 2 }, muenzen: 80 },
   { punkte: 70,  muenzen: 150, werkzeug: { spitzhacke: 2 } },
-  { punkte: 100, deko: "schatz", text: "Deko: Schatztruhe" },
-  { punkte: 140, muenzen: 300, deko: "felsen", text: "Deko: Moosfelsen" },
-  { punkte: 200, deko: "entdeckerin", text: "Deko: Statue der Entdeckerin", muenzen: 500 },
+  { punkte: 100, helfer: { besen: 2, hammer: 1 } },
+  { punkte: 140, muenzen: 300, werkzeug: { axt: 3, schaufel: 3 } },
+  { punkte: 200, helfer: { regenbogen: 2, besen: 1 }, muenzen: 500 },
 ];
 
 /* ================= Puzzle (Schritt 3) ================= */
@@ -243,3 +243,46 @@ export function puzzleLevel(n) {
   return { farben: 6, zuege: 24 + (n % 4), karte: KARTEN[k], steine };
 }
 export const PUZZLE_LOHN = n => ({ muenzen: 30 + n * 5, werkzeuge: 2 + (n % 3 === 0 ? 1 : 0), punkte: 5 });
+
+/* ================= Paket A: Helfer, Tagesbelohnung, Eilaufträge, Ausbau, Dickicht ================= */
+// Puzzle-Helfer. bild = Gemini-Bild (kommt noch), zeichen = Ersatz, solange das Bild fehlt
+export const HELFER = {
+  hammer:     { name: "Hammer",     bild: "i-hammer",     zeichen: "🔨", text: "Zerschlägt ein Feld deiner Wahl" },
+  besen:      { name: "Besen",      bild: "i-besen",      zeichen: "🧹", text: "Fegt eine ganze Reihe leer" },
+  regenbogen: { name: "Regenbogen", bild: "i-regenbogen", zeichen: "🌈", text: "Entfernt alle Steine einer Farbe" },
+};
+export const START_HELFER = { hammer: 1, besen: 1, regenbogen: 1 };
+
+// Tagesbelohnung: Tag 1 bis 7, danach von vorn. Wer einen Tag auslässt, fängt wieder bei Tag 1 an.
+export const TAGESLOHN = [
+  { muenzen: 50 },
+  { werkzeug: 2 },
+  { helfer: { hammer: 1 }, muenzen: 30 },
+  { muenzen: 100 },
+  { werkzeug: 3 },
+  { helfer: { besen: 1 }, muenzen: 50 },
+  { muenzen: 200, werkzeug: 3, helfer: { regenbogen: 1 }, truhe: true },
+];
+
+// Eilaufträge: großer Auftrag mit Zeitlimit, ab Level 2
+export const EIL = { level: 2, dauerMin: 120, pauseMin: 45, faktor: 2.2 };
+
+// Ausbau: Fabriken bis Stufe 3 (mehr Plätze, schneller), Ställe bis Stufe 3 (mehr Tiere)
+export const AUSBAU = {
+  maxStufe: 3,
+  fabrikPreis: (stufe) => 150 * stufe,
+  fabrikWerkzeug: (stufe) => stufe,          // so viele Spitzhacken und Äxte zusätzlich
+  plaetze: (stufe) => 2 + stufe,             // Stufe 1: 3, Stufe 2: 4, Stufe 3: 5
+  tempo: (stufe) => 1 - (stufe - 1) * 0.15,  // Stufe 2: 15 % schneller, Stufe 3: 30 %
+  stallPreis: (stufe) => 120 * stufe,
+  stallPlus: 2,
+};
+
+// Dickicht am Hofrand: freiräumen gibt Platz zum Bauen
+export const DICKICHT = [
+  { id: "nordwest", x: 430, y: 180, rx: 150, ry: 70,  level: 2, muenzen: 80,  werkzeug: { axt: 2 } },
+  { id: "west",     x: 100, y: 800, rx: 85,  ry: 120, level: 3, muenzen: 150, werkzeug: { axt: 2, schaufel: 1 } },
+  { id: "nordost",  x: 1640, y: 210, rx: 140, ry: 90, level: 4, muenzen: 250, werkzeug: { axt: 3, spitzhacke: 1 } },
+  { id: "suedwest", x: 340, y: 1270, rx: 170, ry: 80, level: 5, muenzen: 350, werkzeug: { axt: 3, schaufel: 2 } },
+  { id: "ost",      x: 1700, y: 830, rx: 90,  ry: 140, level: 6, muenzen: 500, werkzeug: { axt: 4, spitzhacke: 2 } },
+];

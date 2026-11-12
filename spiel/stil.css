@@ -260,7 +260,7 @@ body.im-puzzle .hud, body.im-puzzle .aktionen, body.im-puzzle #schritt, body.im-
 .pz-zuege { display: flex; flex-direction: column; align-items: center; background: var(--tinte); color: #fff; border-radius: 14px; padding: 4px 12px; line-height: 1.05; }
 .pz-zuege b { font-size: 24px; font-variant-numeric: tabular-nums; } .pz-zuege small { font-size: 11px; opacity: .8; }
 #brett { position: relative; overflow: hidden; touch-action: none; border-radius: 18px; background: rgba(255, 247, 230, .35);
-  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .55), 0 10px 30px rgba(60, 30, 0, .25); margin: auto 0; }
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .55), 0 10px 30px rgba(60, 30, 0, .25); margin: auto 0 0; }
 .zelle, .stein, .kiste, .eis, .knall { position: absolute; left: 0; top: 0; width: var(--g); height: var(--g); }
 .zelle { box-sizing: border-box; border: 2px solid rgba(255, 255, 255, .35); background: rgba(255, 247, 230, .38); border-radius: 10px; }
 .stein { transition: transform .2s ease-in; z-index: 2; cursor: pointer; }
@@ -302,3 +302,58 @@ body.im-puzzle .hud, body.im-puzzle .aktionen, body.im-puzzle #schritt, body.im-
 .syncfeld input { flex: 1; min-width: 0; font: 500 18px var(--schrift); padding: 8px 12px; border: 2px solid #e0c99f; border-radius: 12px; background: #fff; color: var(--tinte);
   -webkit-user-select: text; user-select: text; letter-spacing: .05em; }
 .syncfeld input:focus { outline: 3px solid var(--gold); }
+
+/* Paket A */
+.zeichen { display: inline-grid; place-items: center; font-size: 22px; line-height: 1; font-style: normal; }
+.ic.klein.zeichen { font-size: 16px; } .ic.mittel.zeichen { font-size: 26px; } .ic.gross.zeichen { font-size: 34px; }
+.stufe-tag { font-size: 13px; font-weight: 600; background: var(--gold); color: var(--tinte); border-radius: 8px; padding: 1px 7px; vertical-align: middle; }
+.lager-zwischen { margin: 16px 0 0; font-size: 16px; }
+.dickicht .spr { filter: saturate(.85) brightness(.92); }
+.dickicht.unsichtbar .spr { opacity: 0; }
+.ding.verschwindet { transition: transform .5s ease-in, opacity .5s ease-in; transform: scale(.2) translateY(20px); opacity: 0; }
+.auftrag.eil { border: 3px solid var(--gold); background: #fff6d6; margin-bottom: 10px; }
+.auftrag.eil.warte { min-height: 0; padding: 8px; border-style: dashed; background: transparent; }
+.eil-titel { color: #a0560a; }
+.zahl.eil { font-size: 26px; }
+.pille.rund img { width: 30px; height: 30px; }
+#knopf-tag { position: relative; }
+.tage { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 12px; }
+.tagkarte { position: relative; background: #fff; border: 2px solid #f0dfbf; border-radius: 14px; padding: 8px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; font-weight: 600; font-size: 14px; }
+.tagkarte small { color: #8a6a45; font-weight: 500; }
+.tagkarte span { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px; }
+.tagkarte.heute { border: 3px solid var(--gold); background: #fff6d6; animation: wippen 1.6s ease-in-out infinite; }
+.tagkarte.geholt { opacity: .55; }
+.tagkarte.gross { grid-column: span 2; }
+.tagkarte .haken { position: absolute; right: 6px; top: 4px; }
+/* Puzzle-Helfer und Sterne */
+.pz-helferleiste { margin-bottom: auto; display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; width: min(100%, 560px);
+  background: rgba(255, 247, 230, .92); border: 3px solid var(--holz-hell); border-radius: 18px; padding: 6px 10px; box-shadow: 0 4px 0 var(--holz); }
+.pz-helfer { position: relative; border: 2px solid #f0dfbf; background: #fff; border-radius: 14px; width: 60px; height: 56px; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.pz-helfer b { position: absolute; right: -6px; bottom: -6px; background: var(--tinte); color: #fff; border-radius: 10px; font-size: 13px; padding: 0 6px; }
+.pz-helfer:disabled { opacity: .4; cursor: default; }
+.pz-helfer.aktiv { border-color: var(--gold); background: #fff3cc; box-shadow: 0 0 0 3px var(--gold); animation: wippen 1.2s ease-in-out infinite; }
+.pz-helfer-text { flex-basis: 100%; margin: 0; text-align: center; font-size: 13px; color: #8a6a45; }
+.pz-sterne { font-size: 40px; letter-spacing: 4px; color: #d8cdb6; margin: -4px 0 2px; }
+.pz-sterne .an { color: var(--gold); text-shadow: 0 2px 0 #b97a0d; }
+.pz-sterne-alt { color: #b97a0d; margin: 0 0 6px; }
+/* Leben */
+#tageszeit { position: fixed; inset: 0; z-index: 60; pointer-events: none; mix-blend-mode: multiply; transition: opacity 2s, background 2s; }
+body.im-puzzle #tageszeit { display: none; }
+.schwarm { position: fixed; left: -140px; z-index: 70; pointer-events: none; width: 120px; height: 40px; animation: fliegen 18s linear forwards; }
+.schwarm.rueckwaerts { animation-name: fliegenzurueck; left: auto; right: -140px; }
+.schwarm.rueckwaerts i { transform: scaleX(-1); }
+.schwarm i { position: absolute; width: 26px; height: 13px; animation: fluegel .5s ease-in-out infinite alternate; }
+.schwarm svg { width: 100%; height: 100%; display: block; }
+@keyframes fliegen { to { transform: translateX(calc(100vw + 280px)) translateY(-40px); } }
+@keyframes fliegenzurueck { to { transform: translateX(calc(-100vw - 280px)) translateY(-30px); } }
+@keyframes fluegel { to { transform: scaleY(.45); } }
+.schwarm.rueckwaerts i { animation-name: fluegelr; } @keyframes fluegelr { from { transform: scaleX(-1); } to { transform: scaleX(-1) scaleY(.45); } }
+body.im-puzzle .schwarm, body.auf-insel .falter { display: none; }
+.falter { position: absolute; left: 0; top: 0; width: 22px; height: 16px; pointer-events: none; transition: transform 3.2s ease-in-out; }
+.falter i { position: absolute; top: 0; width: 11px; height: 14px; border-radius: 60% 40% 50% 50%; opacity: .95; box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .12); animation: flatter .22s ease-in-out infinite alternate; }
+.falter i:first-child { left: 0; transform-origin: right center; } .falter i:last-child { right: 0; transform-origin: left center; }
+@keyframes flatter { to { transform: scaleX(.25); } }
+.gluehwurm { position: absolute; left: 0; top: 0; width: 7px; height: 7px; border-radius: 50%; background: #fff6a0; box-shadow: 0 0 10px 4px rgba(255, 240, 120, .8);
+  pointer-events: none; z-index: 3000; transition: transform 3.2s ease-in-out; animation: gluehen 2.6s ease-in-out infinite; }
+@keyframes gluehen { 50% { opacity: .2; } }
+body.nacht .gebaeude .spr, body.nacht .haus .spr { filter: drop-shadow(0 0 10px rgba(255, 210, 120, .55)); }

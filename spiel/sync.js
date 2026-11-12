@@ -94,6 +94,7 @@ export function syncStarten(api) {
           <button class="los" data-aktion="s-beitreten">Verbinden</button></div>
           <p class="hinweis">Beim Verbinden wird der Hof auf diesem Gerät durch den Hof vom anderen Gerät ersetzt.</p>
           ${status === "fehler" ? `<p class="fehlt">Das hat nicht geklappt. Prüfe den Code und die Internetverbindung.</p>` : ""}`}
+        ${api.zusatz ? "<hr>" + api.zusatz() : ""}
         <hr>
         <button class="los rot" data-aktion="s-neustart">Spiel neu beginnen …</button>`;
     });
