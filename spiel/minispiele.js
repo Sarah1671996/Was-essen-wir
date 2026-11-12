@@ -87,5 +87,76 @@ export function minispieleStarten(api) {
       }
     };
   }
-  return { wimmelbild, memory };
+  /* ---------- Unterschiede finden ---------- */
+  // Zwei gleiche Bilder aus Symbolen; im rechten sind 5 Dinge anders. Antippen im rechten Bild.
+  function unterschiede({ gewonnen }) {
+    const pool = mischen([...api.symbole()]);
+    const N = 20, dinge = Array.from({ length: N }, (_, k) => ({ b: pool[k % pool.length], x: 6 + Math.random() * 82, y: 6 + Math.random() * 82, rot: Math.round(Math.random() * 60 - 30), gr: .8 + Math.random() * .5 }));
+    const anders = mischen([...Array(N).keys()]).slice(0, 5), arten = ["weg", "anders", "groesse", "drehung", "anders"];
+    const rechts = dinge.map((d, i) => {
+      const k = anders.indexOf(i); if (k < 0) return { ...d };
+      const art = arten[k];
+      if (art === "weg") return { ...d, weg: true, diff: true };
+      if (art === "anders") return { ...d, b: pool[(pool.indexOf(d.b) + 7) % pool.length], diff: true };
+      if (art === "groesse") return { ...d, gr: d.gr * 1.6, diff: true };
+      return { ...d, rot: d.rot + 120, diff: true };
+    });
+    let gefunden = 0, fehler = 0;
+    huelle.style.backgroundImage = `url(${api.bildUrl("strand")})`;
+    const bild = (liste, seite) => liste.map((d, i) => d.weg ? `<i class="diff-stelle" data-i="${i}" style="left:${d.x}%;top:${d.y}%"></i>` :
+      `<img class="diff-ding" data-i="${i}" data-seite="${seite}" src="${api.bildUrl(d.b)}" alt="" style="left:${d.x}%;top:${d.y}%;transform:translate(-50%,-50%) rotate(${d.rot}deg) scale(${d.gr})">`).join("");
+    huelle.innerHTML = `<div class="mini-kopf"><button class="zu" data-mini="zu" aria-label="Schließen">✕</button><b>👀 Finde die 5 Unterschiede im unteren Bild</b><span class="mini-zeit">0/5</span></div>
+      <div class="diff-wrap"><div class="diff-bild">${bild(dinge, "l")}</div><div class="diff-bild unten">${bild(rechts, "r")}</div></div>`;
+    huelle.hidden = false;
+    huelle.onclick = e => {
+      const a = e.target.closest("[data-mini]")?.dataset.mini;
+      if (a === "zu") { zu(); return; }
+      if (a === "sieg") { zu(); gewonnen(); return; }
+      const feld = e.target.closest(".diff-bild.unten"); if (!feld) return;
+      const r = feld.getBoundingClientRect(), px = (e.clientX - r.left) / r.width * 100, py = (e.clientY - r.top) / r.height * 100;
+      const treffer = rechts.findIndex(d => d.diff && !d.ok && Math.hypot(d.x - px, (d.y - py) * r.height / r.width) < 9);
+      if (treffer < 0) { fehler++; api.ton("nein"); return; }
+      rechts[treffer].ok = true; gefunden++; api.ton("treffer", gefunden);
+      for (const b of huelle.querySelectorAll(".diff-bild")) {
+        const m = document.createElement("i"); m.className = "diff-kreis"; m.style.left = rechts[treffer].x + "%"; m.style.top = rechts[treffer].y + "%"; b.appendChild(m);
+      }
+      huelle.querySelector(".mini-zeit").textContent = gefunden + "/5";
+      if (gefunden === 5) { api.ton("sieg"); setTimeout(() => ende(`<h2>Alle gefunden!</h2><p>Scharfe Augen! Der Weg ist frei.</p>`, `<button class="los" data-mini="sieg">Weiter</button>`), 500); }
+    };
+  }
+
+  /* ---------- Schiebepuzzle ---------- */
+  function schiebepuzzle({ gewonnen, winter }) {
+    const n = 3, bildName = winter ? "schneeinsel" : "insel";
+    let feld = [...Array(n * n).keys()]; // 8 = Lücke
+    // lösbar mischen: zufällige gültige Züge
+    let leer = 8;
+    for (let k = 0; k < 120; k++) {
+      const r = Math.floor(leer / n), c = leer % n, nb = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < n && b < n);
+      const [a, b] = nb[Math.floor(Math.random() * nb.length)], z = a * n + b;
+      [feld[leer], feld[z]] = [feld[z], feld[leer]]; leer = z;
+    }
+    let zuege = 0;
+    huelle.style.backgroundImage = `url(${api.bildUrl("strand")})`;
+    const zeichnen = () => {
+      huelle.querySelector(".schiebe").innerHTML = feld.map((t, i) => t === 8 ? `<div class="schiebe-leer"></div>` :
+        `<button class="schiebe-teil" data-i="${i}" style="background-image:url(${api.bildUrl(bildName)});background-position:${(t % n) / (n - 1) * 100}% ${Math.floor(t / n) / (n - 1) * 100}%"></button>`).join("");
+      huelle.querySelector(".mini-zeit").textContent = zuege + " Züge";
+    };
+    huelle.innerHTML = `<div class="mini-kopf"><button class="zu" data-mini="zu" aria-label="Schließen">✕</button><b>🧱 Schiebe die Teile, bis das Bild stimmt</b><span class="mini-zeit">0 Züge</span></div>
+      <div class="schiebe-wrap"><div class="schiebe"></div><img class="schiebe-vorlage" src="${api.bildUrl(bildName)}" alt="Vorlage"></div>`;
+    huelle.hidden = false; zeichnen();
+    huelle.onclick = e => {
+      const a = e.target.closest("[data-mini]")?.dataset.mini;
+      if (a === "zu") { zu(); return; }
+      if (a === "sieg") { zu(); gewonnen(); return; }
+      const t = e.target.closest(".schiebe-teil"); if (!t) return;
+      const i = +t.dataset.i, l = feld.indexOf(8);
+      if (Math.abs(Math.floor(i / n) - Math.floor(l / n)) + Math.abs(i % n - l % n) !== 1) { api.ton("nein"); return; }
+      [feld[i], feld[l]] = [feld[l], feld[i]]; zuege++; api.ton("treffer", 2); zeichnen();
+      if (feld.every((v, k) => v === k)) { api.ton("sieg"); setTimeout(() => ende(`<h2>Geschafft!</h2><p>Das Bild ist fertig, in ${zuege} Zügen.</p>`, `<button class="los" data-mini="sieg">Weiter</button>`), 400); }
+    };
+  }
+
+  return { wimmelbild, memory, unterschiede, schiebepuzzle };
 }

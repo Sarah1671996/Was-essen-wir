@@ -73,6 +73,13 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - Zusätzliche Stationen auf den Wegen, darunter Sonderstationen: Wimmelbild (90 Sekunden), Memory, Puzzle-Tor (öffnet sich nach einem gewonnenen Puzzle-Level)
 - Puzzle: übrige Züge werden am Ende zu Raketen und Bomben, die gezündet werden und Extra-Münzen bringen (antippen überspringt)
 
+## Paket E: Bosslevel, Wettbewerb, Gäste, neue Minispiele
+
+- Jedes 10. Puzzle-Level ist ein Bosslevel (👑): mehr Ziele, mehr Züge, große Belohnung mit je einem Hammer, Besen, Regenbogen
+- Wochen-Wettbewerb (im Erfolge-Fenster): jede Woche ein anderes Ziel mit Bronze, Silber, Gold
+- Gäste ab Level 6: kommen ab und zu an die Auftragstafel, wünschen sich wertvollere Waren, geben viele Münzen, Helfer und Werkzeuge
+- Neue Inselstationen: Unterschiede finden (5 Stück) und Schiebepuzzle
+
 ## Ausbau bis Level 100
 
 - Fabriken und Ställe bis Stufe 10 (Stufe 4 ab Level 18, dann 26, 34, 45, 58, 72, 88); bis 8 Plätze und bis 58 % schneller, Ställe +2 Tiere pro Stufe
