@@ -379,7 +379,40 @@ export function puzzleStarten(api) {
     const st = stand().sterne?.[n] || 0;
     return st ? `<p class="pz-sterne-alt">Bisher: ${"★".repeat(st)}${"☆".repeat(3 - st)}</p>` : "";
   }
-  function gewonnen() {
+  // Übrige Züge werden zu Raketen und Bomben, die gezündet werden und Münzen bringen
+  async function bonusRunde() {
+    const banner = p$("#pz-bonus"); banner.hidden = false;
+    let ueberspringen = false; const skip = () => { ueberspringen = true; }; huelle.addEventListener("pointerdown", skip, { once: true });
+    const pause = ms => ueberspringen ? Promise.resolve() : warte(ms);
+    let geraeumt = 0; const z = zuege;
+    for (let k = 0; k < z; k++) {
+      const frei = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (gitter[r][c] && !gitter[r][c].spezial) frei.push([r, c]);
+      if (!frei.length) break;
+      const [r, c] = frei[Math.floor(Math.random() * frei.length)], st = gitter[r][c];
+      st.el?.remove(); st.el = null; st.spezial = k % 4 === 3 ? "bombe" : Math.random() < .5 ? "rh" : "rv"; st.farbe = -1;
+      setzen(st, r, c, true); st.el.classList.add("entsteht");
+      zuege--; zeigeKopf(); api.ton("treffer", k % 8); await pause(120);
+    }
+    await pause(350);
+    const zaehlen = () => gitter.flat().filter(Boolean).length;
+    for (let runde = 0; runde < 60; runde++) {
+      let pos = null;
+      for (let r = 0; r < N && !pos; r++) for (let c = 0; c < N && !pos; c++) if (gitter[r][c]?.spezial) pos = [r, c];
+      if (!pos) break;
+      const vorher = zaehlen(); abraeumen([pos], false); geraeumt += vorher - zaehlen();
+      api.ton("knall"); await pause(200); await fallen();
+    }
+    huelle.removeEventListener("pointerdown", skip);
+    banner.hidden = true;
+    return { zuege: z, muenzen: z * 5 + geraeumt };
+  }
+  async function gewonnen() {
+    belegt = true;
+    const startZuege = zuege;
+    const bonus = zuege > 0 ? await bonusRunde() : { zuege: 0, muenzen: 0 };
+    zuege = startZuege;
+    belegt = false;
     const P = stand(), s = S(), erstmals = nummer >= P.level;
     const lohn = erstmals ? PUZZLE_LOHN(nummer) : { muenzen: 10 + nummer, werkzeuge: 0, punkte: 0 };
     const anteil = zuege / L.zuege, sterne = anteil >= .35 ? 3 : anteil >= .15 ? 2 : 1;
@@ -388,7 +421,7 @@ export function puzzleStarten(api) {
     const helferGewinn = erstmals && Math.random() < (sterne === 3 ? .5 : .25) ? Object.keys(HELFER)[Math.floor(Math.random() * 3)] : null;
     if (helferGewinn) s.helfer[helferGewinn] = (s.helfer[helferGewinn] || 0) + 1;
     api.ton("sieg");
-    s.muenzen += lohn.muenzen;
+    s.muenzen += lohn.muenzen + bonus.muenzen;
     s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
     const bekommen = {};
     for (let k = 0; k < lohn.werkzeuge; k++) { const w = Object.keys(WERKZEUGE)[Math.floor(Math.random() * 3)]; s.werkzeug[w]++; bekommen[w] = (bekommen[w] || 0) + 1; }
@@ -397,7 +430,8 @@ export function puzzleStarten(api) {
     api.speichern();
     zeigeDialog(`<h2>Gewonnen!</h2><div class="pz-sterne">${[1, 2, 3].map(k => `<span class="${k <= sterne ? "an" : ""}">★</span>`).join("")}</div>
       <p>Level ${nummer} geschafft mit ${zuege} Zügen übrig.</p>
-      <div class="pz-lohn"><span>${api.muenze("ic gross")}<b>${lohn.muenzen}</b></span>
+      ${bonus.zuege ? `<p class="pz-bonus-text">Bonus für ${bonus.zuege} übrige Züge: <b>+${bonus.muenzen}</b> ${api.muenze("ic klein")}</p>` : ""}
+      <div class="pz-lohn"><span>${api.muenze("ic gross")}<b>${lohn.muenzen + bonus.muenzen}</b></span>
       ${Object.entries(bekommen).map(([w, n]) => `<span><img class="ic gross" src="${api.bildUrl(WERKZEUGE[w].bild)}" alt="${WERKZEUGE[w].name}"><b>${n}</b></span>`).join("")}
       ${s.insel && lohn.punkte ? `<span class="ew">⭐<b>${lohn.punkte}</b></span>` : ""}
       ${helferGewinn ? `<span>${api.helferIcon(helferGewinn, "ic gross")}<b>1</b></span>` : ""}</div>

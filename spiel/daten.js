@@ -529,3 +529,30 @@ FREISCHALTUNG[12] = ["Ölmühle mit Sonnenblumenöl"];
 AUFTRAGS_WAREN[10] = ["erdbeere", "sonnenblume", "kirsche", "marmelade"];
 AUFTRAGS_WAREN[11] = ["traube", "birne", "traubensaft"];
 AUFTRAGS_WAREN[12] = ["oel"];
+
+/* ================= Größere Inseln mit Nebel und Sonderstationen ================= */
+export const INSEL_F = 1.7;   // Inselkarten werden um diesen Faktor größer dargestellt
+INSEL_KARTE.b = Math.round(INSEL_KARTE.b * INSEL_F); INSEL_KARTE.h = Math.round(INSEL_KARTE.h * INSEL_F);
+for (const P of Object.values(INSEL_PLAETZE)) { P.x = Math.round(P.x * INSEL_F); P.y = Math.round(P.y * INSEL_F); }
+for (const H of Object.values(HINDERNISSE)) H.breite = Math.round(H.breite * 1.3);
+for (const W of Object.values(WELTEN)) for (const H of Object.values(W.hindernisse)) H.breite = Math.round(H.breite * 1.3);
+// Sonderstationen: statt Werkzeug ein kleines Spiel
+export const SONDER = {
+  wimmel:  { name: "Wimmelbild", zeichen: "🔍", text: "Finde die versteckten Dinge" },
+  memory:  { name: "Memory",     zeichen: "🃏", text: "Finde alle Paare" },
+  raetsel: { name: "Puzzle-Tor", zeichen: "🧩", text: "Gewinne ein Puzzle-Level, dann öffnet sich das Tor" },
+};
+// Zwischen zwei Plätze kommt jeweils ein weiterer Platz, damit die Wege länger werden
+{
+  const arten = ["dschungel", "stumpf", "felsen"], sonder = ["wimmel", "raetsel", "memory"];
+  let k = 0;
+  for (const [id, P] of Object.entries({ ...INSEL_PLAETZE })) {
+    if (!P.nach || P.art === "bruecke") continue;
+    const von = P.nach[0], A = INSEL_PLAETZE[von];
+    if (!A || Math.hypot(A.x - P.x, A.y - P.y) < 150) continue;
+    const mid = "m_" + id;
+    INSEL_PLAETZE[mid] = { art: k % 3 === 2 ? sonder[Math.floor(k / 3) % 3] : arten[k % 3], x: Math.round((A.x + P.x) / 2), y: Math.round((A.y + P.y) / 2), nach: [von] };
+    P.nach = P.nach.map(n => n === von ? mid : n);
+    k++;
+  }
+}
