@@ -1744,4 +1744,14 @@ setInterval(aktualisieren, 500);
 if (tagOffen()) setTimeout(() => { if (!offen && !document.body.classList.contains("im-puzzle")) tagesPanel(); }, 1200);
 setInterval(lokalSichern, 5000);
 addEventListener("visibilitychange", () => { if (document.hidden) lokalSichern(); });
+// Querformat: auf Handys hochkant einen Hinweis zeigen; Android dreht die installierte App selbst
+{
+  const KEY = "sonnenhof-hochkant";
+  const handy = matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 600;
+  let erlaubt = false; try { erlaubt = localStorage.getItem(KEY) === "1"; } catch {}
+  const pruefen = () => { $("#drehen").hidden = !handy || erlaubt || innerWidth > innerHeight; };
+  addEventListener("resize", pruefen); screen.orientation?.addEventListener?.("change", pruefen); pruefen();
+  $("#drehen-trotzdem").onclick = () => { erlaubt = true; try { localStorage.setItem(KEY, "1"); } catch {} pruefen(); };
+  addEventListener("pointerdown", () => { try { screen.orientation?.lock?.("landscape").catch(() => {}); } catch {} }, { once: true });
+}
 if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => {});
