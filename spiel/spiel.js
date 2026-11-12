@@ -1128,16 +1128,22 @@ function platzierenStart(typ, index = null) {
   welt.appendChild(geist); geist.hidden = false;
 }
 let ohneNeuesFeld = false, naechsterFeldplatzCache = null;
+// Kästchen im Rautenraster, in dem ein Punkt liegt
+function zelle(x, y) {
+  const dx = (x - RASTER.x0) / RASTER.ax, dy = (y - RASTER.y0) / RASTER.ay;
+  return Math.round((dx + dy) / 2) + "," + Math.round((dy - dx) / 2);
+}
+// Belegte Kästchen (Felder, Häuser, Deko, Gebäude, Lieferwagen) und runde Sperrflächen (Weiden, Dickicht)
 function hindernisse() {
-  const h = [];
-  S.felder.forEach((f, i) => { if (platzieren && platzieren.feld === i) return; h.push({ x: f.x, y: f.y - 55, r: FELD_R, feld: true }); });
-  if (!ohneNeuesFeld) { const p = naechsterFeldplatzCache; if (p) h.push({ x: p.x, y: p.y - 55, r: FELD_R, feld: true }); }
-  for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r && !(platzieren && platzieren.gebaeude === k)) { const q = gpos(k); h.push({ x: q.x, y: q.y - g.r * .5, r: g.r }); }
-  for (const w of Object.values(WEIDEN)) h.push({ x: w.x, y: w.y + 10, r: Math.max(w.rx, w.ry * 1.6) * .85 });
-  for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) h.push({ x: z.x, y: z.y, r: Math.max(z.rx, z.ry) * 1.05 });
-  h.push({ x: TOUR.x, y: TOUR.y - 40, r: 80 });
-  S.bauten.forEach((b, i) => { if (platzieren && platzieren.index === i) return; const B = BAUTEN[b.typ]; h.push({ x: b.x, y: b.y - B.r * .5, r: B.r }); });
-  return h;
+  const zellen = new Set(), runde = [];
+  S.felder.forEach((f, i) => { if (platzieren && platzieren.feld === i) return; zellen.add(zelle(f.x, f.y)); });
+  if (!ohneNeuesFeld) { const p = naechsterFeldplatzCache; if (p) zellen.add(zelle(p.x, p.y)); }
+  for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r && !(platzieren && platzieren.gebaeude === k)) { if (g.obsthof && !S.obsthof) continue; const q = gpos(k); zellen.add(zelle(q.x, q.y)); }
+  S.bauten.forEach((b, i) => { if (platzieren && platzieren.index === i) return; zellen.add(zelle(b.x, b.y)); });
+  zellen.add(zelle(TOUR.x, TOUR.y));
+  for (const w of Object.values(WEIDEN)) runde.push({ x: w.x, y: w.y + 10, rx: w.rx + 40, ry: w.ry + 30 });
+  for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) runde.push({ x: z.x, y: z.y, rx: z.rx * 1.15 + 40, ry: z.ry * 1.15 + 30 });
+  return { zellen, runde };
 }
 function platzFrei(x, y, typ, fuerRaster = false) {
   const B = typ && typeof typ === "object" ? typ : BAUTEN[typ];
@@ -1148,8 +1154,10 @@ function platzFreiIntern(x, y, B) {
   if (x < 60 || x > breite() - 60 || y < 120 || y > WELT.h - 30) return false;
   if (x > OBSTHOF.fluss[0] - 30 && x < OBSTHOF.fluss[1] + 30) return false; // Fluss
   if (((x - SEE.x) / (SEE.rx + 50)) ** 2 + ((y - SEE.y) / (SEE.ry + 40)) ** 2 < 1) return false; // See
-  // Felder dürfen dicht an dicht liegen wie im Raster
-  return hindernisse().every(o => o.feld && B === FELD_DEF ? Math.hypot(o.x - x, (o.y - (y - 55)) * 1.4) > 95 : Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
+  const H = hindernisse();
+  // jedes Objekt belegt genau ein Kästchen, direkt daneben darf das nächste stehen
+  if (H.zellen.has(zelle(x, y))) return false;
+  return H.runde.every(o => ((x - o.x) / o.rx) ** 2 + ((y - 30 - o.y) / o.ry) ** 2 > 1);
 }
 /* ---------- Raster: dasselbe Rautenraster wie die Felder (ein Kästchen = ein Feld) ---------- */
 const RASTER = { x0: FELDPLAETZE[0].x, y0: FELDPLAETZE[0].y, ax: 100, ay: 54 };
