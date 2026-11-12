@@ -357,7 +357,7 @@ export const BEWOHNER_PAUSE_MIN = 12;   // so lange bis zum nächsten Wunsch
 export const HERZ_MAX = 10;
 
 // Puzzle-Karte: Mittelpunkte der Steine auf dem Bild „puzzle-weg“ (1116 × 2000), von unten nach oben
-export const PUZZLE_WEG = { b: 1116, h: 2000, steine: [
+export const PUZZLE_WEG = { b: 1116, h: 2000, bilder: ["puzzle-weg", "puzzle-weg-winter"], steine: [
   [497, 1912], [607, 1832], [717, 1757], [733, 1688], [602, 1638], [487, 1630], [482, 1574], [591, 1548], [690, 1515], [720, 1447],
   [636, 1415], [537, 1405], [405, 1378], [318, 1293], [345, 1220], [406, 1177], [474, 1147], [562, 1128], [614, 1078], [560, 1042],
   [487, 1023], [447, 975], [490, 930], [575, 905], [657, 868], [698, 815], [655, 768], [595, 750], [525, 713], [525, 660],

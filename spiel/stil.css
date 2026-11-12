@@ -391,3 +391,5 @@ body.nacht .gebaeude .spr, body.nacht .haus .spr { filter: drop-shadow(0 0 10px 
 .zoomknoepfe { position: fixed; z-index: 100; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(118px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
 .zoomknoepfe .pille.rund { font-size: 26px; line-height: 1; }
 body.im-puzzle .zoomknoepfe { display: none; }
+#pz-karte.winter { background: #e6f0f8; }
+#pz-karte.winter .pz-stein.zu { background: radial-gradient(circle at 35% 30%, #f4f8fc, #b8c6d6); color: #5b6b80; box-shadow: 0 3px 0 #8495aa; }

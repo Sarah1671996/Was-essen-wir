@@ -68,6 +68,8 @@ BILDER = {
     "dickicht": ("79-dickicht.jpg", 560, "frei"),
     "eisfelsen": ("99-eisfelsen.jpg", 260, "frei"),
     "puzzle-weg": ("100-puzzle-weg.jpg", 1116, "bild"),
+    "puzzle-weg-winter": ("101-puzzle-weg-winter.jpg", 1116, "bild"),
+    "eisbusch": ("98-gefrorener-busch.jpg", 260, "pink"),
 }
 
 # Sammelbilder: Datei, Namen der Teile (Reihenfolge zeilenweise), Breite
@@ -81,17 +83,20 @@ SAMMEL = [
 ]
 
 
-def hintergrund_maske(a):
-    """True, wo ein Pixel nach weißem Hintergrund aussieht."""
+def hintergrund_maske(a, pink=False):
+    """True, wo ein Pixel nach Hintergrund aussieht (weiß, oder pink bei Bildern vor Magenta)."""
+    if pink:
+        r, g, b = a[..., 0], a[..., 1], a[..., 2]
+        return (r > 170) & (b > 150) & (g < 110) & (r - g > 90) & (b - g > 70)
     mn = a.min(axis=2)
     spread = a.max(axis=2) - mn
     return (mn > 222) & (spread < 28)
 
 
-def freistellen(im, ganz=False):
+def freistellen(im, ganz=False, pink=False):
     im = im.convert("RGB")
     a = np.asarray(im).astype(int)
-    bg = hintergrund_maske(a)
+    bg = hintergrund_maske(a, pink)
     if ganz:
         weg = bg
     else:
@@ -150,7 +155,7 @@ def main():
     for name, (datei, breite, art) in BILDER.items():
         im = Image.open(os.path.join(SRC, datei))
         if art != "bild":
-            im = freistellen(im, ganz=(art == "ganz"))
+            im = freistellen(im, ganz=(art == "ganz"), pink=(art == "pink"))
         groessen[name] = speichern(im, name, breite)
     for datei, namen, breite in SAMMEL:
         teile = zerlegen(Image.open(os.path.join(SRC, datei)))
