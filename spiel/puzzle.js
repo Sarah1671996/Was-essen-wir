@@ -15,7 +15,8 @@ export function puzzleStarten(api) {
   /* ---------- Darstellung ---------- */
   function feldGroesse() {
     const W = innerWidth, H = innerHeight;
-    groesse = Math.floor(Math.min((W - 24) / N, (H - 340) / N, 68));
+    const quer = W > H * 1.15;
+    groesse = Math.floor(quer ? Math.min((W - 420) / N, (H - 24) / N, 68) : Math.min((W - 24) / N, (H - 340) / N, 68));
     brettEl.style.width = brettEl.style.height = groesse * N + "px";
     brettEl.style.setProperty("--g", groesse + "px");
   }
