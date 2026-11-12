@@ -438,3 +438,8 @@ body.bearbeiten .ding.haus .spr, body.bearbeiten .ding.deko .spr, body.bearbeite
 body.bearbeiten #hof-aktionen { display: none; }
 .hausstufe { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); background: rgba(74, 47, 23, .8); color: var(--gold); border-radius: 10px; padding: 0 7px; font-size: 14px; letter-spacing: 1px; white-space: nowrap; }
 body:has(#fenster .fenster) #bearbeitleiste { display: none !important; }
+body.bearbeiten .ding.feld .spr { outline: 3px dashed rgba(255, 255, 255, .85); outline-offset: -10px; border-radius: 12px; }
+
+/* Obsthof */
+#nebel { position: absolute; left: 2780px; top: 0; right: 0; bottom: 0; pointer-events: none; z-index: 4800;
+  background: linear-gradient(90deg, rgba(240, 246, 236, .55), rgba(240, 246, 236, .92) 220px); backdrop-filter: blur(3px); }
