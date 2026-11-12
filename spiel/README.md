@@ -67,6 +67,12 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Felder frei aufstellen** (Bauen → Feld, bis zu 40), umstellen und leere Felder abreißen
 - **Häuser ausbauen** bis Stufe 5 (mehr Einwohner auf demselben Platz)
 
+## Inseln mit Nebel, Minispiele, Puzzle-Bonus
+
+- Inseln 1,7-mal größer, mit Nebel: nur freigeräumte Wege und das nächste Hindernis sind zu sehen
+- Zusätzliche Stationen auf den Wegen, darunter Sonderstationen: Wimmelbild (90 Sekunden), Memory, Puzzle-Tor (öffnet sich nach einem gewonnenen Puzzle-Level)
+- Puzzle: übrige Züge werden am Ende zu Raketen und Bomben, die gezündet werden und Extra-Münzen bringen (antippen überspringt)
+
 ## Obsthof
 
 - Ab Level 10 hinter dem Fluss kaufbar (2500 Münzen): viel neues Land

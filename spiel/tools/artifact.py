@@ -6,7 +6,7 @@ H = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 lies = lambda n: open(os.path.join(H, n), encoding="utf-8").read()
 html = lies("index.html")
 koerper = html.split("<!--SPIEL-->")[1].split("<!--/SPIEL-->")[0]
-js = "\n".join(lies(n) for n in ["img/groessen.js", "daten.js", "insel.js", "puzzle.js", "sync.js", "leben.js", "spiel.js"])
+js = "\n".join(lies(n) for n in ["img/groessen.js", "daten.js", "insel.js", "puzzle.js", "sync.js", "leben.js", "minispiele.js", "spiel.js"])
 js = re.sub(r'import\s*\{[\s\S]*?\}\s*from\s*"[^"]+";', "", js)
 js = re.sub(r"^export ", "", js, flags=re.M)
 seite = f"""<title>Sonnenhof</title>

@@ -10,6 +10,7 @@ import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
 import { syncStarten } from "./sync.js";
 import { lebenStarten } from "./leben.js";
+import { minispieleStarten } from "./minispiele.js";
 
 /* ================= Hilfen ================= */
 const $ = s => document.querySelector(s);
@@ -1435,10 +1436,17 @@ function aktualisieren() {
 /* ================= Leben (Tiere in der Luft, Tageszeit, Töne) ================= */
 const leben = lebenStarten({ welt, WELT });
 
+/* ================= Minispiele ================= */
+const mini = minispieleStarten({
+  bildUrl, ton: (a, n) => leben.ton(a, n),
+  symbole: () => [...new Set([...Object.values(WAREN).map(w => w.icon), ...Object.values(WERKZEUGE).map(w => w.bild), ...Object.values(HELFER).map(h => h.bild)])].filter(b => GROESSE[b]),
+});
+
 /* ================= Insel ================= */
 const insel = inselStarten({
   S: () => S, speichern, meldung, oeffnen, schliessen, zu, icon, muenze, bildUrl, hoehe, hat, nehmen, dauer, aktualisieren,
   helferIcon: (h, c) => helferIcon(h, c), eventGeben: (n, d) => eventGeben(n, d), zaehle,
+  wimmelbild: o => mini.wimmelbild(o), memory: o => mini.memory(o), puzzleOeffnen: () => puzzle.oeffnen(),
 });
 
 /* ================= Puzzle ================= */

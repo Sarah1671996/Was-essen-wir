@@ -443,3 +443,40 @@ body.bearbeiten .ding.feld .spr { outline: 3px dashed rgba(255, 255, 255, .85); 
 /* Obsthof */
 #nebel { position: absolute; left: 2780px; top: 0; right: 0; bottom: 0; pointer-events: none; z-index: 4800;
   background: linear-gradient(90deg, rgba(240, 246, 236, .55), rgba(240, 246, 236, .92) 220px); backdrop-filter: blur(3px); }
+
+/* Puzzle-Bonus am Ende */
+.pz-bonus { position: absolute; left: 50%; top: 42%; transform: translate(-50%, -50%); z-index: 9; pointer-events: none; text-align: center; display: grid; gap: 4px; }
+.pz-bonus b { font-size: 56px; color: #fff; text-shadow: 0 4px 0 var(--holz), 0 0 20px rgba(255, 200, 60, .9); animation: wippen 1s ease-in-out infinite; }
+.pz-bonus small { color: #fff; font-weight: 600; text-shadow: 0 2px 0 var(--tinte); }
+.pz-bonus-text { color: #b97a0d; font-weight: 600; }
+
+/* Inselnebel und Sonderstationen */
+#insel-nebel { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2900; }
+.ding.sonder .spr { filter: drop-shadow(0 0 10px rgba(255, 240, 150, .9)); }
+.sonder-zeichen { position: absolute; left: 50%; top: 10%; transform: translateX(-50%); font-size: 46px; pointer-events: none; filter: drop-shadow(0 3px 2px rgba(0,0,0,.3)); animation: wippen 1.6s ease-in-out infinite; }
+/* Minispiele */
+#minispiel { position: fixed; inset: 0; z-index: 450; display: flex; flex-direction: column; background: #2c5f6a center / cover no-repeat; }
+#minispiel[hidden] { display: none; }
+.mini-kopf { display: flex; align-items: center; gap: 10px; margin: calc(8px + env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+  background: rgba(255, 247, 230, .95); border: 4px solid var(--holz-hell); border-radius: 18px; padding: 6px 12px; box-shadow: 0 5px 0 var(--holz); }
+.mini-kopf b { flex: 1; font-size: 18px; }
+.mini-zeit { background: var(--tinte); color: #fff; border-radius: 12px; padding: 3px 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wimmel-feld { position: relative; flex: 1; margin: 0 max(12px, env(safe-area-inset-right, 0px)) 0 max(12px, env(safe-area-inset-left, 0px)); border-radius: 18px; overflow: hidden;
+  box-shadow: inset 0 0 0 4px rgba(255, 255, 255, .5); }
+.wimmel-ding { position: absolute; width: 52px; height: 52px; object-fit: contain; cursor: pointer; transition: transform .4s, opacity .4s; filter: drop-shadow(0 2px 2px rgba(0,0,0,.3)); }
+.wimmel-ding.gefunden { transform: scale(1.8) !important; opacity: 0; pointer-events: none; }
+.wimmel-ding.falsch { animation: nein .25s ease; }
+.wimmel-liste { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 8px max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px));
+  background: rgba(255, 247, 230, .95); border: 4px solid var(--holz-hell); border-radius: 18px; padding: 6px 10px; box-shadow: 0 5px 0 var(--holz); }
+.wimmel-liste span { position: relative; width: 48px; height: 48px; display: grid; place-items: center; background: #fff; border-radius: 12px; border: 2px solid #f0dfbf; }
+.wimmel-liste span img { width: 38px; height: 38px; object-fit: contain; }
+.wimmel-liste span.ok { background: #e5f6d6; border-color: #7fd04b; }
+.wimmel-liste span.ok::after { content: "✓"; position: absolute; right: 2px; bottom: 0; color: var(--gruen-dunkel); font-weight: 700; }
+.memory-feld { flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; align-content: center; width: min(100% - 24px, 460px); margin: 0 auto calc(16px + env(safe-area-inset-bottom, 0px)); }
+.karte-mem { aspect-ratio: 3 / 4; border: 0; border-radius: 14px; cursor: pointer; position: relative; padding: 0; background: linear-gradient(#ffd56a, #f0a91e); box-shadow: 0 4px 0 #b97a0d; font-size: 34px; color: #fff; }
+.karte-mem img { width: 70%; height: 70%; object-fit: contain; display: none; }
+.karte-mem.offen, .karte-mem.paar { background: #fff; box-shadow: 0 4px 0 #d9c4a0; }
+.karte-mem.offen img, .karte-mem.paar img { display: inline; }
+.karte-mem.offen span, .karte-mem.paar span { display: none; }
+.karte-mem.paar { opacity: .6; }
+.mini-ende { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, calc(100% - 32px)); text-align: center; z-index: 5; }

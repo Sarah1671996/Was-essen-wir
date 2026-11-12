@@ -2,7 +2,7 @@
 // Quests erfüllen und Punkte auf dem Belohnungspfad sammeln.
 import {
   WAREN, BAUTEN, WERKZEUGE, HELFER, INSEL_LEVEL, INSEL_KARTE, WERKZEUG_KISTE, HINDERNISSE, INSEL_PLAETZE, TIEFE_TEUER,
-  PUNKTE, QUESTS, AKTIVE_QUESTS, PFAD, WELTEN,
+  PUNKTE, QUESTS, AKTIVE_QUESTS, PFAD, WELTEN, SONDER, INSEL_F,
 } from "./daten.js";
 
 export function inselStarten(api) {
@@ -52,6 +52,7 @@ export function inselStarten(api) {
   // Inselaktionen zählen nur für die Insel, auf der man ist; Aufträge und Puzzle (vom Hof) für beide Inseln
   function ereignis(typ, nurHier = false) {
     const s = S(), G = geteilt();
+    if (typ === "puzzle") G.puzzleGut = Math.min(3, (G.puzzleGut || 0) + 1);
     const welten = nurHier ? [welt] : ["sommer", ...(s.schnee ? ["winter"] : [])];
     for (const w of welten) {
       const I = weltStand(w);
@@ -85,8 +86,10 @@ export function inselStarten(api) {
   const setzen = () => { grenzen(); iwelt.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.s})`; };
   function startKamera() {
     const W = innerWidth, H = innerHeight;
-    cam.s = Math.max(W / INSEL_KARTE.b, H / INSEL_KARTE.h, W < 700 ? .85 : .9);
-    const mx = W < 700 ? 1130 : 1000; cam.x = W / 2 - mx * cam.s; cam.y = H / 2 - (W < 700 ? 600 : 560) * cam.s; setzen();
+    cam.s = W < 700 ? .62 : .75;
+    // auf das Lager oder den zuletzt freigeräumten Platz schauen
+    const I = stand(), letzt = INSEL_PLAETZE[I.frei[I.frei.length - 1]] || INSEL_PLAETZE.lager;
+    cam.x = W / 2 - letzt.x * cam.s; cam.y = H / 2 - (letzt.y - 60) * cam.s; setzen();
   }
   const zuKarte = (cx, cy) => ({ x: (cx - cam.x) / cam.s, y: (cy - cam.y) / cam.s });
   function zoom(f, cx, cy) { const p = zuKarte(cx, cy); cam.s *= f; grenzen(); cam.x = cx - p.x * cam.s; cam.y = cy - p.y * cam.s; setzen(); }
@@ -116,6 +119,27 @@ export function inselStarten(api) {
   });
   addEventListener("resize", () => { if (aktiv) setzen(); });
 
+  /* ---------- Nebel ---------- */
+  const nebel = document.createElement("canvas"); nebel.id = "insel-nebel"; iwelt.appendChild(nebel);
+  function nebelZeichnen() {
+    const q = .4, B = INSEL_KARTE.b, H = INSEL_KARTE.h, I = stand();
+    nebel.width = Math.round(B * q); nebel.height = Math.round(H * q);
+    const g = nebel.getContext("2d"); g.setTransform(q, 0, 0, q, 0, 0);
+    const winter = welt === "winter";
+    g.fillStyle = winter ? "rgba(232,240,248,.97)" : "rgba(240,244,246,.97)"; g.fillRect(0, 0, B, H);
+    let seed = 5; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let k = 0; k < 260; k++) {
+      const x = r() * B, y = r() * H, rr = 60 + r() * 150, gr = g.createRadialGradient(x - rr * .3, y - rr * .3, 4, x, y, rr);
+      gr.addColorStop(0, "rgba(255,255,255,.9)"); gr.addColorStop(1, r() < .5 ? "rgba(214,224,232,0)" : "rgba(255,255,255,0)");
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, rr, 0, 7); g.fill();
+    }
+    g.globalCompositeOperation = "destination-out";
+    const loch = (x, y, R) => { const gr = g.createRadialGradient(x, y, R * .45, x, y, R); gr.addColorStop(0, "rgba(0,0,0,1)"); gr.addColorStop(1, "rgba(0,0,0,0)"); g.fillStyle = gr; g.beginPath(); g.arc(x, y, R, 0, 7); g.fill(); };
+    for (const id of I.frei) { const P = INSEL_PLAETZE[id]; if (P) loch(P.x, P.y - 50, id === "lager" ? 420 : 300); }
+    for (const id of Object.keys(INSEL_PLAETZE)) if (erreichbar(id)) { const P = INSEL_PLAETZE[id]; loch(P.x, P.y - 60, 170); }
+    g.globalCompositeOperation = "source-over";
+  }
+
   /* ---------- Dinge auf der Insel ---------- */
   const dinge = new Map();
   function ding(id, bild, x, y, breite, tipp, cls = "") {
@@ -140,14 +164,16 @@ export function inselStarten(api) {
     dinge.clear();
     const I = stand();
     for (const [id, P] of Object.entries(INSEL_PLAETZE)) {
-      if (P.art === "start") { ding(id, "zelt", P.x, P.y, 170, () => kistePanel(), "zelt"); continue; }
+      if (P.art === "start") { ding(id, "zelt", P.x, P.y, 220, () => kistePanel(), "zelt"); continue; }
       if (P.art === "bruecke") {
-        ding(id, istFrei(id) ? "bruecke" : "bruecke-kaputt", P.x, P.y, 150, () => brueckeTipp(id), istFrei(id) ? "deko-ding" : "");
+        ding(id, istFrei(id) ? "bruecke" : "bruecke-kaputt", P.x, P.y, 200, () => brueckeTipp(id), istFrei(id) ? "deko-ding" : "");
         continue;
       }
+      if (SONDER[P.art]) { if (!istFrei(id)) { const d = ding(id, "kachel", P.x, P.y, 140, () => sonderTipp(id), "sonder"); d.el.insertAdjacentHTML("beforeend", `<span class="sonder-zeichen">${SONDER[P.art].zeichen}</span>`); } continue; }
       if (!istFrei(id)) { const H = hindernis(P.art); ding(id, H.bild, P.x, P.y, H.breite, () => hindernisTipp(id)); }
-      else if (P.truhe && !I.truhen.includes(id)) ding(id, "truhe", P.x, P.y, 72, () => truheTipp(id), "truhe-ding");
+      else if (P.truhe && !I.truhen.includes(id)) ding(id, "truhe", P.x, P.y, 95, () => truheTipp(id), "truhe-ding");
     }
+    nebelZeichnen();
     aktualisieren();
   }
   function aktualisieren() {
@@ -163,8 +189,10 @@ export function inselStarten(api) {
       const offen = erreichbar(id);
       d.el.classList.toggle("fern", !offen);
       d.el.classList.toggle("erreichbar", offen);
+      d.el.style.zIndex = offen ? 3000 + Math.round(P.y) : Math.round(P.y);
       if (!offen) { ov(d, ""); continue; }
       if (P.art === "bruecke") ov(d, `<div class="preis">🔧 ${P.name}</div>`);
+      else if (SONDER[P.art]) ov(d, `<div class="preis">${SONDER[P.art].zeichen} ${SONDER[P.art].name}${P.art === "raetsel" && geteilt().puzzleGut ? " ✓" : ""}</div>`);
       else {
         const w = hindernis(P.art).werkzeug, n = kosten(id), genug = (S().werkzeug[w] || 0) >= n;
         ov(d, `<div class="preis ${genug ? "" : "fehlt"}">${wz(w, "ic klein")} ${n}</div>`);
@@ -183,14 +211,30 @@ export function inselStarten(api) {
       return;
     }
     s.werkzeug[w] -= n;
+    befreien(id, w);
+  }
+  function befreien(id, w) {
+    const P = INSEL_PLAETZE[id], d = dinge.get(id);
+    if (istFrei(id)) return;
     stand().frei.push(id);
-    d.el.classList.add("verschwindet");
+    d?.el.classList.add("verschwindet");
     punkte(PUNKTE.hindernis, d); api.zaehle?.("hindernis");
-    ereignis(w, true);
+    if (w) ereignis(w, true);
     if (P.ziel) { ereignis("ziel:" + P.ziel, true); api.meldung(W().ziele[P.ziel]); }
     if (alleFrei()) ereignis("alles", true);
     api.speichern();
     setTimeout(() => { aufbauen(); if (alleFrei()) fertigPanel(); }, 550);
+  }
+  function sonderTipp(id) {
+    const P = INSEL_PLAETZE[id], Sd = SONDER[P.art];
+    if (!erreichbar(id)) { api.meldung("Räume zuerst den Weg bis hierher frei."); return; }
+    if (P.art === "wimmel") { api.wimmelbild({ winter: welt === "winter", gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
+    if (P.art === "memory") { api.memory({ gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
+    const G = geteilt();
+    if (G.puzzleGut > 0) { G.puzzleGut--; api.meldung("Das Puzzle-Tor öffnet sich!"); befreien(id); return; }
+    api.oeffnen("i-raetsel", () => `<div class="kopf"><h2>${Sd.zeichen} ${Sd.name}</h2>${api.zu()}</div>
+      <div class="gastgeberin"><img src="${api.bildUrl("gastgeberin")}" alt=""><p>„Dieses alte Tor hat ein Rätselschloss. Gewinne ein Puzzle-Level, dann bekommen wir es auf!“</p></div>
+      <button class="los" data-aktion="i-zumpuzzle">Zum Puzzle</button>`);
   }
   function truheTipp(id) {
     const d = dinge.get(id), I = stand(), s = S();
@@ -272,6 +316,7 @@ export function inselStarten(api) {
   document.querySelector("#fenster").addEventListener("click", e => {
     const b = e.target.closest("[data-aktion^='i-']"); if (!b || b.disabled) return;
     const a = b.dataset.aktion, s = S(), I = stand(), G = geteilt();
+    if (a === "i-zumpuzzle") { api.schliessen(); api.puzzleOeffnen(); return; }
     if (a === "i-reparieren") {
       const id = b.dataset.id, P = INSEL_PLAETZE[id];
       if (!api.hat(P.kosten)) return;
