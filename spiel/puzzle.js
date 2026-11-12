@@ -381,36 +381,46 @@ export function puzzleStarten(api) {
   }
   // Übrige Züge werden zu Raketen und Bomben, die gezündet werden und Münzen bringen
   async function bonusRunde() {
-    const banner = p$("#pz-bonus"); banner.hidden = false;
-    let ueberspringen = false; const skip = () => { ueberspringen = true; }; huelle.addEventListener("pointerdown", skip, { once: true });
-    const pause = ms => ueberspringen ? Promise.resolve() : warte(ms);
-    let geraeumt = 0; const z = zuege;
-    for (let k = 0; k < z; k++) {
-      const frei = [];
-      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (gitter[r][c] && !gitter[r][c].spezial) frei.push([r, c]);
-      if (!frei.length) break;
-      const [r, c] = frei[Math.floor(Math.random() * frei.length)], st = gitter[r][c];
-      st.el?.remove(); st.el = null; st.spezial = k % 4 === 3 ? "bombe" : Math.random() < .5 ? "rh" : "rv"; st.farbe = -1;
-      setzen(st, r, c, true); st.el.classList.add("entsteht");
-      zuege--; zeigeKopf(); api.ton("treffer", k % 8); await pause(120);
-    }
-    await pause(350);
-    const zaehlen = () => gitter.flat().filter(Boolean).length;
-    for (let runde = 0; runde < 60; runde++) {
-      let pos = null;
-      for (let r = 0; r < N && !pos; r++) for (let c = 0; c < N && !pos; c++) if (gitter[r][c]?.spezial) pos = [r, c];
-      if (!pos) break;
-      const vorher = zaehlen(); abraeumen([pos], false); geraeumt += vorher - zaehlen();
-      api.ton("knall"); await pause(200); await fallen();
-    }
+    const z = zuege, banner = p$("#pz-bonus"), start = Date.now();
+    let geraeumt = 0, ueberspringen = false;
+    const skip = () => { ueberspringen = true; };
+    huelle.addEventListener("pointerdown", skip);
+    const schnell = () => ueberspringen || Date.now() - start > 5000;
+    const pause = ms => schnell() ? Promise.resolve() : warte(ms);
+    banner.hidden = false;
+    try {
+      for (let k = 0; k < z && !schnell(); k++) {
+        const frei = [];
+        for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (gitter[r][c] && !gitter[r][c].spezial) frei.push([r, c]);
+        if (!frei.length) break;
+        const [r, c] = frei[Math.floor(Math.random() * frei.length)], st = gitter[r][c];
+        st.el?.remove(); st.el = null; st.spezial = k % 4 === 3 ? "bombe" : Math.random() < .5 ? "rh" : "rv"; st.farbe = -1;
+        setzen(st, r, c, true); st.el.classList.add("entsteht");
+        zuege--; zeigeKopf(); api.ton("treffer", k % 8); await pause(110);
+      }
+      await pause(300);
+      const zaehlen = () => gitter.flat().filter(Boolean).length;
+      for (let runde = 0; runde < 40 && !schnell(); runde++) {
+        let pos = null;
+        for (let r = 0; r < N && !pos; r++) for (let c = 0; c < N && !pos; c++) if (gitter[r][c]?.spezial) pos = [r, c];
+        if (!pos) break;
+        const vorher = zaehlen(); abraeumen([pos], false); geraeumt += vorher - zaehlen();
+        api.ton("knall"); await pause(180); await fallen();
+      }
+    } catch (e) { console.error(e); }
     huelle.removeEventListener("pointerdown", skip);
     banner.hidden = true;
+    // Was nicht mehr gezündet wurde, zählt trotzdem: etwa 6 Steine pro übrigem Zug
+    const gezuendet = Math.max(0, z - zuege);
+    if (ueberspringen || gezuendet < z) geraeumt += (z - Math.min(z, Math.round(geraeumt / 6))) * 6;
+    zuege = 0; zeigeKopf();
     return { zuege: z, muenzen: z * 5 + geraeumt };
   }
   async function gewonnen() {
     belegt = true;
     const startZuege = zuege;
-    const bonus = zuege > 0 ? await bonusRunde() : { zuege: 0, muenzen: 0 };
+    let bonus = { zuege: 0, muenzen: 0 };
+    try { if (zuege > 0) bonus = await bonusRunde(); } catch (e) { console.error(e); bonus = { zuege: startZuege, muenzen: startZuege * 11 }; }
     zuege = startZuege;
     belegt = false;
     const P = stand(), s = S(), erstmals = nummer >= P.level;
