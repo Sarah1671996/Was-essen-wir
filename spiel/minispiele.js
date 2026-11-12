@@ -125,25 +125,20 @@ export function minispieleStarten(api) {
     };
   }
 
-  /* ---------- Schiebepuzzle ---------- */
+  /* ---------- Bildpuzzle (Tauschen) ---------- */
+  // Zwei Teile antippen, sie tauschen den Platz. Richtig liegende Teile leuchten grün und bleiben fest.
   function schiebepuzzle({ gewonnen, winter, karte }) {
     const n = 3, bildName = karte || (winter ? "schneeinsel" : "insel");
-    let feld = [...Array(n * n).keys()]; // 8 = Lücke
-    // lösbar mischen: zufällige gültige Züge
-    let leer = 8;
-    for (let k = 0; k < 120; k++) {
-      const r = Math.floor(leer / n), c = leer % n, nb = [[r - 1, c], [r + 1, c], [r, c - 1], [r, c + 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < n && b < n);
-      const [a, b] = nb[Math.floor(Math.random() * nb.length)], z = a * n + b;
-      [feld[leer], feld[z]] = [feld[z], feld[leer]]; leer = z;
-    }
-    let zuege = 0;
+    let feld = mischen([...Array(n * n).keys()]);
+    while (feld.filter((v, k) => v === k).length > 2) feld = mischen(feld);
+    let zuege = 0, gewaehlt = -1;
     huelle.style.backgroundImage = `url(${api.bildUrl("strand")})`;
     const zeichnen = () => {
-      huelle.querySelector(".schiebe").innerHTML = feld.map((t, i) => t === 8 ? `<div class="schiebe-leer"></div>` :
-        `<button class="schiebe-teil" data-i="${i}" style="background-image:url(${api.bildUrl(bildName)});background-position:${(t % n) / (n - 1) * 100}% ${Math.floor(t / n) / (n - 1) * 100}%"></button>`).join("");
-      huelle.querySelector(".mini-zeit").textContent = zuege + " Züge";
+      huelle.querySelector(".schiebe").innerHTML = feld.map((t, i) => `<button class="schiebe-teil ${t === i ? "richtig" : ""} ${i === gewaehlt ? "gewaehlt" : ""}" data-i="${i}"
+        style="background-image:url(${api.bildUrl(bildName)});background-position:${(t % n) / (n - 1) * 100}% ${Math.floor(t / n) / (n - 1) * 100}%"></button>`).join("");
+      huelle.querySelector(".mini-zeit").textContent = `${feld.filter((v, k) => v === k).length}/9 richtig`;
     };
-    huelle.innerHTML = `<div class="mini-kopf"><button class="zu" data-mini="zu" aria-label="Schließen">✕</button><b>🧱 Schiebe die Teile, bis das Bild stimmt</b><span class="mini-zeit">0 Züge</span></div>
+    huelle.innerHTML = `<div class="mini-kopf"><button class="zu" data-mini="zu" aria-label="Schließen">✕</button><b>🧩 Tippe zwei Teile an, um sie zu tauschen</b><span class="mini-zeit"></span></div>
       <div class="schiebe-wrap"><div class="schiebe"></div><img class="schiebe-vorlage" src="${api.bildUrl(bildName)}" alt="Vorlage"></div>`;
     huelle.hidden = false; zeichnen();
     huelle.onclick = e => {
@@ -151,9 +146,12 @@ export function minispieleStarten(api) {
       if (a === "zu") { zu(); return; }
       if (a === "sieg") { zu(); gewonnen(); return; }
       const t = e.target.closest(".schiebe-teil"); if (!t) return;
-      const i = +t.dataset.i, l = feld.indexOf(8);
-      if (Math.abs(Math.floor(i / n) - Math.floor(l / n)) + Math.abs(i % n - l % n) !== 1) { api.ton("nein"); return; }
-      [feld[i], feld[l]] = [feld[l], feld[i]]; zuege++; api.ton("treffer", 2); zeichnen();
+      const i = +t.dataset.i;
+      if (feld[i] === i) { api.ton("nein"); return; }
+      if (gewaehlt < 0) { gewaehlt = i; zeichnen(); return; }
+      if (gewaehlt === i) { gewaehlt = -1; zeichnen(); return; }
+      [feld[i], feld[gewaehlt]] = [feld[gewaehlt], feld[i]]; gewaehlt = -1; zuege++;
+      api.ton(feld[i] === i || feld.indexOf(i) === i ? "treffer" : "nein", 3); zeichnen();
       if (feld.every((v, k) => v === k)) { api.ton("sieg"); setTimeout(() => ende(`<h2>Geschafft!</h2><p>Das Bild ist fertig, in ${zuege} Zügen.</p>`, `<button class="los" data-mini="sieg">Weiter</button>`), 400); }
     };
   }
