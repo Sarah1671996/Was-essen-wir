@@ -1125,15 +1125,41 @@ function platzFreiIntern(x, y, B) {
   // Felder dürfen dicht an dicht liegen wie im Raster
   return hindernisse().every(o => o.feld && B === FELD_DEF ? Math.hypot(o.x - x, (o.y - (y - 55)) * 1.4) > 95 : Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
 }
+/* ---------- Raster: dasselbe Rautenraster wie die Felder (ein Kästchen = ein Feld) ---------- */
+const RASTER = { x0: FELDPLAETZE[0].x, y0: FELDPLAETZE[0].y, ax: 100, ay: 54 };
+function einrasten(x, y) {
+  const dx = (x - RASTER.x0) / RASTER.ax, dy = (y - RASTER.y0) / RASTER.ay;
+  const c = Math.round((dx + dy) / 2), r = Math.round((dy - dx) / 2);
+  return { x: RASTER.x0 + (c - r) * RASTER.ax, y: RASTER.y0 + (c + r) * RASTER.ay };
+}
+const rasterEl = document.createElement("canvas"); rasterEl.id = "raster"; rasterEl.hidden = true; welt.appendChild(rasterEl);
+function rasterZeichnen(px, py, ok) {
+  const R = 520, q = 1, w = R * 2, h = R * 1.3;
+  rasterEl.width = w * q; rasterEl.height = h * q;
+  rasterEl.style.cssText = `left:${px - R}px;top:${py - 55 - h / 2}px;width:${w}px;height:${h}px`;
+  const g = rasterEl.getContext("2d"), ox = R - px, oy = h / 2 - (py - 55);
+  g.clearRect(0, 0, w, h);
+  const raute = (x, y) => { g.beginPath(); g.moveTo(x + ox, y - RASTER.ay + oy); g.lineTo(x + RASTER.ax + ox, y + oy); g.lineTo(x + ox, y + RASTER.ay + oy); g.lineTo(x - RASTER.ax + ox, y + oy); g.closePath(); };
+  for (let i = -6; i <= 6; i++) for (let j = -6; j <= 6; j++) {
+    const x = px + (i - j) * RASTER.ax, y = py - 55 + (i + j) * RASTER.ay;
+    const d = Math.hypot((x - px) / R, (y - py + 55) / (h / 2)); if (d > 1) continue;
+    raute(x, y); g.strokeStyle = `rgba(255,255,255,${.75 * (1 - d)})`; g.lineWidth = 2; g.stroke();
+  }
+  raute(px, py - 55); g.fillStyle = ok ? "rgba(110,230,90,.35)" : "rgba(255,80,60,.35)"; g.fill();
+  g.strokeStyle = ok ? "rgba(70,200,50,.95)" : "rgba(230,60,40,.95)"; g.lineWidth = 4; g.stroke();
+  rasterEl.hidden = false;
+}
 function geistSetzen(x, y) {
   const B = pdef();
-  platzieren.x = Math.round(x); platzieren.y = Math.round(y + hoehe(B.bild, B.breite) * .35);
+  const p = einrasten(x, y + hoehe(B.bild, B.breite) * .35);
+  platzieren.x = p.x; platzieren.y = p.y;
   const h = hoehe(B.bild, B.breite);
   geist.style.left = (platzieren.x - B.breite / 2) + "px"; geist.style.top = (platzieren.y - h) + "px";
   geist.style.height = h + "px"; geist.style.zIndex = 5000;
   const ok = platzFrei(platzieren.x, platzieren.y, pdef());
   geist.classList.toggle("schlecht", !ok);
   $("#platz-ok").disabled = !ok;
+  rasterZeichnen(platzieren.x, platzieren.y, ok);
 }
 function geistBewegen(e) { if (e.pointerType === "mouse") { const p = zuWelt(e.clientX, e.clientY); geistSetzen(p.x, p.y); } }
 function platzierenEnde(ok) {
@@ -1153,7 +1179,7 @@ function platzierenEnde(ok) {
       meldung(`${B.name} gebaut${B.einwohner ? `: +${B.einwohner} Einwohner` : ""}`);
     }
   }
-  platzieren = null; geist.hidden = true; $("#platzleiste").hidden = true;
+  platzieren = null; geist.hidden = true; rasterEl.hidden = true; $("#platzleiste").hidden = true;
   weltAufbauen(); speichern(); aktualisieren();
   if (bearbeiten) $("#bearbeitleiste").hidden = false;
 }
@@ -1475,7 +1501,7 @@ function neustartFragen() { oeffnen("neu", () => `
 // Spielstand vom anderen Gerät übernehmen
 function standUebernehmen(neu) {
   if (!neu || neu.v !== 1) return;
-  if (platzieren) { platzieren = null; geist.hidden = true; $("#platzleiste").hidden = true; }
+  if (platzieren) { platzieren = null; geist.hidden = true; rasterEl.hidden = true; $("#platzleiste").hidden = true; }
   if (bearbeiten) bearbeitenAus();
   S = ergaenzen(neu);
   if (insel.aktiv) insel.verlassen();

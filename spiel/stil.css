@@ -480,3 +480,6 @@ body.bearbeiten .ding.feld .spr { outline: 3px dashed rgba(255, 255, 255, .85); 
 .karte-mem.offen span, .karte-mem.paar span { display: none; }
 .karte-mem.paar { opacity: .6; }
 .mini-ende { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, calc(100% - 32px)); text-align: center; z-index: 5; }
+
+/* Raster beim Aufstellen */
+#raster { position: absolute; pointer-events: none; z-index: 4990; }
