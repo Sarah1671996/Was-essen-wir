@@ -563,8 +563,6 @@ function feldTipp(i) {
     if (!feldErnten(i)) return;
   } else if (f.p) {
     meldung(`${WAREN[f.p].name} wächst noch ${dauer(f.t - jetzt())}`); return;
-  } else if (saat) {
-    saeen(i, saat);
   } else {
     saatAuswahl(i); return;
   }
@@ -586,7 +584,7 @@ function saatAuswahl(i) {
         ${icon(k, "ic gross")}<b>${P.name || WAREN[k].name}</b>
         <small>${frei ? `${dauer(P.zeit * 1000)} · ergibt ${P.ertrag}` : `ab Level ${P.level}`}</small></button>`;
     }).join("")}</div>
-    <p class="hinweis">Tipp: Zieh eine Pflanze mit dem Finger über mehrere leere Felder. Reife Felder erntest du, indem du mit dem Finger darüberwischst.</p>`);
+    <p class="hinweis">Tipp: Zieh eine Pflanze mit dem Finger über mehrere leere Felder. Oder wische von einem leeren Feld aus, dann wird die zuletzt gewählte Pflanze gesät. Reife Felder erntest du, indem du darüberwischst.</p>`);
 }
 document.querySelector("#fenster").addEventListener("pointerdown", e => {
   const k = e.target.closest('.karte[data-aktion="saeen"]'); if (!k || k.disabled) return;
@@ -1399,7 +1397,7 @@ host.addEventListener("click", e => {
   const b = e.target.closest("[data-aktion]"); if (!b || b.disabled) return;
   const a = b.dataset.aktion, t = jetzt();
   if (a === "zu") { schliessen(); return; }
-  if (a === "saeen") { saat = b.dataset.p; saeen(+b.dataset.i, saat); schliessen(); saatLeiste(); }
+  if (a === "saeen") { saat = b.dataset.p; saeen(+b.dataset.i, saat); schliessen(); }
   if (a === "feldkaufen") {
     const preis = feldPreis(S.felder.length), p = naechsterFeldplatzCache;
     if (S.muenzen >= preis && p) { S.muenzen -= preis; S.felder.push({ p: null, t: 0, x: p.x, y: p.y }); erfahrung(3); schliessen(); weltAufbauen(); }
