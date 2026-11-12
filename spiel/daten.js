@@ -71,7 +71,9 @@ export const FELDPLAETZE = [];
   for (const [r, c] of ordnung) FELDPLAETZE.push({ x: 560 + (c - r) * 100, y: 430 + (c + r) * 54 });
 }
 export const START_FELDER = 6;
-export const feldPreis = n => 40 + (n - START_FELDER) * 30;
+export const feldPreis = n => Math.min(600, 40 + (n - START_FELDER) * 30);
+export const FELDER_MAX = 40;
+export const FELD_R = 80;   // Platzbedarf eines Feldes
 
 // Frei platzierbare Dinge (Bauen-Menü)
 export const BAUTEN = {

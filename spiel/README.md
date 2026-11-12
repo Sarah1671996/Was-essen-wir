@@ -64,6 +64,7 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Schweine** (Schweinestall ab Level 6) finden Trüffel, **Ziegen** (Ziegenstall ab Level 7) geben Ziegenmilch; die Molkerei macht daraus Ziegenkäse und Joghurt
 
 - **Umstellen und abreißen** (Bauen → „Umstellen und abreißen“): Häuser, Deko, Bäume und feste Gebäude umstellen; Häuser und Deko abreißen (halber Preis zurück)
+- **Felder frei aufstellen** (Bauen → Feld, bis zu 40), umstellen und leere Felder abreißen
 - **Häuser ausbauen** bis Stufe 5 (mehr Einwohner auf demselben Platz)
 
 ## Paket C: Schneeinsel und Jahreszeiten-Events

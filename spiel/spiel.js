@@ -2,7 +2,7 @@
 import { GROESSE } from "./img/groessen.js";
 import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
-  feldPreis, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
+  feldPreis, FELDER_MAX, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
   EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, HAUS_STUFEN, ABRISS_ERSTATTUNG,
 } from "./daten.js";
@@ -56,6 +56,7 @@ function ergaenzen(s) {
   s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
   s.tag ??= { zuletzt: "", serie: 0 };
   s.bewohner ??= {}; s.pos ??= {};
+  s.felder.forEach((f, i) => { if (f.x == null) { f.x = FELDPLAETZE[i].x; f.y = FELDPLAETZE[i].y; } });
   for (const k of Object.keys(TIERE)) s.tiere[k] ??= []; s.zaehler ??= {}; s.erfolge ??= {};
   // Deko, die auf einem neuen Bauplatz steht, ein Stück zur Seite rücken
   for (const [k, g] of Object.entries(GEBAEUDE)) {
@@ -210,6 +211,7 @@ view.addEventListener("click", e => {
   if (bearbeiten && el) {
     const id = el.dataset.id;
     if (/^bau\d+$/.test(id)) { bauTipp(+id.slice(3)); return; }
+    if (/^feld\d+$/.test(id)) { feldBearbeiten(+id.slice(4)); return; }
     if (GEBAEUDE[id] && VERSCHIEBBAR(id)) { gebaeudeBearbeiten(id); return; }
     meldung("Das kann man nicht umstellen."); return;
   }
@@ -308,11 +310,12 @@ const uhr = (rest, ges, oben = 0) =>
 const blase = (inhalt, oben = -46) => `<div class="blase" style="top:${oben}px">${inhalt}</div>`;
 
 function weltAufbauen() {
+  naechsterFeldplatzCache = null; naechsterFeldplatzCache = naechsterFeldplatz();
   for (const d of dinge.values()) d.el.remove();
   dinge.clear();
   // Felder
   S.felder.forEach((f, i) => {
-    const p = FELDPLAETZE[i];
+    const p = S.felder[i];
     neuesDing("feld" + i, "feld-leer", p.x, p.y, FELD_BREITE, {
       cls: "feld",
       tipp: () => feldTipp(i),
@@ -324,8 +327,9 @@ function weltAufbauen() {
       },
     });
   });
-  if (S.felder.length < FELDPLAETZE.length) {
-    const p = FELDPLAETZE[S.felder.length];
+  const naechster = naechsterFeldplatz();
+  if (naechster) {
+    const p = naechster;
     const d = neuesDing("neuesfeld", "feld-leer", p.x, p.y, FELD_BREITE, { cls: "bauplatz", tipp: feldKaufen });
     overlay(d, `<div class="schild">${muenze("ic klein")} ${feldPreis(S.felder.length)}<br><small>Neues Feld</small></div>`);
   }
@@ -484,12 +488,19 @@ function saatAuswahl(i) {
     }).join("")}</div>
     <p class="hinweis">Danach kannst du weitere leere Felder einfach antippen, um dasselbe zu säen.</p>`);
 }
+// Nächster freier Platz im Feldraster (für den „Neues Feld“-Platz neben den Feldern)
+const FELD_DEF = { name: "Feld", bild: "feld-leer", breite: FELD_BREITE, r: FELD_R };
+function naechsterFeldplatz() {
+  if (S.felder.length >= FELDER_MAX) return null;
+  return FELDPLAETZE.find(p => S.felder.every(f => Math.hypot(f.x - p.x, f.y - p.y) > 60) && platzFrei(p.x, p.y, FELD_DEF, true)) || null;
+}
 function feldKaufen() {
   const preis = feldPreis(S.felder.length);
   oeffnen("feldkauf", () => `
     <div class="kopf"><h2>Neues Feld</h2>${zu()}</div>
     <p>Ein weiteres Feld für mehr Ernte.</p>
-    <button class="los" data-aktion="feldkaufen" ${S.muenzen >= preis ? "" : "disabled"}>${muenze()} ${preis} – Kaufen</button>`);
+    <button class="los" data-aktion="feldkaufen" ${S.muenzen >= preis && naechsterFeldplatzCache ? "" : "disabled"}>${muenze()} ${preis} – Hier kaufen</button>
+    <button class="los zweit" data-aktion="feldfrei" ${S.muenzen >= preis ? "" : "disabled"}>Woanders aufstellen</button>`);
 }
 
 /* ---------- Gebäude ---------- */
@@ -952,7 +963,9 @@ let platzieren = null; // { typ, index? } index = vorhandenes Ding verschieben
 function baumenu() {
   oeffnen("bauen", () => `
     <div class="kopf"><h2>Bauen</h2>${zu()}</div>
-    <div class="baumenu">${Object.entries(BAUTEN).filter(([k, B]) => !B.insel || S.dekoFrei[k] > 0).map(([k, B]) => {
+    <div class="baumenu"><button class="karte" data-aktion="feldfrei" ${S.muenzen >= feldPreis(S.felder.length) && S.felder.length < FELDER_MAX ? "" : "disabled"}>
+        <img class="bauicon" src="${bildUrl("feld-leer")}" alt=""><b>Feld</b><small>${S.felder.length < FELDER_MAX ? `${muenze("ic klein")} ${feldPreis(S.felder.length)} · ${S.felder.length}/${FELDER_MAX}` : "Maximum erreicht"}</small></button>
+      ${Object.entries(BAUTEN).filter(([k, B]) => !B.insel || S.dekoFrei[k] > 0).map(([k, B]) => {
       if (B.insel) return `<button class="karte geschenk" data-aktion="platzieren" data-t="${k}">
         <img class="bauicon" src="${bildUrl(B.bild)}" alt=""><b>${B.name}</b><small>Belohnung · ${S.dekoFrei[k]}× frei</small></button>`;
       const frei = S.level >= B.level, geld = S.muenzen >= B.preis;
@@ -998,6 +1011,15 @@ function bauTipp(i) {
         : `<div class="knoepfe"><button class="los" data-aktion="verschieben" data-i="${i}">Umstellen</button><button class="los rot" data-aktion="abrissfrage" data-i="${i}">Abreißen</button></div>`}`;
   });
 }
+function feldBearbeiten(i) {
+  oeffnen("fb" + i, () => {
+    const f = S.felder[i]; if (!f) return "";
+    return `<div class="kopf"><h2>Feld</h2>${zu()}</div>
+      <p>${f.p ? `Hier wächst ${WAREN[f.p].name}. Ernte es, bevor du das Feld abreißt.` : "Ein leeres Feld."}</p>
+      <div class="knoepfe"><button class="los" data-aktion="feldumstellen" data-i="${i}">Umstellen</button>
+      <button class="los rot" data-aktion="feldweg" data-i="${i}" ${f.p || S.felder.length <= 1 ? "disabled" : ""}>Abreißen (${muenze("ic klein")} 20 zurück)</button></div>`;
+  });
+}
 function gebaeudeBearbeiten(key) {
   oeffnen("gb:" + key, () => `<div class="kopf"><h2>${GEBAEUDE[key].name}</h2>${zu()}</div>
     <p>Feste Gebäude kannst du umstellen, aber nicht abreißen.</p>
@@ -1006,7 +1028,18 @@ function gebaeudeBearbeiten(key) {
 }
 const geist = $("#geist");
 // Was gerade aufgestellt wird: Bild, Breite und Platzbedarf
-const pdef = () => platzieren.gebaeude ? GEBAEUDE[platzieren.gebaeude] : BAUTEN[platzieren.typ];
+const pdef = () => platzieren.feld != null ? FELD_DEF : platzieren.gebaeude ? GEBAEUDE[platzieren.gebaeude] : BAUTEN[platzieren.typ];
+function feldPlatzieren(wer) {
+  schliessen();
+  if (wer === "neu" && S.felder.length >= FELDER_MAX) { meldung(`Mehr als ${FELDER_MAX} Felder gehen nicht.`); return; }
+  platzieren = { feld: wer, index: null, x: null, y: null };
+  geist.innerHTML = `<img src="${bildUrl("feld-leer")}" alt="">`; geist.style.width = FELD_BREITE + "px";
+  let q;
+  if (wer !== "neu") { dinge.get("feld" + wer)?.el.classList.add("weg"); q = S.felder[wer]; }
+  else q = zuWelt(innerWidth / 2, innerHeight / 2);
+  geistSetzen(q.x, q.y - hoehe("feld-leer", FELD_BREITE) * .35);
+  $("#platzleiste").hidden = false; $("#bearbeitleiste").hidden = true; welt.appendChild(geist); geist.hidden = false;
+}
 function gebaeudeUmstellen(key) {
   schliessen();
   platzieren = { gebaeude: key, index: null, x: null, y: null };
@@ -1028,10 +1061,11 @@ function platzierenStart(typ, index = null) {
   $("#platzleiste").hidden = false; $("#bearbeitleiste").hidden = true;
   welt.appendChild(geist); geist.hidden = false;
 }
+let ohneNeuesFeld = false, naechsterFeldplatzCache = null;
 function hindernisse() {
   const h = [];
-  S.felder.forEach((_, i) => h.push({ x: FELDPLAETZE[i].x, y: FELDPLAETZE[i].y - 55, r: 85 }));
-  if (S.felder.length < FELDPLAETZE.length) { const p = FELDPLAETZE[S.felder.length]; h.push({ x: p.x, y: p.y - 55, r: 85 }); }
+  S.felder.forEach((f, i) => { if (platzieren && platzieren.feld === i) return; h.push({ x: f.x, y: f.y - 55, r: FELD_R, feld: true }); });
+  if (!ohneNeuesFeld) { const p = naechsterFeldplatzCache; if (p) h.push({ x: p.x, y: p.y - 55, r: FELD_R, feld: true }); }
   for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r && !(platzieren && platzieren.gebaeude === k)) { const q = gpos(k); h.push({ x: q.x, y: q.y - g.r * .5, r: g.r }); }
   for (const w of Object.values(WEIDEN)) h.push({ x: w.x, y: w.y + 10, r: Math.max(w.rx, w.ry * 1.6) * .85 });
   for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) h.push({ x: z.x, y: z.y, r: Math.max(z.rx, z.ry) * 1.05 });
@@ -1039,11 +1073,16 @@ function hindernisse() {
   S.bauten.forEach((b, i) => { if (platzieren && platzieren.index === i) return; const B = BAUTEN[b.typ]; h.push({ x: b.x, y: b.y - B.r * .5, r: B.r }); });
   return h;
 }
-function platzFrei(x, y, typ) {
+function platzFrei(x, y, typ, fuerRaster = false) {
   const B = typ && typeof typ === "object" ? typ : BAUTEN[typ];
+  ohneNeuesFeld = fuerRaster;
+  try { return platzFreiIntern(x, y, B); } finally { ohneNeuesFeld = false; }
+}
+function platzFreiIntern(x, y, B) {
   if (x < 60 || x > WELT.b - 60 || y < 120 || y > WELT.h - 30) return false;
   if (((x - SEE.x) / (SEE.rx + 50)) ** 2 + ((y - SEE.y) / (SEE.ry + 40)) ** 2 < 1) return false; // See
-  return hindernisse().every(o => Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
+  // Felder dürfen dicht an dicht liegen wie im Raster
+  return hindernisse().every(o => o.feld && B === FELD_DEF ? Math.hypot(o.x - x, (o.y - (y - 55)) * 1.4) > 95 : Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
 }
 function geistSetzen(x, y) {
   const B = pdef();
@@ -1059,7 +1098,11 @@ function geistBewegen(e) { if (e.pointerType === "mouse") { const p = zuWelt(e.c
 function platzierenEnde(ok) {
   if (ok && platzieren && platzFrei(platzieren.x, platzieren.y, pdef())) {
     const B = pdef();
-    if (platzieren.gebaeude) { S.pos[platzieren.gebaeude] = { x: platzieren.x, y: platzieren.y }; meldung(`${B.name} umgestellt`); }
+    if (platzieren.feld === "neu") {
+      const preis = feldPreis(S.felder.length);
+      if (S.muenzen >= preis) { S.muenzen -= preis; S.felder.push({ p: null, t: 0, x: platzieren.x, y: platzieren.y }); erfahrung(3); meldung("Neues Feld!"); }
+    } else if (platzieren.feld != null) { Object.assign(S.felder[platzieren.feld], { x: platzieren.x, y: platzieren.y }); meldung("Feld umgestellt"); }
+    else if (platzieren.gebaeude) { S.pos[platzieren.gebaeude] = { x: platzieren.x, y: platzieren.y }; meldung(`${B.name} umgestellt`); }
     else if (platzieren.index !== null) Object.assign(S.bauten[platzieren.index], { x: platzieren.x, y: platzieren.y });
     else {
       if (S.muenzen < B.preis) return;
@@ -1099,9 +1142,11 @@ host.addEventListener("click", e => {
   if (a === "zu") { schliessen(); return; }
   if (a === "saeen") { saat = b.dataset.p; saeen(+b.dataset.i, saat); schliessen(); saatLeiste(); }
   if (a === "feldkaufen") {
-    const preis = feldPreis(S.felder.length);
-    if (S.muenzen >= preis) { S.muenzen -= preis; S.felder.push({ p: null, t: 0 }); erfahrung(3); schliessen(); weltAufbauen(); }
+    const preis = feldPreis(S.felder.length), p = naechsterFeldplatzCache;
+    if (S.muenzen >= preis && p) { S.muenzen -= preis; S.felder.push({ p: null, t: 0, x: p.x, y: p.y }); erfahrung(3); schliessen(); weltAufbauen(); }
   }
+  if (a === "feldfrei") { feldPlatzieren("neu"); return; }
+
   if (a === "herstellen") {
     const key = b.dataset.k, R = FABRIKEN[key].rezepte[+b.dataset.r], F = S.fabrik[key];
     if (!hat(R.zutaten) || F.q.length + F.fertig.length >= plaetzeVon(key)) return;
@@ -1199,6 +1244,12 @@ host.addEventListener("click", e => {
     x.stufe = st + 1; erfahrung(6 * st); leben.ton("level");
     meldung(`${B.name} auf Stufe ${x.stufe}: +${hausEinwohner(x) - vorher} Einwohner`);
     weltAufbauen(); huepf(dinge.get("bau" + i));
+  }
+  if (a === "feldumstellen") { feldPlatzieren(+b.dataset.i); return; }
+  if (a === "feldweg") {
+    const i = +b.dataset.i, f = S.felder[i];
+    if (!f || f.p || S.felder.length <= 1) return;
+    S.felder.splice(i, 1); S.muenzen += 20; schliessen(); weltAufbauen(); meldung("Feld abgerissen");
   }
   if (a === "gebaeudeumstellen") { gebaeudeUmstellen(b.dataset.k); return; }
   if (a === "gebaeudeoeffnen") { const k = b.dataset.k; schliessen(); gebaeudeTipp(k); return; }
