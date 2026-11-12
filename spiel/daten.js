@@ -639,3 +639,125 @@ Object.assign(SONDER, {
   unterschied: { name: "Unterschiede", zeichen: "👀", text: "Finde die 5 Unterschiede" },
   schiebe:     { name: "Schiebepuzzle", zeichen: "🧱", text: "Schiebe die Teile in die richtige Reihenfolge" },
 });
+
+/* ================= Paket F: neue Gebäude bis Level 90, Pferde, Enten, Wahrzeichen ================= */
+Object.assign(WAREN, {
+  tomate:      { name: "Tomate",       icon: "i-tomate",      wert: 10 },
+  kakao:       { name: "Kakao",        icon: "i-kakao",       wert: 13 },
+  rose:        { name: "Rose",         icon: "i-rose",        wert: 12 },
+  bohnen:      { name: "Kaffeebohnen", icon: "i-bohnen",      wert: 14 },
+  hufeisen:    { name: "Hufeisen",     icon: "i-hufeisen",    wert: 24 },
+  feder:       { name: "Feder",        icon: "i-feder",       wert: 16 },
+  pizza:       { name: "Pizza",        icon: "i-pizza",       wert: 70 },
+  spaghetti:   { name: "Spaghetti",    icon: "i-spaghetti",   wert: 58 },
+  eis:         { name: "Eis",          icon: "i-eis",         wert: 62 },
+  shake:       { name: "Milchshake",   icon: "i-shake",       wert: 66 },
+  schokolade:  { name: "Schokolade",   icon: "i-schokolade",  wert: 74 },
+  pralinen:    { name: "Pralinen",     icon: "i-pralinen",    wert: 110 },
+  strauss:     { name: "Blumenstrauß", icon: "i-strauss",     wert: 80 },
+  kranz:       { name: "Blumenkranz",  icon: "i-kranz",       wert: 96 },
+  kerze:       { name: "Kerze",        icon: "i-kerze",       wert: 86 },
+  seife:       { name: "Seife",        icon: "i-seife",       wert: 92 },
+  kaffee:      { name: "Kaffee",       icon: "i-kaffee",      wert: 98 },
+  cappuccino:  { name: "Cappuccino",   icon: "i-cappuccino",  wert: 128 },
+  fruehstueck: { name: "Frühstück",    icon: "i-fruehstueck", wert: 190 },
+  gold:        { name: "Goldbarren",   icon: "i-gold",        wert: 60 },
+});
+Object.assign(PFLANZEN, {
+  tomate: { zeit: 180, ertrag: 2, xp: 4, level: 28, bild: "feld-reif-tomate", name: "Tomaten" },
+  kakao:  { zeit: 240, ertrag: 2, xp: 5, level: 48, bild: "feld-reif-kakao" },
+  rose:   { zeit: 210, ertrag: 2, xp: 5, level: 58, bild: "feld-reif-rose", name: "Rosen" },
+  bohnen: { zeit: 300, ertrag: 2, xp: 6, level: 78, bild: "feld-reif-kaffee", name: "Kaffee" },
+});
+Object.assign(TIERE, {
+  pferd: { name: "Pferd", mehrzahl: "Pferde", bild: "pferd", breite: 105, zeit: 150, ware: "hufeisen", xp: 5, preis: 400, max: 3, stall: "pferdestall" },
+  ente:  { name: "Ente",  mehrzahl: "Enten",  bild: "ente",  breite: 60,  zeit: 90,  ware: "feder",    xp: 3, preis: 220, max: 5, stall: "entenhaus" },
+});
+Object.assign(FABRIKEN, {
+  pizzeria:     { name: "Pizzeria", bild: "pizzeria", rezepte: [
+    { ware: "pizza", menge: 1, zutaten: { weizen: 3, tomate: 2, kaese: 1 }, zeit: 150, level: 30 },
+    { ware: "spaghetti", menge: 1, zutaten: { weizen: 3, tomate: 2, oel: 1 }, zeit: 130, level: 32 },
+  ]},
+  eisdiele:     { name: "Eisdiele", bild: "eisdiele", rezepte: [
+    { ware: "eis", menge: 1, zutaten: { milch: 2, erdbeere: 2, kekse: 1 }, zeit: 140, level: 40 },
+    { ware: "shake", menge: 1, zutaten: { milch: 2, erdbeere: 3, honig: 1 }, zeit: 120, level: 42 },
+  ]},
+  schokofabrik: { name: "Schokoladenfabrik", bild: "schokofabrik", rezepte: [
+    { ware: "schokolade", menge: 1, zutaten: { kakao: 3, milch: 1, honig: 1 }, zeit: 170, level: 50 },
+    { ware: "pralinen", menge: 1, zutaten: { schokolade: 1, kirsche: 2, butter: 1 }, zeit: 200, level: 53 },
+  ]},
+  blumenladen:  { name: "Blumenladen", bild: "blumenladen", rezepte: [
+    { ware: "strauss", menge: 1, zutaten: { rose: 3, sonnenblume: 2 }, zeit: 130, level: 60 },
+    { ware: "kranz", menge: 1, zutaten: { rose: 2, sonnenblume: 2, wolle: 1 }, zeit: 160, level: 63 },
+  ]},
+  kerzen:       { name: "Kerzenzieherei", bild: "kerzen", rezepte: [
+    { ware: "kerze", menge: 1, zutaten: { honig: 2, oel: 1 }, zeit: 150, level: 70 },
+    { ware: "seife", menge: 1, zutaten: { oel: 2, rose: 2, ziegenmilch: 1 }, zeit: 170, level: 72 },
+  ]},
+  roesterei:    { name: "Kaffeerösterei", bild: "roesterei", rezepte: [
+    { ware: "kaffee", menge: 1, zutaten: { bohnen: 4 }, zeit: 160, level: 80 },
+    { ware: "cappuccino", menge: 1, zutaten: { kaffee: 1, milch: 2, schokolade: 1 }, zeit: 140, level: 83 },
+  ]},
+  hotel:        { name: "Hotel", bild: "hotel", rezepte: [
+    { ware: "fruehstueck", menge: 1, zutaten: { kaffee: 1, brot: 2, marmelade: 1, saft: 1 }, zeit: 220, level: 90 },
+  ]},
+});
+// Neue Bauplätze auf dem Obsthof-Land und im Süden
+Object.assign(GEBAEUDE, {
+  pizzeria:     { name: "Pizzeria",          bild: "pizzeria",     x: 1960, y: 470,  breite: 200, r: 85, level: 30, preis: 1800,  einwohner: 160 },
+  eisdiele:     { name: "Eisdiele",          bild: "eisdiele",     x: 2200, y: 640,  breite: 200, r: 85, level: 40, preis: 2600,  einwohner: 220 },
+  schokofabrik: { name: "Schokoladenfabrik", bild: "schokofabrik", x: 3450, y: 560,  breite: 200, r: 85, level: 50, preis: 3500,  einwohner: 290, obsthof: true },
+  blumenladen:  { name: "Blumenladen",       bild: "blumenladen",  x: 3700, y: 1350, breite: 200, r: 85, level: 60, preis: 4500,  einwohner: 360, obsthof: true },
+  kerzen:       { name: "Kerzenzieherei",    bild: "kerzen",       x: 3000, y: 1150, breite: 200, r: 85, level: 70, preis: 5600,  einwohner: 440, obsthof: true },
+  roesterei:    { name: "Kaffeerösterei",    bild: "roesterei",    x: 3400, y: 1780, breite: 200, r: 85, level: 80, preis: 7000,  einwohner: 520, obsthof: true },
+  hotel:        { name: "Hotel",             bild: "hotel",        x: 3000, y: 1700, breite: 215, r: 90, level: 90, preis: 9000,  einwohner: 620, obsthof: true },
+  pferdestall:  { name: "Pferdestall",       bild: "pferdestall",  x: 1430, y: 1650, breite: 200, r: 85, level: 35, preis: 2200,  einwohner: 190 },
+  entenhaus:    { name: "Entenhaus",         bild: "entenhaus",    x: 1230, y: 1430, breite: 180, r: 80, level: 25, preis: 1500,  einwohner: 140 },
+});
+Object.assign(WEIDEN, {
+  pferd: { x: 1700, y: 1750, rx: 160, ry: 70 },
+  ente:  { x: 1580, y: 1500, rx: 110, ry: 45 },
+});
+// Wahrzeichen: werden in Abschnitten mit Waren gebaut, fertig geben sie einen dauerhaften Bonus
+export const WAHRZEICHEN = {
+  windmuehle: { name: "Große Windmühle", bild: "windmuehle", x: 2150, y: 1050, breite: 230, level: 32,
+    bonus: "Felder wachsen 10 % schneller", abschnitte: [
+      { weizen: 30, mais: 20, gold: 1 }, { brot: 8, butter: 5, hufeisen: 2 }, { kuchen: 3, honig: 6, gold: 2 }] },
+  leuchtturm: { name: "Leuchtturm", bild: "leuchtturm", x: 2450, y: 1880, breite: 230, level: 52,
+    bonus: "Eilaufträge und Lieferwagen bringen 15 % mehr Münzen", abschnitte: [
+      { wolle: 10, feder: 6, gold: 2 }, { pullover: 3, traubensaft: 3, hufeisen: 4 }, { schokolade: 3, kerze: 2, gold: 3 }] },
+  rathaus: { name: "Rathaus", bild: "rathaus", x: 3700, y: 760, breite: 240, level: 75, obsthof: true,
+    bonus: "Aufträge bringen 15 % mehr Münzen und Erfahrung", abschnitte: [
+      { marmelade: 5, oel: 5, gold: 3 }, { strauss: 3, seife: 3, hufeisen: 6 }, { cappuccino: 3, pralinen: 3, gold: 5 }] },
+};
+FREISCHALTUNG[25] = [...(FREISCHALTUNG[25] || []), "Entenhaus: Enten geben Federn"];
+FREISCHALTUNG[28] = [...(FREISCHALTUNG[28] || []), "Tomaten"];
+FREISCHALTUNG[30] = [...(FREISCHALTUNG[30] || []), "Pizzeria mit Pizza"];
+FREISCHALTUNG[32] = [...(FREISCHALTUNG[32] || []), "Wahrzeichen: Große Windmühle", "Spaghetti"];
+FREISCHALTUNG[35] = [...(FREISCHALTUNG[35] || []), "Pferdestall: Pferde geben Hufeisen"];
+FREISCHALTUNG[40] = [...(FREISCHALTUNG[40] || []), "Eisdiele"];
+FREISCHALTUNG[48] = [...(FREISCHALTUNG[48] || []), "Kakao"];
+FREISCHALTUNG[50] = [...(FREISCHALTUNG[50] || []), "Schokoladenfabrik"];
+FREISCHALTUNG[52] = [...(FREISCHALTUNG[52] || []), "Wahrzeichen: Leuchtturm"];
+FREISCHALTUNG[58] = [...(FREISCHALTUNG[58] || []), "Rosen"];
+FREISCHALTUNG[60] = [...(FREISCHALTUNG[60] || []), "Blumenladen"];
+FREISCHALTUNG[70] = [...(FREISCHALTUNG[70] || []), "Kerzenzieherei"];
+FREISCHALTUNG[75] = [...(FREISCHALTUNG[75] || []), "Wahrzeichen: Rathaus"];
+FREISCHALTUNG[78] = [...(FREISCHALTUNG[78] || []), "Kaffee"];
+FREISCHALTUNG[80] = [...(FREISCHALTUNG[80] || []), "Kaffeerösterei"];
+FREISCHALTUNG[90] = [...(FREISCHALTUNG[90] || []), "Hotel mit Frühstück"];
+for (const [lv, w] of [[25, ["feder"]], [28, ["tomate"]], [30, ["pizza"]], [32, ["spaghetti"]], [35, ["hufeisen"]], [40, ["eis"]], [42, ["shake"]], [48, ["kakao"]], [50, ["schokolade"]], [53, ["pralinen"]], [58, ["rose"]], [60, ["strauss"]], [63, ["kranz"]], [70, ["kerze"]], [72, ["seife"]], [78, ["bohnen"]], [80, ["kaffee"]], [83, ["cappuccino"]], [90, ["fruehstueck"]]])
+  AUFTRAGS_WAREN[lv] = [...(AUFTRAGS_WAREN[lv] || []), ...w];
+// Goldbarren gibt es als Belohnung: Bosslevel, Gold im Wettbewerb, Gäste, Bonusstufen
+export const GOLD_QUELLEN = { boss: 2, wette: [0, 1, 3], gast: 1, eventBonus: 1, truhe: .15 };
+// Wüsteninsel
+WELTEN.wueste = { name: "Wüsteninsel", karte: "wuesteninsel", meer: "#38b8c8", level: 40, schatz: 2.6,
+  hindernisse: {
+    dschungel: { werkzeug: "axt",        bild: "kaktus",    breite: 115, text: "Kaktus" },
+    stumpf:    { werkzeug: "schaufel",   bild: "sandduene", breite: 130, text: "Sanddüne" },
+    felsen:    { werkzeug: "spitzhacke", bild: "sandstein", breite: 120, text: "Sandsteinfelsen" },
+  },
+  begruessung: "Puh, ist das heiß! Unter dem Sand liegt ein uralter Tempel. Schaufle die Dünen weg, fälle die Kakteen und finde die Schätze der Wüste!",
+  ziele: { dorf: "Da ist er: der alte Sandtempel!", wasserfall: "Eine Oase mitten in der Wüste!" },
+  fertig: "Die Wüsteninsel ist komplett erkundet! Wenn du magst, weht der Wind neuen Sand heran und wir suchen weiter." };
+for (const H of Object.values(WELTEN.wueste.hindernisse)) H.breite = Math.round(H.breite * 1.3);
