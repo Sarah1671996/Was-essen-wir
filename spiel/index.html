@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Sonnenhof</title>
+  <meta name="description" content="Eigenes Farmspiel: Felder, Tiere, Fabriken und Aufträge – ganz ohne Bezahlinhalte.">
+  <meta name="theme-color" content="#7dbb4a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sonnenhof">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="stil.css">
+</head>
+<body>
+<!--SPIEL-->
+<div id="welt-rahmen"><div id="welt"><canvas id="boden"></canvas><div id="geist" class="geist" hidden></div></div></div>
+
+<div class="hud">
+  <div class="pille" title="Level und Erfahrung">
+    <div class="lvl"><img src="img/i-stern.webp" alt=""><b id="anz-level">1</b></div>
+    <div class="xp"><i id="anz-xp"></i></div>
+  </div>
+  <div class="hud-rechts">
+    <div class="pille" id="anz-einwohner" title="Einwohner"><span class="ew" aria-hidden="true">🏠</span><b>0</b></div>
+    <div class="pille" id="anz-muenzen" title="Münzen"><img src="img/i-muenze.webp" alt=""><b>0</b></div>
+    <button class="pille rund" id="knopf-neu" aria-label="Spiel neu beginnen">↺</button>
+  </div>
+</div>
+<div class="schritt" id="schritt" hidden></div>
+<div class="leiste" id="saatleiste" hidden></div>
+<div class="leiste" id="platzleiste" hidden>
+  <span>Tippe auf den Platz, wo es stehen soll.</span>
+  <button id="platz-ok">Hier aufstellen</button><button id="platz-ab" class="ab">Abbrechen</button>
+</div>
+
+<nav class="aktionen">
+  <button class="knopf" id="knopf-auftraege"><img src="img/tafel.webp" alt="">Aufträge<span class="zahl" id="auftrag-zahl" hidden>0</span></button>
+  <button class="knopf" id="knopf-lager"><img src="img/scheune.webp" alt="">Scheune</button>
+  <button class="knopf" id="knopf-bauen"><img src="img/haus1.webp" alt="">Bauen</button>
+</nav>
+<div id="fenster"></div>
+<div class="meldung" id="meldung" hidden></div>
+<!--/SPIEL-->
+<script type="module" src="spiel.js"></script>
+</body>
+</html>
