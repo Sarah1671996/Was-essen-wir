@@ -61,9 +61,10 @@ export function inselStarten(api) {
   const cam = { s: 1, x: 0, y: 0 };
   function grenzen() {
     const W = innerWidth, H = innerHeight;
-    cam.s = Math.min(1.8, Math.max(Math.max(W / INSEL_KARTE.b, H / INSEL_KARTE.h), cam.s));
-    cam.x = Math.min(0, Math.max(W - INSEL_KARTE.b * cam.s, cam.x));
-    cam.y = Math.min(0, Math.max(H - INSEL_KARTE.h * cam.s, cam.y));
+    cam.s = Math.min(1.8, Math.max(Math.min(W / INSEL_KARTE.b, H / INSEL_KARTE.h) * .96, cam.s));
+    const w = INSEL_KARTE.b * cam.s, h = INSEL_KARTE.h * cam.s;
+    cam.x = w <= W ? (W - w) / 2 : Math.min(0, Math.max(W - w, cam.x));
+    cam.y = h <= H ? (H - h) / 2 : Math.min(0, Math.max(H - h, cam.y));
   }
   const setzen = () => { grenzen(); iwelt.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.s})`; };
   function startKamera() {

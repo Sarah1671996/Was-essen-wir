@@ -2,7 +2,7 @@
 import { GROESSE } from "./img/groessen.js";
 import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
-  feldPreis, BAUTEN, WELT, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
+  feldPreis, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
@@ -133,15 +133,17 @@ welt.style.width = WELT.b + "px"; welt.style.height = WELT.h + "px";
 const cam = { s: 1, x: 0, y: 0 };
 function grenzen() {
   const W = innerWidth, H = innerHeight;
-  const min = Math.max(W / WELT.b, H / WELT.h);
+  // so weit heraus, dass der ganze Hof auf den Bildschirm passt
+  const min = Math.max(Math.min(W / WELT.b, H / WELT.h) * .96, Math.min(.22, Math.max(W / WELT.b, H / WELT.h)));
   cam.s = Math.min(1.6, Math.max(min, cam.s));
   const w = WELT.b * cam.s, h = WELT.h * cam.s;
-  cam.x = Math.min(0, Math.max(W - w, cam.x)); cam.y = Math.min(0, Math.max(H - h, cam.y));
+  cam.x = w <= W ? (W - w) / 2 : Math.min(0, Math.max(W - w, cam.x));
+  cam.y = h <= H ? (H - h) / 2 : Math.min(0, Math.max(H - h, cam.y));
 }
 function kameraSetzen() { grenzen(); welt.style.transform = `translate(${cam.x}px,${cam.y}px) scale(${cam.s})`; }
 function startKamera() {
   const W = innerWidth, H = innerHeight;
-  cam.s = Math.max(W / WELT.b, H / WELT.h, W < 700 ? 0.62 : 0.8);
+  cam.s = W < 700 ? 0.55 : 0.7;
   const mx = W < 700 ? 640 : 760; cam.x = W / 2 - mx * cam.s; cam.y = H / 2 - 640 * cam.s;
   kameraSetzen();
 }
@@ -196,23 +198,21 @@ function zeichneBoden() {
   const gr = g.createRadialGradient(800, 600, 100, 800, 700, 1200);
   gr.addColorStop(0, "#8cc95a"); gr.addColorStop(1, "#6eae42");
   g.fillStyle = gr; g.fillRect(0, 0, WELT.b, WELT.h);
-  for (let k = 0; k < 160; k++) {
+  const flaeche = WELT.b * WELT.h / (1800 * 1400);
+  const imSee = (x, y, rand = 1.1) => ((x - SEE.x) / (SEE.rx * rand)) ** 2 + ((y - SEE.y) / (SEE.ry * rand)) ** 2 < 1;
+  for (let k = 0; k < 160 * flaeche; k++) {
     g.fillStyle = r() < .5 ? "rgba(255,255,220,.06)" : "rgba(40,80,10,.06)";
     g.beginPath(); g.ellipse(r() * WELT.b, r() * WELT.h, 40 + r() * 90, 20 + r() * 40, 0, 0, 7); g.fill();
   }
-  // Wasser unten rechts (für den Steg)
-  g.save();
-  g.beginPath(); g.moveTo(1300, WELT.h); g.bezierCurveTo(1380, 1260, 1520, 1180, 1660, 1170); g.bezierCurveTo(1730, 1165, 1780, 1120, WELT.b, 1060);
-  g.lineTo(WELT.b, WELT.h); g.closePath();
-  g.fillStyle = "#e7d39b"; g.fill();
-  g.translate(18, 22); g.beginPath(); g.moveTo(1330, WELT.h); g.bezierCurveTo(1410, 1280, 1540, 1205, 1670, 1195); g.bezierCurveTo(1740, 1190, 1785, 1150, WELT.b, 1090);
-  g.lineTo(WELT.b, WELT.h); g.closePath();
-  const wg = g.createLinearGradient(1400, 1100, 1800, 1400); wg.addColorStop(0, "#5cc2dc"); wg.addColorStop(1, "#2f8fc0");
-  g.fillStyle = wg; g.fill();
+  // See am Steg
+  const see = (dx, dy, wx = 0) => { g.beginPath(); for (let k = 0; k <= 48; k++) { const w = k / 48 * Math.PI * 2, wob = 1 + Math.sin(w * 3) * .05 + Math.cos(w * 5) * .03;
+    const px = SEE.x + Math.cos(w) * (SEE.rx + wx) * wob + dx, py = SEE.y + Math.sin(w) * (SEE.ry + wx * .55) * wob + dy; k ? g.lineTo(px, py) : g.moveTo(px, py); } g.closePath(); };
+  see(0, 0, 34); g.fillStyle = "#e7d39b"; g.fill();
+  see(0, 0); const wg = g.createLinearGradient(SEE.x - SEE.rx, SEE.y - SEE.ry, SEE.x + SEE.rx, SEE.y + SEE.ry);
+  wg.addColorStop(0, "#5cc2dc"); wg.addColorStop(1, "#2f8fc0"); g.fillStyle = wg; g.fill();
   g.strokeStyle = "rgba(255,255,255,.55)"; g.lineWidth = 3; g.stroke();
-  g.restore();
-  for (let k = 0; k < 28; k++) {
-    const x = 1450 + r() * 350, y = 1250 + r() * 150; if (y < 1330 - (x - 1450) * 0.4) continue;
+  for (let k = 0; k < 30; k++) {
+    const w = r() * Math.PI * 2, rr = Math.sqrt(r()) * .8, x = SEE.x + Math.cos(w) * SEE.rx * rr, y = SEE.y + Math.sin(w) * SEE.ry * rr;
     g.strokeStyle = "rgba(255,255,255,.35)"; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 8 + r() * 14, Math.PI * 1.1, Math.PI * 1.9); g.stroke();
   }
   // Wege
@@ -222,6 +222,10 @@ function zeichneBoden() {
     [[1010, 600], [1190, 610], [1385, 730], [1500, 900], [1600, 1130]],
     [[965, 790], [1080, 900], [1130, 990]],
     [[560, 980], [460, 760], [300, 580]],
+    [[1385, 730], [1800, 780], [2200, 700], [2550, 760]],
+    [[1130, 990], [1060, 1350], [980, 1700], [1050, 1990]],
+    [[1980, 1200], [2050, 1500], [2400, 1700]],
+    [[1800, 780], [1980, 1200]],
   ];
   for (const [w, col] of [[64, "#c7a36c"], [52, "#dcc090"]]) for (const weg of wege) {
     g.strokeStyle = col; g.lineWidth = w; g.beginPath(); weg.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke();
@@ -237,15 +241,15 @@ function zeichneBoden() {
   }
   g.fillStyle = "rgba(95,70,30,.16)"; g.beginPath(); g.ellipse(620, 560, 330, 190, 0, 0, 7); g.fill();
   // Grasbüschel und Blumen
-  for (let k = 0; k < 1500; k++) {
-    const x = r() * WELT.b, y = r() * WELT.h; if (y > 1300 - (x - 1300) * 0.5 && x > 1300) continue;
+  for (let k = 0; k < 1500 * flaeche; k++) {
+    const x = r() * WELT.b, y = r() * WELT.h; if (imSee(x, y)) continue;
     g.strokeStyle = r() < .5 ? "#5e9935" : "#a3d46c"; g.lineWidth = 2;
     for (let b = -1; b <= 1; b++) { g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + b * 3, y - 5, x + b * 5, y - 9 - r() * 4); g.stroke(); }
   }
   const fc = ["#fff", "#ffd84d", "#ff9fb2", "#c9a2ff", "#9fd0ff"];
-  for (let k = 0; k < 260; k++) {
+  for (let k = 0; k < 260 * flaeche; k++) {
     const x = r() * WELT.b, y = r() * WELT.h; if (Math.hypot(x - 620, (y - 560) * 1.7) < 380) continue;
-    if (x > 1300 && y > 1300 - (x - 1300) * 0.5) continue;
+    if (imSee(x, y)) continue;
     g.fillStyle = fc[k % fc.length];
     for (let p = 0; p < 5; p++) { const a = p * 1.2566; g.beginPath(); g.arc(x + Math.cos(a) * 3, y + Math.sin(a) * 3, 2.4, 0, 7); g.fill(); }
     g.fillStyle = "#f5b82e"; g.beginPath(); g.arc(x, y, 1.8, 0, 7); g.fill();
@@ -755,7 +759,7 @@ function hindernisse() {
 function platzFrei(x, y, typ) {
   const B = BAUTEN[typ];
   if (x < 60 || x > WELT.b - 60 || y < 120 || y > WELT.h - 30) return false;
-  if (x > 1300 && y > 1240 - (x - 1300) * 0.45) return false; // Wasser
+  if (((x - SEE.x) / (SEE.rx + 50)) ** 2 + ((y - SEE.y) / (SEE.ry + 40)) ** 2 < 1) return false; // See
   return hindernisse().every(o => Math.hypot(o.x - x, o.y - (y - B.r * .5)) > (o.r + B.r) * .82);
 }
 function geistSetzen(x, y) {
@@ -1000,6 +1004,12 @@ $("#knopf-puzzle2").onclick = () => puzzle.oeffnen();
 
 /* ================= Start ================= */
 addEventListener("keydown", e => { if (e.key === "Escape") { if (platzieren) platzierenEnde(false); else schliessen(); } });
+function zoomKnopf(f) {
+  const r = document.querySelector(insel.aktiv ? "#insel-rahmen" : "#welt-rahmen");
+  r.dispatchEvent(new WheelEvent("wheel", { deltaY: f > 1 ? -1 : 1, clientX: innerWidth / 2, clientY: innerHeight / 2, bubbles: true, cancelable: true }));
+}
+$("#zoom-rein").onclick = () => { zoomKnopf(1.1); zoomKnopf(1.1); };
+$("#zoom-raus").onclick = () => { zoomKnopf(.9); zoomKnopf(.9); };
 $("#knopf-auftraege").onclick = () => auftragsPanel();
 $("#knopf-lager").onclick = () => lagerPanel();
 $("#knopf-bauen").onclick = () => baumenu();

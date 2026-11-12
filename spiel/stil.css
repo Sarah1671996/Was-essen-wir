@@ -386,3 +386,8 @@ body.nacht .gebaeude .spr, body.nacht .haus .spr { filter: drop-shadow(0 0 10px 
 .pz-stein i { position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); font-style: normal; font-size: 12px; color: var(--gold);
   text-shadow: 0 1px 0 #7a4a00, 0 0 3px #fff; white-space: nowrap; letter-spacing: -1px; }
 .pz-stein i em { font-style: normal; color: rgba(255, 255, 255, .8); }
+
+/* Zoom */
+.zoomknoepfe { position: fixed; z-index: 100; right: max(12px, env(safe-area-inset-right, 0px)); bottom: calc(118px + env(safe-area-inset-bottom, 0px)); display: flex; flex-direction: column; gap: 8px; }
+.zoomknoepfe .pille.rund { font-size: 26px; line-height: 1; }
+body.im-puzzle .zoomknoepfe { display: none; }

@@ -52,6 +52,11 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Puzzle-Weltkarte** mit 41 Steinen pro Kapitel, Sterne pro Level, alte Level wiederholbar (kleiner Lohn)
 - Echte Bilder für Hammer, Besen, Regenbogen und für das Dickicht
 
+## Mehr Platz
+
+- Hof auf 2700 × 2000 vergrößert (neues Land rechts und unten, zwei weitere Dickichte ab Level 8 und 9), Wasser am Steg ist jetzt ein See
+- Viel weiter herauszoomen (am PC bis der ganze Hof passt), +/−-Knöpfe am rechten Rand, auch auf der Insel
+
 ## Auf Handy und PC spielen (Sync)
 
 ⚙ oben rechts → **Sync-Code für diesen Hof erstellen**, dann auf dem anderen Gerät den Code eingeben und **Verbinden**.
