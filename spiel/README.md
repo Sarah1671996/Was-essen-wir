@@ -7,4 +7,4 @@ Eigenes Farm- und Inselspiel ohne Bezahlinhalte. Die Grafiken stammen aus Gemini
 - `tools/sammelbild-zerlegen.py BILD name1,name2,… ZIELORDNER` – zerlegt ein Sammelbild in einzelne Teile
 - `prototyp/vorschau-vorlage.html` – erste klickbare Vorschau (Platzhalter `__WHEAT__` usw. werden durch Base64-Bilder ersetzt)
 
-Noch fehlende Bilder: 24–35 (Symbol-Sammelbild neu), 60 (Strand ohne Rahmen).
+Alle Bilder aus der Prompt-Liste sind vorhanden.
