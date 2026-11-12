@@ -556,3 +556,19 @@ export const SONDER = {
     k++;
   }
 }
+
+/* ================= Event: Festaufgaben und endlose Bonusstufen ================= */
+// Festaufgaben: zählen ab dem Moment, in dem die Aufgabe erscheint. Jede neue Aufgabe wird etwas schwerer.
+export const EVENT_AUFGABEN = [
+  { typ: "liefern",   n: 5,  lohn: 15, text: n => `Liefere ${n} Aufträge` },
+  { typ: "ernte",     n: 30, lohn: 12, text: n => `Ernte ${n} Mal` },
+  { typ: "tiere",     n: 15, lohn: 10, text: n => `Sammle ${n} Mal bei Tieren ein` },
+  { typ: "fabrik",    n: 15, lohn: 12, text: n => `Hole ${n} Waren aus Fabriken ab` },
+  { typ: "puzzle",    n: 3,  lohn: 15, text: n => `Gewinne ${n} Puzzle-Level` },
+  { typ: "hindernis", n: 6,  lohn: 12, text: n => `Räume ${n} Hindernisse auf den Inseln frei` },
+  { typ: "tour",      n: 1,  lohn: 20, text: n => `Schicke den Lieferwagen ${n === 1 ? "einmal" : n + " Mal"} voll beladen los` },
+];
+export const EVENT_AUFGABEN_AKTIV = 3;
+// Nach der letzten festen Stufe: alle so viele Teile eine Bonusstufe
+export const EVENT_BONUS_ABSTAND = 60;
+export const eventBonusLohn = b => ({ muenzen: 300 + 150 * b, werkzeug: 3 + b, helfer: { [["hammer", "besen", "regenbogen"][b % 3]]: 1 + Math.floor(b / 3) } });
