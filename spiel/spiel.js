@@ -4,7 +4,8 @@ import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, felderMax, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
-  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, EVENT_AUFGABEN, EVENT_AUFGABEN_AKTIV, EVENT_BONUS_ABSTAND, eventBonusLohn, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
+  EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, EVENT_AUFGABEN, EVENT_AUFGABEN_AKTIV, EVENT_BONUS_ABSTAND, eventBonusLohn,
+  WETTBEWERBE, WETTBEWERB_LOHN, GAESTE, GAST, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -381,6 +382,12 @@ function weltAufbauen() {
     upd: d => { const T = tourStand(); d.el.classList.toggle("weg", !!T.unterwegs);
       const n = T.kisten.filter(k => !k.voll && (S.lager[k.w] || 0) >= k.n).length;
       overlay(d, T.unterwegs ? uhr(T.unterwegs - jetzt(), TOUR.fahrtMin * 60, -10) : n ? blase(`<b class="zahl">${n}</b>`, -30) : ""); } });
+  // Gast an der Auftragstafel
+  if (S.gast?.waren && S.gast.bis > jetzt()) {
+    const T = gpos("tafel"), Gs = GAESTE[S.gast.g];
+    const d = neuesDing("gast", Gs.bild, T.x + 95, T.y + 20, 70, { cls: "bewohner gast", tipp: () => gastPanel() });
+    overlay(d, blase(`<b class="zahl">✨</b>`, -44));
+  }
   // Fundstücke des Jahreszeiten-Events
   setTimeout(fundstueckeZeigen, 0);
   // Lieferwagen, solange ein Eilauftrag läuft
@@ -835,8 +842,62 @@ function erfolgWert(id) {
   return S.zaehler[id] || 0;
 }
 const erfolgeBereit = () => ERFOLGE.filter(E => { const st = S.erfolge[E.id] || 0; return st < E.stufen.length && erfolgWert(E.id) >= E.stufen[st]; }).length;
+/* ---------- Gäste ---------- */
+function gastPruefen() {
+  if (S.level < GAST.level) return;
+  const t = jetzt();
+  if (S.gast?.waren && S.gast.bis <= t) { S.gast = { naechster: t + GAST.pauseMin * 60000 }; weltAufbauen(); }
+  if (!S.gast) S.gast = { naechster: t + 5 * 60000 };
+  if (!S.gast.waren && S.gast.naechster <= t) {
+    const pool = verfuegbareWaren().filter(w => WAREN[w].wert >= 9).sort(() => Math.random() - .5).slice(0, 3);
+    if (!pool.length) return;
+    const waren = {}; let wert = 0;
+    for (const w of pool) { const n = 2 + Math.floor(Math.random() * 3); waren[w] = n; wert += n * WAREN[w].wert; }
+    S.gast = { g: Math.floor(Math.random() * GAESTE.length), waren, muenzen: Math.round(wert * 2.5), xp: Math.round(wert / 2), helfer: wahl(Object.keys(HELFER)), bis: t + GAST.dauerMin * 60000 };
+    meldung(`Besuch! ${GAESTE[S.gast.g].name} wartet an der Auftragstafel.`); weltAufbauen(); speichern();
+  }
+}
+function gastPanel() {
+  oeffnen("gast", () => {
+    const G = S.gast; if (!G?.waren) return `<div class="kopf"><h2>Besuch</h2>${zu()}</div><p>Der Gast ist schon weitergezogen.</p>`;
+    const Gs = GAESTE[G.g], ok = hat(G.waren);
+    return `<div class="kopf"><h2>${Gs.name}</h2>${zu()}</div>
+      <div class="gastgeberin"><img src="${bildUrl(Gs.bild)}" alt=""><p>„${Gs.text}“</p></div>
+      <div class="waren gross-waren">${Object.entries(G.waren).map(([w, n]) => `<span class="${(S.lager[w] || 0) >= n ? "" : "fehlt"}">${icon(w)} ${Math.min(S.lager[w] || 0, n)}/${n} ${WAREN[w].name}</span>`).join("")}</div>
+      <p class="hinweis">Dafür: ${muenze("ic klein")} ${G.muenzen} · ${stern("ic klein")} ${G.xp} · ${helferIcon(G.helfer, "ic klein")} 2 · 🧰 3 · noch ${dauer(G.bis - jetzt())}</p>
+      <button class="los" data-aktion="gastschenken" ${ok ? "" : "disabled"}>Schenken</button>`;
+  });
+}
+
+/* ---------- Wochen-Wettbewerb ---------- */
+function wocheMontag() { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7)); }
+function wocheId() { const t = wocheMontag(); return t.getFullYear() + "-" + (t.getMonth() + 1) + "-" + t.getDate(); }
+function wettbewerb() {
+  const id = wocheId();
+  if (!S.wette || S.wette.id !== id) {
+    const nr = Math.round(wocheMontag().getTime() / 6048e5);
+    const W = WETTBEWERBE[((nr % WETTBEWERBE.length) + WETTBEWERBE.length) % WETTBEWERBE.length];
+    S.wette = { id, typ: W.typ, start: zaehlerWert(W.typ), geholt: 0 };
+  }
+  return S.wette;
+}
+const wetteStand = w => Math.max(0, zaehlerWert(w.typ) - w.start);
+const wetteBereit = () => { const w = wettbewerb(), W = WETTBEWERBE.find(x => x.typ === w.typ); return w.geholt < 3 && wetteStand(w) >= W.stufen[w.geholt]; };
+function wetteKarte() {
+  const w = wettbewerb(), W = WETTBEWERBE.find(x => x.typ === w.typ), st = wetteStand(w);
+  const ende = new Date(); ende.setDate(ende.getDate() + (7 - ((ende.getDay() + 6) % 7))); ende.setHours(0, 0, 0, 0);
+  const tage = Math.max(1, Math.ceil((ende - jetzt()) / 864e5));
+  return `<div class="wette"><div class="wette-kopf"><b>🏅 ${W.name}</b><small>noch ${tage} ${tage === 1 ? "Tag" : "Tage"}</small></div>
+    <p>${W.text}: <b>${st}</b></p>
+    <div class="wette-stufen">${W.stufen.map((n, k) => {
+      const L = WETTBEWERB_LOHN[k], geholt = k < w.geholt, bereit = k === w.geholt && st >= n;
+      return `<div class="wette-stufe ${["bronze", "silber", "gold"][k]} ${geholt ? "geholt" : ""}"><b>${L.name}</b><small>${n}</small><span>${lohnText(L)}</span>
+        ${geholt ? `<span class="haken">✓</span>` : `<button class="los mini-los" data-aktion="wette" ${bereit ? "" : "disabled"}>Holen</button>`}</div>`;
+    }).join("")}</div></div>`;
+}
 function erfolgePanel() {
   oeffnen("erfolge", () => `<div class="kopf"><h2>Erfolge</h2>${zu()}</div>
+    ${wetteKarte()}
     <div class="quests">${ERFOLGE.map(E => {
       const st = S.erfolge[E.id] || 0, fertig = st >= E.stufen.length, ziel = E.stufen[Math.min(st, E.stufen.length - 1)];
       const wert = erfolgWert(E.id), bereit = !fertig && wert >= ziel;
@@ -1375,6 +1436,16 @@ host.addEventListener("click", e => {
     const K = marktTag().kauf, p = Math.round(WAREN[K.w].wert * MARKT.kaufFaktor);
     if (K.rest > 0 && S.muenzen >= p && geben(K.w, 1)) { S.muenzen -= p; K.rest--; }
   }
+  if (a === "wette") {
+    const w = wettbewerb(), W = WETTBEWERBE.find(x => x.typ === w.typ);
+    if (w.geholt < 3 && wetteStand(w) >= W.stufen[w.geholt]) { lohnGeben(WETTBEWERB_LOHN[w.geholt]); meldung(`${W.name}: ${WETTBEWERB_LOHN[w.geholt].name} geschafft!`); w.geholt++; leben.ton("level"); }
+  }
+  if (a === "gastschenken") {
+    const G = S.gast; if (!G || G.bis < t || !hat(G.waren)) return;
+    nehmen(G.waren); S.muenzen += G.muenzen; erfahrung(G.xp); lohnGeben({ werkzeug: 3, helfer: { [G.helfer]: 2 } });
+    leben.ton("level"); meldung(`${GAESTE[G.g].name} bedankt sich: +${G.muenzen} Münzen, 2 ${HELFER[G.helfer].name} und Werkzeuge!`);
+    S.gast = { naechster: t + GAST.pauseMin * 60000 }; schliessen(); weltAufbauen();
+  }
   if (a === "erfolg") {
     const E = ERFOLGE.find(x => x.id === b.dataset.id), st = S.erfolge[E.id] || 0;
     if (st < E.stufen.length && erfolgWert(E.id) >= E.stufen[st]) { lohnGeben(ERFOLG_LOHN[st]); S.erfolge[E.id] = st + 1; leben.ton("level"); meldung(`Erfolg „${E.name}“ Stufe ${st + 1}!`); }
@@ -1490,7 +1561,8 @@ function aktualisieren() {
   eilPruefen();
   const bd = $("#auftrag-zahl"); bd.hidden = !n && !eilAktiv(); bd.textContent = eilAktiv() && !n ? "⏰" : n;
   $("#tag-zahl").hidden = !tagOffen();
-  { const n = erfolgeBereit(), z = $("#erfolg-zahl"); z.hidden = !n; z.textContent = n; }
+  { const n = erfolgeBereit() + (wetteBereit() ? 1 : 0), z = $("#erfolg-zahl"); z.hidden = !n; z.textContent = n; }
+  gastPruefen();
   { const t = jetzt(), n = S.felder.filter(f => f.p && f.t <= t).length + S.bauten.filter(b => FRUCHT[b.typ] && S.level >= FRUCHT[b.typ].level && (b.t || 0) <= t).length;
     const z = $("#ernte-zahl"); z.hidden = !n; z.textContent = n; }
   { const ev = eventStand(), J = eventJetzt(), St0 = eventStufe(ev.stufe), St = ev.menge >= St0.n || ev.aufgaben.some(a => aufgabeStand(a) >= a.n) ? { n: 0 } : St0;
@@ -1514,7 +1586,7 @@ const mini = minispieleStarten({
 const insel = inselStarten({
   S: () => S, speichern, meldung, oeffnen, schliessen, zu, icon, muenze, bildUrl, hoehe, hat, nehmen, dauer, aktualisieren,
   helferIcon: (h, c) => helferIcon(h, c), eventGeben: (n, d) => eventGeben(n, d), zaehle,
-  wimmelbild: o => mini.wimmelbild(o), memory: o => mini.memory(o), puzzleOeffnen: () => puzzle.oeffnen(),
+  wimmelbild: o => mini.wimmelbild(o), memory: o => mini.memory(o), unterschiede: o => mini.unterschiede(o), schiebepuzzle: o => mini.schiebepuzzle(o), puzzleOeffnen: () => puzzle.oeffnen(),
 });
 
 /* ================= Puzzle ================= */

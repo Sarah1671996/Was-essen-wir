@@ -1,6 +1,6 @@
 // Sonnenhof – Puzzle (Schritt 3): Steine tauschen, drei oder mehr gleiche in einer Reihe sammeln.
 // Vier in einer Reihe ergeben eine Rakete (räumt Reihe oder Spalte), fünf oder eine L/T-Form eine Bombe (3 × 3).
-import { STEINE, BRETT, WERKZEUGE, HELFER, puzzleLevel, PUZZLE_LOHN, PUZZLE_WEG } from "./daten.js";
+import { STEINE, BRETT, WERKZEUGE, HELFER, puzzleLevel, PUZZLE_LOHN, PUZZLE_WEG, istBoss, BOSS_LOHN } from "./daten.js";
 
 export function puzzleStarten(api) {
   const S = () => api.S();
@@ -337,7 +337,7 @@ export function puzzleStarten(api) {
     kInhalt.innerHTML = `<img src="${api.bildUrl(PUZZLE_WEG.bilder[(kap - 1) % PUZZLE_WEG.bilder.length])}" alt="" draggable="false">` + PUZZLE_WEG.steine.map(([x, y], i) => {
       const n = basis + i + 1, st = P.sterne?.[n] || 0;
       const zustand = n < aktuell ? "fertig" : n === aktuell ? "jetzt" : "zu";
-      return `<button class="pz-stein ${zustand}" data-level="${n}" style="left:${x / PUZZLE_WEG.b * 100}%;top:${y / PUZZLE_WEG.h * 100}%" ${zustand === "zu" ? "disabled" : ""} aria-label="Level ${n}">
+      return `<button class="pz-stein ${zustand} ${istBoss(n) ? "boss" : ""}" data-level="${n}" style="left:${x / PUZZLE_WEG.b * 100}%;top:${y / PUZZLE_WEG.h * 100}%" ${zustand === "zu" ? "disabled" : ""} aria-label="Level ${n}">
         <b>${n}</b>${zustand === "fertig" ? `<i>${"★".repeat(st)}<em>${"★".repeat(3 - st)}</em></i>` : ""}</button>`;
     }).join("");
     karte.hidden = false;
@@ -367,7 +367,7 @@ export function puzzleStarten(api) {
     huelle.classList.add("offen"); document.body.classList.add("im-puzzle");
     feldGroesse(); fuellen(); zeichneFelder(); zeigeKopf();
     belegt = false; auswahl = null; tippZeit = Date.now(); helferModus = null; zeigeHelfer();
-    zeigeDialog(`<h2>Level ${nummer}</h2>
+    zeigeDialog(`<h2>${L.boss ? "👑 Bosslevel " : "Level "}${nummer}</h2>${L.boss ? `<p class="pz-bonus-text">Besonders schwer, dafür mit großer Belohnung und je einem Hammer, Besen und Regenbogen!</p>` : ""}
       <p>Sammle in <b>${zuege} Zügen</b>:</p><div class="pz-ziele gross">${p$("#pz-ziele").innerHTML}</div>
       ${P_sterne(nummer)}
       <p class="hinweis">Tausche zwei Steine nebeneinander. 4 in einer Reihe ergeben eine Rakete, 5 oder eine L-Form eine Bombe. Kisten gehen kaputt, wenn daneben Steine verschwinden. Kommst du nicht weiter, helfen Hammer, Besen und Regenbogen unten.</p>
@@ -424,7 +424,8 @@ export function puzzleStarten(api) {
     zuege = startZuege;
     belegt = false;
     const P = stand(), s = S(), erstmals = nummer >= P.level;
-    const lohn = erstmals ? PUZZLE_LOHN(nummer) : { muenzen: 10 + nummer, werkzeuge: 0, punkte: 0 };
+    const lohn = !erstmals ? { muenzen: 10 + nummer, werkzeuge: 0, punkte: 0 } : istBoss(nummer) ? BOSS_LOHN(nummer) : PUZZLE_LOHN(nummer);
+    if (lohn.helfer) { s.helfer ??= {}; for (const [h, n] of Object.entries(lohn.helfer)) s.helfer[h] = (s.helfer[h] || 0) + n; }
     const anteil = zuege / L.zuege, sterne = anteil >= .35 ? 3 : anteil >= .15 ? 2 : 1;
     P.sterne ??= {}; P.sterne[nummer] = Math.max(P.sterne[nummer] || 0, sterne);
     s.helfer ??= {};
@@ -444,7 +445,8 @@ export function puzzleStarten(api) {
       <div class="pz-lohn"><span>${api.muenze("ic gross")}<b>${lohn.muenzen + bonus.muenzen}</b></span>
       ${Object.entries(bekommen).map(([w, n]) => `<span><img class="ic gross" src="${api.bildUrl(WERKZEUGE[w].bild)}" alt="${WERKZEUGE[w].name}"><b>${n}</b></span>`).join("")}
       ${s.insel && lohn.punkte ? `<span class="ew">⭐<b>${lohn.punkte}</b></span>` : ""}
-      ${helferGewinn ? `<span>${api.helferIcon(helferGewinn, "ic gross")}<b>1</b></span>` : ""}</div>
+      ${helferGewinn ? `<span>${api.helferIcon(helferGewinn, "ic gross")}<b>1</b></span>` : ""}
+      ${lohn.helfer ? Object.entries(lohn.helfer).map(([h, n]) => `<span>${api.helferIcon(h, "ic gross")}<b>${n}</b></span>`).join("") : ""}</div>
       ${erstmals ? "" : `<p class="hinweis">Wiederholt: kleiner Lohn, aber deine besten Sterne bleiben.</p>`}
       <div class="knoepfe"><button class="los" data-pz="weiter">Nächstes Level</button><button class="los zweit" data-pz="karte">Zur Karte</button></div>`);
   }

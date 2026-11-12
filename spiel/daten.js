@@ -242,6 +242,13 @@ const LEVELS = [
 ];
 // Ab Level 12 wiederholen sich die Karten mit mehr Steinen
 export function puzzleLevel(n) {
+  const L = puzzleLevelGrund(n);
+  if (n % 10 !== 0) return L;
+  const steine = {}; for (const [k, v] of Object.entries(L.steine)) steine[k] = Math.round(v * 1.5);
+  if (!Object.keys(steine).length) steine[n % 6] = 25;
+  return { ...L, farben: 6, zuege: L.zuege + 6, steine, boss: true };
+}
+function puzzleLevelGrund(n) {
   if (n <= LEVELS.length) { const L = LEVELS[n - 1]; return { ...L, karte: KARTEN[L.karte] }; }
   const namen = Object.keys(KARTEN), k = namen[(n * 7) % namen.length];
   const steine = {}; steine[n % 6] = 12 + Math.min(18, n); if (n % 2) steine[(n + 2) % 6] = 10 + Math.min(14, n);
@@ -544,14 +551,14 @@ export const SONDER = {
 };
 // Zwischen zwei Plätze kommt jeweils ein weiterer Platz, damit die Wege länger werden
 {
-  const arten = ["dschungel", "stumpf", "felsen"], sonder = ["wimmel", "raetsel", "memory"];
+  const arten = ["dschungel", "stumpf", "felsen"], sonder = ["wimmel", "raetsel", "memory", "unterschied", "schiebe"];
   let k = 0;
   for (const [id, P] of Object.entries({ ...INSEL_PLAETZE })) {
     if (!P.nach || P.art === "bruecke") continue;
     const von = P.nach[0], A = INSEL_PLAETZE[von];
     if (!A || Math.hypot(A.x - P.x, A.y - P.y) < 150) continue;
     const mid = "m_" + id;
-    INSEL_PLAETZE[mid] = { art: k % 3 === 2 ? sonder[Math.floor(k / 3) % 3] : arten[k % 3], x: Math.round((A.x + P.x) / 2), y: Math.round((A.y + P.y) / 2), nach: [von] };
+    INSEL_PLAETZE[mid] = { art: k % 3 === 2 ? sonder[Math.floor(k / 3) % sonder.length] : arten[k % 3], x: Math.round((A.x + P.x) / 2), y: Math.round((A.y + P.y) / 2), nach: [von] };
     P.nach = P.nach.map(n => n === von ? mid : n);
     k++;
   }
@@ -597,3 +604,38 @@ for (const [st, lv] of [[4, 18], [5, 26], [6, 34], [7, 45], [8, 58], [9, 72], [1
   FREISCHALTUNG[lv] = [...(FREISCHALTUNG[lv] || []), `Fabriken und Ställe: Ausbau auf Stufe ${st}`];
 for (const [i, H] of HAUS_STUFEN.entries()) if (i >= 5) FREISCHALTUNG[H.level] = [...(FREISCHALTUNG[H.level] || []), `Häuser: Ausbau auf Stufe ${i + 1}`];
 for (let lv = 24; lv <= 100; lv += 4) FREISCHALTUNG[lv] = [...(FREISCHALTUNG[lv] || []), "Ein weiteres Feld"];
+
+/* ================= Paket E: Bosslevel, Wochen-Wettbewerb, Gäste, neue Minispiele ================= */
+// Jedes 10. Puzzle-Level ist ein Bosslevel: mehr Ziele, etwas mehr Züge, große Belohnung
+export const istBoss = n => n % 10 === 0;
+export const BOSS_LOHN = n => ({ muenzen: 200 + n * 15, werkzeuge: 6, helfer: { hammer: 1, besen: 1, regenbogen: 1 }, punkte: 20 });
+
+// Wochen-Wettbewerb: jede Woche ein anderes Ziel mit Bronze, Silber, Gold
+export const WETTBEWERBE = [
+  { typ: "liefern", name: "Lieferwoche",   text: "Liefere Aufträge", stufen: [15, 35, 60] },
+  { typ: "ernte",   name: "Erntewoche",    text: "Ernte Felder und Bäume", stufen: [80, 200, 400] },
+  { typ: "fabrik",  name: "Fabrikwoche",   text: "Hole Waren aus Fabriken ab", stufen: [40, 100, 200] },
+  { typ: "tiere",   name: "Tierwoche",     text: "Sammle bei Tieren ein", stufen: [40, 100, 200] },
+  { typ: "puzzle",  name: "Puzzlewoche",   text: "Gewinne Puzzle-Level", stufen: [5, 12, 25] },
+  { typ: "hindernis", name: "Entdeckerwoche", text: "Räume Hindernisse auf den Inseln frei", stufen: [10, 25, 45] },
+];
+export const WETTBEWERB_LOHN = [
+  { name: "Bronze", muenzen: 300, werkzeug: 3 },
+  { name: "Silber", muenzen: 800, werkzeug: 5, helfer: { hammer: 1, besen: 1 } },
+  { name: "Gold",   muenzen: 2000, werkzeug: 8, helfer: { hammer: 2, besen: 2, regenbogen: 2 } },
+];
+
+// Gäste: kommen ab und zu mit einem besonderen Wunsch und seltener Belohnung
+export const GAESTE = [
+  { name: "Mila, die Entdeckerin", bild: "gastgeberin", text: "Ich breche zu einer langen Reise auf und brauche Proviant!" },
+  { name: "Karls Vetter Bruno", bild: "handwerker", text: "Ich baue ein Baumhaus für die Kinder im Dorf. Kannst du mir helfen?" },
+  { name: "Tante Rosa", bild: "baeckerin", text: "Ich richte das große Dorffest aus und mir fehlt noch so einiges!" },
+  { name: "Lottes Freundin Emma", bild: "maedchen", text: "Wir machen ein Picknick am See. Hast du etwas Leckeres für uns?" },
+];
+export const GAST = { pauseMin: 50, dauerMin: 180, level: 6 };
+
+// Neue Inselminispiele
+Object.assign(SONDER, {
+  unterschied: { name: "Unterschiede", zeichen: "👀", text: "Finde die 5 Unterschiede" },
+  schiebe:     { name: "Schiebepuzzle", zeichen: "🧱", text: "Schiebe die Teile in die richtige Reihenfolge" },
+});

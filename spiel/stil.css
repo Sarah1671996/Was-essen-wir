@@ -486,3 +486,32 @@ body.bearbeiten .ding.feld .spr { outline: 3px dashed rgba(255, 255, 255, .85); 
 
 .stufe.bonusstufe { background: #fff8dc; }
 .stufe.bonusstufe.geholt { background: #fff; }
+
+/* Bosslevel */
+.pz-stein.boss { width: 9.5%; background: radial-gradient(circle at 35% 30%, #ffb3a8, #d84c40); color: #fff; box-shadow: 0 4px 0 #8c2a22, 0 6px 10px rgba(0,0,0,.3); }
+.pz-stein.boss::before { content: "👑"; position: absolute; top: -22px; left: 50%; transform: translateX(-50%); font-size: 20px; }
+.pz-stein.boss.zu { background: radial-gradient(circle at 35% 30%, #f0c9c3, #b98e88); }
+
+/* Unterschiede und Schiebepuzzle */
+.diff-wrap { flex: 1; display: flex; flex-direction: column; gap: 8px; margin: 0 max(12px, env(safe-area-inset-right, 0px)) calc(12px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); min-height: 0; }
+@media (min-aspect-ratio: 1/1) { .diff-wrap { flex-direction: row; } }
+.diff-bild { position: relative; flex: 1; background: #fff7e6; border: 4px solid var(--holz-hell); border-radius: 16px; overflow: hidden; min-height: 0; }
+.diff-bild.unten { cursor: crosshair; }
+.diff-ding { position: absolute; width: 13%; max-width: 70px; aspect-ratio: 1; object-fit: contain; pointer-events: none; }
+.diff-kreis { position: absolute; width: 16%; aspect-ratio: 1; max-width: 80px; transform: translate(-50%, -50%); border: 4px solid #e2574c; border-radius: 50%; pointer-events: none; animation: entsteht .3s ease-out; }
+.schiebe-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+.schiebe { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; width: min(92vw, 420px); aspect-ratio: 1.8; background: rgba(255,247,230,.9); border: 4px solid var(--holz-hell); border-radius: 14px; padding: 4px; }
+.schiebe-teil { border: 0; border-radius: 6px; background-size: 300% 300%; cursor: pointer; box-shadow: inset 0 0 0 2px rgba(255,255,255,.6); }
+.schiebe-leer { border-radius: 6px; background: rgba(0,0,0,.08); }
+.schiebe-vorlage { width: min(40vw, 180px); border-radius: 10px; border: 3px solid #fff; box-shadow: 0 3px 8px rgba(0,0,0,.3); }
+
+/* Wochen-Wettbewerb */
+.wette { background: linear-gradient(#fff8dc, #fff); border: 3px solid var(--gold); border-radius: 16px; padding: 10px 12px; margin-bottom: 12px; }
+.wette-kopf { display: flex; justify-content: space-between; align-items: center; } .wette-kopf b { font-size: 17px; } .wette-kopf small { color: #8a6a45; }
+.wette p { margin: 4px 0 8px; }
+.wette-stufen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.wette-stufe { position: relative; border-radius: 12px; padding: 6px 4px; text-align: center; display: flex; flex-direction: column; gap: 2px; align-items: center; font-size: 12px; background: #fff; border: 2px solid #f0dfbf; }
+.wette-stufe b { font-size: 14px; } .wette-stufe span { display: flex; flex-wrap: wrap; gap: 2px; justify-content: center; align-items: center; }
+.wette-stufe.bronze { border-color: #cd8a4b; } .wette-stufe.silber { border-color: #a7b3bf; } .wette-stufe.gold { border-color: var(--gold); }
+.wette-stufe.geholt { opacity: .6; }
+.ding.gast .spr { filter: drop-shadow(0 0 10px rgba(255, 230, 120, .95)); }

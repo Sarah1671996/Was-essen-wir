@@ -261,6 +261,8 @@ export function inselStarten(api) {
     if (!erreichbar(id)) { api.meldung("Räume zuerst den Weg bis hierher frei."); return; }
     if (P.art === "wimmel") { api.wimmelbild({ winter: welt === "winter", gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
     if (P.art === "memory") { api.memory({ gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
+    if (P.art === "unterschied") { api.unterschiede({ gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
+    if (P.art === "schiebe") { api.schiebepuzzle({ winter: welt === "winter", gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
     const G = geteilt();
     if (G.puzzleGut > 0) { G.puzzleGut--; api.meldung("Das Puzzle-Tor öffnet sich!"); befreien(id); return; }
     api.oeffnen("i-raetsel", () => `<div class="kopf"><h2>${Sd.zeichen} ${Sd.name}</h2>${api.zu()}</div>
