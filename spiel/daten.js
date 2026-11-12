@@ -281,8 +281,81 @@ export const AUSBAU = {
 // Dickicht am Hofrand: freiräumen gibt Platz zum Bauen
 export const DICKICHT = [
   { id: "nordwest", x: 430, y: 180, rx: 150, ry: 70,  level: 2, muenzen: 80,  werkzeug: { axt: 2 } },
-  { id: "west",     x: 100, y: 800, rx: 85,  ry: 120, level: 3, muenzen: 150, werkzeug: { axt: 2, schaufel: 1 } },
+  { id: "west",     x: 100, y: 800, rx: 90,  ry: 75,  level: 3, muenzen: 150, werkzeug: { axt: 2, schaufel: 1 } },
   { id: "nordost",  x: 1640, y: 210, rx: 140, ry: 90, level: 4, muenzen: 250, werkzeug: { axt: 3, spitzhacke: 1 } },
   { id: "suedwest", x: 340, y: 1270, rx: 170, ry: 80, level: 5, muenzen: 350, werkzeug: { axt: 3, schaufel: 2 } },
-  { id: "ost",      x: 1700, y: 830, rx: 90,  ry: 140, level: 6, muenzen: 500, werkzeug: { axt: 4, spitzhacke: 2 } },
+  { id: "ost",      x: 1700, y: 820, rx: 110, ry: 90,  level: 6, muenzen: 500, werkzeug: { axt: 4, spitzhacke: 2 } },
 ];
+
+/* ================= Paket B: neue Waren, Fabriken, Apfelbäume, Bewohner, Puzzle-Karte ================= */
+Object.assign(WAREN, {
+  apfel:    { name: "Apfel",       icon: "i-apfel",    wert: 6 },
+  honig:    { name: "Honig",       icon: "i-honig",    wert: 12 },
+  saft:     { name: "Karottensaft", icon: "i-saft",    wert: 20 },
+  suppe:    { name: "Maissuppe",   icon: "i-suppe",    wert: 26 },
+  muetze:   { name: "Mütze",       icon: "i-muetze",   wert: 30 },
+  pullover: { name: "Pullover",    icon: "i-pullover", wert: 52 },
+  kekse:    { name: "Kekse",       icon: "i-kekse",    wert: 34 },
+  kuchen:   { name: "Kuchen",      icon: "i-kuchen",   wert: 60 },
+});
+Object.assign(FABRIKEN, {
+  imkerei: { name: "Imkerei", bild: "imkerei", rezepte: [
+    { ware: "honig", menge: 1, zutaten: { apfel: 1 }, zeit: 60, level: 5 },
+    { ware: "honig", menge: 3, zutaten: { apfel: 2, weizen: 2 }, zeit: 120, level: 6 },
+  ]},
+  saftbar: { name: "Saftbar", bild: "saftbar", rezepte: [
+    { ware: "saft", menge: 1, zutaten: { karotte: 3 }, zeit: 50, level: 5 },
+    { ware: "suppe", menge: 1, zutaten: { mais: 2, milch: 1 }, zeit: 75, level: 5 },
+  ]},
+  schneiderei: { name: "Schneiderei", bild: "schneiderei", rezepte: [
+    { ware: "muetze", menge: 1, zutaten: { wolle: 2 }, zeit: 80, level: 6 },
+    { ware: "pullover", menge: 1, zutaten: { wolle: 3, honig: 1 }, zeit: 130, level: 7 },
+  ]},
+  konditorei: { name: "Konditorei", bild: "konditorei", rezepte: [
+    { ware: "kekse", menge: 2, zutaten: { weizen: 3, butter: 1 }, zeit: 70, level: 7 },
+    { ware: "kuchen", menge: 1, zutaten: { weizen: 2, ei: 2, apfel: 2, honig: 1 }, zeit: 110, level: 8 },
+  ]},
+});
+Object.assign(GEBAEUDE, {
+  imkerei:     { name: "Imkerei", bild: "imkerei", x: 760, y: 300, breite: 190, r: 80, level: 5, preis: 400, einwohner: 45 },
+  saftbar:     { name: "Saftbar", bild: "saftbar", x: 1520, y: 1000, breite: 185, r: 78, level: 5, preis: 450, einwohner: 50 },
+  schneiderei: { name: "Schneiderei", bild: "schneiderei", x: 1530, y: 560, breite: 185, r: 78, level: 6, preis: 600, einwohner: 60 },
+  konditorei:  { name: "Konditorei", bild: "konditorei", x: 640, y: 840, breite: 185, r: 78, level: 7, preis: 800, einwohner: 75 },
+});
+FREISCHALTUNG[5] = ["Imkerei mit Honig", "Saftbar mit Karottensaft und Maissuppe", "Äpfel von den Apfelbäumen"];
+FREISCHALTUNG[6] = ["Schneiderei mit Mützen"];
+FREISCHALTUNG[7] = ["Pullover", "Konditorei mit Keksen"];
+FREISCHALTUNG[8] = ["Kuchen"];
+AUFTRAGS_WAREN[5] = ["apfel", "honig", "saft", "suppe"];
+AUFTRAGS_WAREN[6] = ["muetze"];
+AUFTRAGS_WAREN[7] = ["pullover", "kekse"];
+AUFTRAGS_WAREN[8] = ["kuchen"];
+
+// Apfelbäume (aus dem Bauen-Menü) tragen ab Level 5 Äpfel
+export const APFEL = { level: 5, zeit: 150, ertrag: 2 };
+
+// Bewohner mit Wünschen. Jeder erfüllte Wunsch bringt ein Herz; bei jedem Herz gibt es die Freundschaftsbelohnung.
+export const BEWOHNER = {
+  opa:        { name: "Opa Willi", bild: "opa", level: 1, x: 520, y: 640,
+                text: "Ich habe diesen Hof aufgebaut, als ich jung war. Schön, dass jetzt wieder Leben hier ist!",
+                waren: ["weizen", "mais", "karotte", "apfel"], lohn: { werkzeug: 2 } },
+  baeckerin:  { name: "Bäckerin Rosi", bild: "baeckerin", level: 2, x: 1105, y: 680,
+                text: "Mein Ofen ist heiß! Bringst du mir Zutaten, backe ich dir etwas Feines.",
+                waren: ["weizen", "milch", "ei", "butter", "brot"], lohn: { helfer: "hammer" } },
+  maedchen:   { name: "Lotte", bild: "maedchen", level: 3, x: 840, y: 980,
+                text: "Ich liebe Tiere! Darf ich nachher die Kühe streicheln?",
+                waren: ["ei", "milch", "apfel", "honig", "kekse"], lohn: { muenzen: 120 } },
+  handwerker: { name: "Handwerker Karl", bild: "handwerker", level: 4, x: 1400, y: 440,
+                text: "Ein Hof ist nie fertig. Irgendwo knarzt immer eine Tür!",
+                waren: ["wolle", "brot", "kaese", "muetze", "saft"], lohn: { helfer: "besen", werkzeug: 1 } },
+};
+export const BEWOHNER_PAUSE_MIN = 12;   // so lange bis zum nächsten Wunsch
+export const HERZ_MAX = 10;
+
+// Puzzle-Karte: Mittelpunkte der Steine auf dem Bild „puzzle-weg“ (1116 × 2000), von unten nach oben
+export const PUZZLE_WEG = { b: 1116, h: 2000, steine: [
+  [497, 1912], [607, 1832], [717, 1757], [733, 1688], [602, 1638], [487, 1630], [482, 1574], [591, 1548], [690, 1515], [720, 1447],
+  [636, 1415], [537, 1405], [405, 1378], [318, 1293], [345, 1220], [406, 1177], [474, 1147], [562, 1128], [614, 1078], [560, 1042],
+  [487, 1023], [447, 975], [490, 930], [575, 905], [657, 868], [698, 815], [655, 768], [595, 750], [525, 713], [525, 660],
+  [565, 622], [507, 588], [455, 557], [461, 512], [510, 492], [557, 467], [617, 440], [668, 372], [617, 320], [533, 278], [577, 228],
+] };

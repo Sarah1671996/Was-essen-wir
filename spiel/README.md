@@ -43,6 +43,15 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - **Leben**: Vögel, Schmetterlinge, Tag und Nacht nach Uhrzeit, Glühwürmchen nachts, Töne (⚙ zum Abschalten)
 - Belohnungspfad der Insel ohne Deko, stattdessen Münzen, Werkzeuge und Helfer
 
+## Paket B: Bewohner, neue Fabriken, Puzzle-Karte
+
+- **Bewohner** mit Wünschen: Opa Willi, Bäckerin Rosi (ab Level 2), Lotte (ab 3), Handwerker Karl (ab 4); jeder erfüllte Wunsch gibt ein Herz und eine Freundschaftsbelohnung (bis 10 Herzen)
+- **Neue Fabriken**: Imkerei (Honig, ab Level 5), Saftbar (Karottensaft, Maissuppe, ab 5), Schneiderei (Mütze, Pullover, ab 6), Konditorei (Kekse, Kuchen, ab 7)
+- **Apfelbäume** aus dem Bauen-Menü tragen ab Level 5 Äpfel
+- **Lieferwagen** steht bei der Auftragstafel, solange ein Eilauftrag läuft
+- **Puzzle-Weltkarte** mit 41 Steinen pro Kapitel, Sterne pro Level, alte Level wiederholbar (kleiner Lohn)
+- Echte Bilder für Hammer, Besen, Regenbogen und für das Dickicht
+
 ## Auf Handy und PC spielen (Sync)
 
 ⚙ oben rechts → **Sync-Code für diesen Hof erstellen**, dann auf dem anderen Gerät den Code eingeben und **Verbinden**.

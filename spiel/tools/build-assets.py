@@ -55,6 +55,19 @@ BILDER = {
     "spitzhacke": ("48-spitzhacke.jpg", 128, "frei"),
     "gastgeberin": ("49-gastgeberin.jpg", 360, "frei"),
     "strand": ("60-strand.jpg", 1600, "bild"),
+    # Paket B
+    "baeckerin": ("70-baeckerin.jpg", 150, "frei"),
+    "opa": ("71-opa.jpg", 150, "frei"),
+    "maedchen": ("72-maedchen.jpg", 130, "frei"),
+    "handwerker": ("73-handwerker.jpg", 150, "frei"),
+    "saftbar": ("74-saftbar.jpg", 400, "frei"),
+    "schneiderei": ("75-schneiderei.jpg", 400, "frei"),
+    "konditorei": ("76-konditorei.jpg", 400, "frei"),
+    "imkerei": ("77-imkerei.jpg", 420, "frei"),
+    "lieferwagen": ("78-lieferwagen.jpg", 260, "frei"),
+    "dickicht": ("79-dickicht.jpg", 560, "frei"),
+    "eisfelsen": ("99-eisfelsen.jpg", 260, "frei"),
+    "puzzle-weg": ("100-puzzle-weg.jpg", 1116, "bild"),
 }
 
 # Sammelbilder: Datei, Namen der Teile (Reihenfolge zeilenweise), Breite
@@ -63,6 +76,8 @@ SAMMEL = [
      ["i-weizen", "i-mais", "i-karotte", "i-milch", "i-ei", "i-brot", "i-kaese", "i-butter", "i-futter", "i-wolle", "i-muenze", "i-stern"], 128),
     ("50-55-steine-sammelbild.jpg", ["stein-rot", "stein-blau", "stein-gruen", "stein-gelb", "stein-lila", "stein-orange"], 128),
     ("56-59-puzzle-extras-sammelbild.jpg", ["rakete", "bombe", "kiste", "eis"], 128),
+    ("80-87-waren-sammelbild.jpg", ["i-saft", "i-suppe", "i-pullover", "i-muetze", "i-kuchen", "i-kekse", "i-honig", "i-apfel"], 128),
+    ("88-95-helfer-sammelbild.jpg", ["i-hammer", "i-besen", "i-regenbogen", "i-geschenk", "i-herz", "i-kuerbis", "i-schneeflocke", "i-osterei"], 128),
 ]
 
 

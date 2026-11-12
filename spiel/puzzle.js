@@ -1,6 +1,6 @@
 // Sonnenhof – Puzzle (Schritt 3): Steine tauschen, drei oder mehr gleiche in einer Reihe sammeln.
 // Vier in einer Reihe ergeben eine Rakete (räumt Reihe oder Spalte), fünf oder eine L/T-Form eine Bombe (3 × 3).
-import { STEINE, BRETT, WERKZEUGE, HELFER, puzzleLevel, PUZZLE_LOHN } from "./daten.js";
+import { STEINE, BRETT, WERKZEUGE, HELFER, puzzleLevel, PUZZLE_LOHN, PUZZLE_WEG } from "./daten.js";
 
 export function puzzleStarten(api) {
   const S = () => api.S();
@@ -321,9 +321,39 @@ export function puzzleStarten(api) {
 
   /* ---------- Start und Ende ---------- */
   function stand() { const s = S(); s.puzzle ??= { level: 1, gewonnen: 0 }; return s.puzzle; }
-  function oeffnen() {
+  /* ---------- Weltkarte ---------- */
+  const karte = p$("#pz-karte"), kInhalt = p$("#pz-karte-inhalt");
+  const proKapitel = PUZZLE_WEG.steine.length;
+  function karteZeigen() {
     api.schliessen();
-    nummer = stand().level;
+    huelle.classList.remove("offen"); p$("#pz-dialog").hidden = true;
+    document.body.classList.add("im-puzzle");
+    const P = stand(), aktuell = P.level, kap = Math.ceil(aktuell / proKapitel), basis = (kap - 1) * proKapitel;
+    const s = S(); s.helfer ??= {};
+    p$("#pz-karte-titel").textContent = `Kapitel ${kap}`;
+    p$("#pz-karte-helfer").innerHTML = Object.keys(HELFER).map(k => `<span>${api.helferIcon(k, "ic")}<b>${s.helfer[k] || 0}</b></span>`).join("");
+    kInhalt.innerHTML = `<img src="${api.bildUrl("puzzle-weg")}" alt="" draggable="false">` + PUZZLE_WEG.steine.map(([x, y], i) => {
+      const n = basis + i + 1, st = P.sterne?.[n] || 0;
+      const zustand = n < aktuell ? "fertig" : n === aktuell ? "jetzt" : "zu";
+      return `<button class="pz-stein ${zustand}" data-level="${n}" style="left:${x / PUZZLE_WEG.b * 100}%;top:${y / PUZZLE_WEG.h * 100}%" ${zustand === "zu" ? "disabled" : ""} aria-label="Level ${n}">
+        <b>${n}</b>${zustand === "fertig" ? `<i>${"★".repeat(st)}<em>${"★".repeat(3 - st)}</em></i>` : ""}</button>`;
+    }).join("");
+    karte.hidden = false;
+    // zum aktuellen Level scrollen
+    requestAnimationFrame(() => {
+      const el = kInhalt.querySelector(".pz-stein.jetzt");
+      karte.scrollLeft = (karte.scrollWidth - karte.clientWidth) / 2;
+      if (el) karte.scrollTop = el.offsetTop - karte.clientHeight * .6;
+      else karte.scrollTop = karte.scrollHeight;
+    });
+  }
+  function karteZu() { karte.hidden = true; schliessen(); }
+  kInhalt.addEventListener("click", e => { const b = e.target.closest("[data-level]"); if (b && !b.disabled) levelStarten(+b.dataset.level); });
+  p$("#pz-karte-zu").onclick = karteZu;
+
+  function levelStarten(n) {
+    karte.hidden = true;
+    nummer = n;
     L = puzzleLevel(nummer);
     zuege = L.zuege;
     kiste = L.karte.map(z => [...z].map(ch => ch === "K"));
@@ -341,35 +371,36 @@ export function puzzleStarten(api) {
       <p class="hinweis">Tausche zwei Steine nebeneinander. 4 in einer Reihe ergeben eine Rakete, 5 oder eine L-Form eine Bombe. Kisten gehen kaputt, wenn daneben Steine verschwinden. Kommst du nicht weiter, helfen Hammer, Besen und Regenbogen unten.</p>
       <button class="los" data-pz="los">Los geht's</button>`);
   }
-  function schliessen() { huelle.classList.remove("offen"); document.body.classList.remove("im-puzzle"); p$("#pz-dialog").hidden = true; api.aktualisieren(); }
+  function schliessen() { karte.hidden = true; huelle.classList.remove("offen"); document.body.classList.remove("im-puzzle"); p$("#pz-dialog").hidden = true; api.aktualisieren(); }
   function zeigeDialog(html) { const d = p$("#pz-dialog"); d.innerHTML = `<div class="karteninhalt">${html}</div>`; d.hidden = false; }
   function P_sterne(n) {
     const st = stand().sterne?.[n] || 0;
     return st ? `<p class="pz-sterne-alt">Bisher: ${"★".repeat(st)}${"☆".repeat(3 - st)}</p>` : "";
   }
   function gewonnen() {
-    const P = stand(), lohn = PUZZLE_LOHN(nummer), s = S();
+    const P = stand(), s = S(), erstmals = nummer >= P.level;
+    const lohn = erstmals ? PUZZLE_LOHN(nummer) : { muenzen: 10 + nummer, werkzeuge: 0, punkte: 0 };
     const anteil = zuege / L.zuege, sterne = anteil >= .35 ? 3 : anteil >= .15 ? 2 : 1;
     P.sterne ??= {}; P.sterne[nummer] = Math.max(P.sterne[nummer] || 0, sterne);
     s.helfer ??= {};
-    const helferGewinn = Math.random() < (sterne === 3 ? .5 : .25) ? Object.keys(HELFER)[Math.floor(Math.random() * 3)] : null;
+    const helferGewinn = erstmals && Math.random() < (sterne === 3 ? .5 : .25) ? Object.keys(HELFER)[Math.floor(Math.random() * 3)] : null;
     if (helferGewinn) s.helfer[helferGewinn] = (s.helfer[helferGewinn] || 0) + 1;
     api.ton("sieg");
     s.muenzen += lohn.muenzen;
     s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
     const bekommen = {};
     for (let k = 0; k < lohn.werkzeuge; k++) { const w = Object.keys(WERKZEUGE)[Math.floor(Math.random() * 3)]; s.werkzeug[w]++; bekommen[w] = (bekommen[w] || 0) + 1; }
-    api.inselEreignis("puzzle");
-    if (s.insel) s.insel.punkte += lohn.punkte;
-    P.level++; P.gewonnen++;
+    if (erstmals) { api.inselEreignis("puzzle"); if (s.insel) s.insel.punkte += lohn.punkte; P.level = nummer + 1; }
+    P.gewonnen++;
     api.speichern();
     zeigeDialog(`<h2>Gewonnen!</h2><div class="pz-sterne">${[1, 2, 3].map(k => `<span class="${k <= sterne ? "an" : ""}">★</span>`).join("")}</div>
       <p>Level ${nummer} geschafft mit ${zuege} Zügen übrig.</p>
       <div class="pz-lohn"><span>${api.muenze("ic gross")}<b>${lohn.muenzen}</b></span>
       ${Object.entries(bekommen).map(([w, n]) => `<span><img class="ic gross" src="${api.bildUrl(WERKZEUGE[w].bild)}" alt="${WERKZEUGE[w].name}"><b>${n}</b></span>`).join("")}
-      ${s.insel ? `<span class="ew">⭐<b>${lohn.punkte}</b></span>` : ""}
+      ${s.insel && lohn.punkte ? `<span class="ew">⭐<b>${lohn.punkte}</b></span>` : ""}
       ${helferGewinn ? `<span>${api.helferIcon(helferGewinn, "ic gross")}<b>1</b></span>` : ""}</div>
-      <div class="knoepfe"><button class="los" data-pz="weiter">Nächstes Level</button><button class="los zweit" data-pz="zu">Zurück</button></div>`);
+      ${erstmals ? "" : `<p class="hinweis">Wiederholt: kleiner Lohn, aber deine besten Sterne bleiben.</p>`}
+      <div class="knoepfe"><button class="los" data-pz="weiter">Nächstes Level</button><button class="los zweit" data-pz="karte">Zur Karte</button></div>`);
   }
   function verloren() {
     const rest = Object.entries(ziele).filter(([, n]) => n > 0).length;
@@ -377,22 +408,24 @@ export function puzzleStarten(api) {
     zeigeDialog(`<h2>Keine Züge mehr</h2><p>Fast geschafft! Es ${rest === 1 ? "fehlt noch ein Ziel" : `fehlen noch ${rest} Ziele`}.
       ${helfer ? "Mit einem Helfer kannst du es vielleicht noch schaffen." : "Versuch es einfach noch mal, das kostet nichts."}</p>
       <div class="knoepfe">${helfer ? `<button class="los" data-pz="helfen">Helfer einsetzen</button>` : ""}
-      <button class="los ${helfer ? "zweit" : ""}" data-pz="nochmal">Noch mal</button><button class="los zweit" data-pz="zu">Zurück</button></div>`);
+      <button class="los ${helfer ? "zweit" : ""}" data-pz="nochmal">Noch mal</button><button class="los zweit" data-pz="karte">Zur Karte</button></div>`);
   }
   p$("#pz-dialog").addEventListener("click", e => {
     const b = e.target.closest("[data-pz]"); if (!b) return;
     const a = b.dataset.pz;
     if (a === "los") p$("#pz-dialog").hidden = true;
     if (a === "helfen") { p$("#pz-dialog").hidden = true; zeigeHelfer(); api.meldung("Wähle unten einen Helfer und tippe aufs Feld."); }
-    if (a === "weiter" || a === "nochmal") oeffnen();
+    if (a === "weiter") levelStarten(stand().level);
+    if (a === "nochmal") levelStarten(nummer);
+    if (a === "karte") karteZeigen();
     if (a === "zu") schliessen();
   });
   p$("#pz-zu").onclick = () => {
     if (belegt) return;
     zeigeDialog(`<h2>Level verlassen?</h2><p>Dein Fortschritt in diesem Level geht verloren. Du kannst es jederzeit neu starten.</p>
-      <div class="knoepfe"><button class="los rot" data-pz="zu">Verlassen</button><button class="los zweit" data-pz="los">Weiterspielen</button></div>`);
+      <div class="knoepfe"><button class="los rot" data-pz="karte">Verlassen</button><button class="los zweit" data-pz="los">Weiterspielen</button></div>`);
   };
   addEventListener("resize", () => { if (huelle.classList.contains("offen")) { feldGroesse(); zeichneFelder(); } });
 
-  return { oeffnen, get level() { return stand().level; } };
+  return { oeffnen: karteZeigen, get level() { return stand().level; } };
 }
