@@ -557,3 +557,8 @@ body.wueste .ding.fern .spr { filter: saturate(.6) brightness(.95) opacity(.85);
   .pz-helferleiste { order: 3; flex-direction: column; width: 150px; margin: 0; align-self: center; }
   .pz-helfer-text { font-size: 12px; }
 }
+/* Memory im Querformat: 6 × 2 Karten, nach der Höhe bemessen, damit alle sichtbar sind */
+@media (orientation: landscape) and (max-height: 700px) {
+  .memory-feld { grid-template-columns: repeat(6, auto); width: auto; justify-content: center; align-content: center; gap: 10px; margin-bottom: calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .karte-mem { height: calc((100vh - 130px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)) / 2); width: auto; aspect-ratio: 3 / 4; }
+}
