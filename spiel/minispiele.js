@@ -11,12 +11,12 @@ export function minispieleStarten(api) {
   }
 
   /* ---------- Wimmelbild ---------- */
-  function wimmelbild({ winter, gewonnen }) {
+  function wimmelbild({ winter, karte, gewonnen }) {
     const pool = mischen([...api.symbole()]);
     const ziele = pool.slice(0, 6), rest = pool.slice(6);
     const ablenkung = Array.from({ length: 34 }, (_, k) => rest[k % rest.length]);
     let zeit = 90, gefunden = 0;
-    huelle.style.backgroundImage = `url(${api.bildUrl(winter ? "schneeinsel" : "insel")})`;
+    huelle.style.backgroundImage = `url(${api.bildUrl(karte || (winter ? "schneeinsel" : "insel"))})`;
     huelle.innerHTML = `<div class="mini-kopf"><button class="zu" data-mini="zu" aria-label="Schließen">✕</button><b>🔍 Wimmelbild: Finde diese 6 Dinge</b><span class="mini-zeit">${zeit} s</span></div>
       <div class="wimmel-feld"></div>
       <div class="wimmel-liste">${ziele.map((z, i) => `<span data-z="${i}"><img src="${api.bildUrl(z)}" alt=""></span>`).join("")}</div>`;
@@ -55,7 +55,7 @@ export function minispieleStarten(api) {
     huelle.onclick = e => {
       const a = e.target.closest("[data-mini]")?.dataset.mini; if (!a) return;
       if (a === "zu") zu();
-      if (a === "nochmal") { zu(); wimmelbild({ winter, gewonnen }); }
+      if (a === "nochmal") { zu(); wimmelbild({ winter, karte, gewonnen }); }
       if (a === "sieg") { zu(); gewonnen(); }
     };
   }
@@ -126,8 +126,8 @@ export function minispieleStarten(api) {
   }
 
   /* ---------- Schiebepuzzle ---------- */
-  function schiebepuzzle({ gewonnen, winter }) {
-    const n = 3, bildName = winter ? "schneeinsel" : "insel";
+  function schiebepuzzle({ gewonnen, winter, karte }) {
+    const n = 3, bildName = karte || (winter ? "schneeinsel" : "insel");
     let feld = [...Array(n * n).keys()]; // 8 = Lücke
     // lösbar mischen: zufällige gültige Züge
     let leer = 8;

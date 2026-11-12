@@ -73,6 +73,29 @@ BILDER = {
     "schneehaufen": ("97-schneehaufen.jpg", 260, "pink"),
     "schneeinsel": ("96-schneeinsel.jpg", 1800, "bild"),
     "schwein": ("102-schwein.jpg", 200, "frei"),
+    "pizzeria": ("126-pizzeria.jpg", 400, "frei"),
+    "eisdiele": ("127-eisdiele.jpg", 400, "frei"),
+    "schokofabrik": ("128-schokoladenfabrik.jpg", 400, "frei"),
+    "blumenladen": ("129-blumenladen.jpg", 400, "frei"),
+    "kerzen": ("130-kerzenzieherei.jpg", 400, "frei"),
+    "roesterei": ("131-kaffeeroesterei.jpg", 400, "frei"),
+    "hotel": ("132-hotel.jpg", 420, "frei"),
+    "feld-reif-tomate": ("133-tomatenfeld.jpg", 420, "frei"),
+    "feld-reif-kakao": ("134-kakaofeld.jpg", 420, "frei"),
+    "feld-reif-rose": ("135-rosenfeld.jpg", 420, "frei"),
+    "feld-reif-kaffee": ("136-kaffeefeld.jpg", 420, "frei"),
+    "pferd": ("137-pferd.jpg", 220, "frei"),
+    "pferdestall": ("138-pferdestall.jpg", 400, "frei"),
+    "ente": ("139-ente.jpg", 140, "pink"),
+    "entenhaus": ("140-entenhaus.jpg", 380, "frei"),
+    "windmuehle": ("141-windmuehle.jpg", 440, "frei"),
+    "leuchtturm": ("142-leuchtturm.jpg", 440, "frei"),
+    "rathaus": ("143-rathaus.jpg", 460, "frei"),
+    "baustelle": ("144-baustelle.jpg", 440, "frei"),
+    "wuesteninsel": ("145-wuesteninsel.jpg", 1800, "bild"),
+    "kaktus": ("146-kaktus.jpg", 260, "frei"),
+    "sandduene": ("147-sandduene.jpg", 260, "pink"),
+    "sandstein": ("148-sandsteinfelsen.jpg", 260, "frei"),
     "feld-reif-erdbeere": ("110-erdbeerfeld.jpg", 420, "frei"),
     "feld-reif-sonnenblume": ("111-sonnenblumenfeld.jpg", 420, "frei"),
     "feld-reif-traube": ("112-weinreben.jpg", 420, "frei"),
@@ -95,8 +118,14 @@ SAMMEL = [
     ("80-87-waren-sammelbild.jpg", ["i-saft", "i-suppe", "i-pullover", "i-muetze", "i-kuchen", "i-kekse", "i-honig", "i-apfel"], 128),
     ("106-109-tierwaren-sammelbild.jpg", ["i-trueffel", "i-ziegenmilch", "i-ziegenkaese", "i-joghurt"], 128),
     ("118-125-obstwaren-sammelbild.jpg", ["i-erdbeere", "i-kerne", "i-traube", "i-kirsche", "i-birne", "i-marmelade", "i-traubensaft", "i-oel"], 128),
+    ("149-156-sammelbild.jpg", ["i-pizza", "i-spaghetti", "i-eis", "i-shake", "i-schokolade", "i-pralinen", "i-strauss", "i-kranz"], 128),
+    ("157-164-sammelbild.jpg", ["i-kerze", "i-seife", "i-kaffee", "i-cappuccino", "i-fruehstueck", "i-tomate", "i-kakao", "i-rose"], 128),
+    ("165-168-sammelbild.jpg", ["i-bohnen", "i-hufeisen", "i-feder", "i-gold"], 128),
     ("88-95-helfer-sammelbild.jpg", ["i-hammer", "i-besen", "i-regenbogen", "i-geschenk", "i-herz", "i-kuerbis", "i-schneeflocke", "i-osterei"], 128),
 ]
+
+
+GANZ_TEILE = {"i-kranz"}  # Teile mit Loch in der Mitte
 
 
 def hintergrund_maske(a, pink=False):
@@ -177,7 +206,7 @@ def main():
         teile = zerlegen(Image.open(os.path.join(SRC, datei)))
         assert len(teile) == len(namen), f"{datei}: {len(teile)} Teile gefunden, {len(namen)} erwartet"
         for name, teil in zip(namen, teile):
-            groessen[name] = speichern(freistellen(teil), name, breite)
+            groessen[name] = speichern(freistellen(teil, ganz=(name in GANZ_TEILE)), name, breite)
     # Seitenverhältnisse für das Spiel (Breite/Höhe), damit Bilder ohne Springen platziert werden
     with open(os.path.join(DST, "groessen.js"), "w") as f:
         f.write("// automatisch erzeugt von tools/build-assets.py\nexport const GROESSE = {\n")

@@ -5,7 +5,7 @@ import {
   feldPreis, felderMax, FELD_R, BAUTEN, WELT, SEE, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
   WERKZEUGE, HELFER, START_HELFER, TAGESLOHN, EIL, AUSBAU, DICKICHT, APFEL, BEWOHNER, BEWOHNER_PAUSE_MIN, HERZ_MAX,
   EVENTS, EVENT_STUFEN, EVENT_QUELLEN, FUNDSTUECK, MARKT, ERFOLGE, ERFOLG_LOHN, TOUR, EVENT_AUFGABEN, EVENT_AUFGABEN_AKTIV, EVENT_BONUS_ABSTAND, eventBonusLohn,
-  WETTBEWERBE, WETTBEWERB_LOHN, GAESTE, GAST, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
+  WETTBEWERBE, WETTBEWERB_LOHN, GAESTE, GAST, WAHRZEICHEN, GOLD_QUELLEN, HAUS_STUFEN, ABRISS_ERSTATTUNG, OBSTHOF, FRUCHT,
 } from "./daten.js";
 import { inselStarten } from "./insel.js";
 import { puzzleStarten } from "./puzzle.js";
@@ -57,7 +57,7 @@ function ergaenzen(s) {
   s.dekoFrei ??= {}; s.helfer ??= { ...START_HELFER }; s.ausbau ??= {}; s.dickicht ??= [];
   s.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 };
   s.tag ??= { zuletzt: "", serie: 0 };
-  s.bewohner ??= {}; s.pos ??= {};
+  s.bewohner ??= {}; s.pos ??= {}; s.wz ??= {};
   s.felder.forEach((f, i) => { if (f.x == null) { f.x = FELDPLAETZE[i].x; f.y = FELDPLAETZE[i].y; } });
   for (const k of Object.keys(TIERE)) s.tiere[k] ??= []; s.zaehler ??= {}; s.erfolge ??= {};
   // Deko, die auf einem neuen Bauplatz steht, ein Stück zur Seite rücken
@@ -382,6 +382,18 @@ function weltAufbauen() {
     upd: d => { const T = tourStand(); d.el.classList.toggle("weg", !!T.unterwegs);
       const n = T.kisten.filter(k => !k.voll && (S.lager[k.w] || 0) >= k.n).length;
       overlay(d, T.unterwegs ? uhr(T.unterwegs - jetzt(), TOUR.fahrtMin * 60, -10) : n ? blase(`<b class="zahl">${n}</b>`, -30) : ""); } });
+  // Wahrzeichen
+  for (const [k, W] of Object.entries(WAHRZEICHEN)) {
+    if (W.obsthof && !S.obsthof) continue;
+    const ab = S.wz[k] || 0, fertig = ab >= W.abschnitte.length;
+    if (S.level < W.level && !ab) {
+      const d = neuesDing("wz-" + k, "kachel", W.x, W.y, 150, { cls: "bauplatz", tipp: () => wahrzeichenPanel(k) });
+      overlay(d, `<div class="schild">🔒 Level ${W.level}<br><small>${W.name}</small></div>`);
+      continue;
+    }
+    const d = neuesDing("wz-" + k, fertig ? W.bild : "baustelle", W.x, W.y, fertig ? W.breite : 200, { cls: fertig ? "gebaeude wahrzeichen" : "gebaeude", tipp: () => wahrzeichenPanel(k) });
+    if (!fertig) overlay(d, `<div class="schild" style="top:-20px">🏗️ ${ab}/${W.abschnitte.length}<br><small>${W.name}</small></div>`);
+  }
   // Gast an der Auftragstafel
   if (S.gast?.waren && S.gast.bis > jetzt()) {
     const T = gpos("tafel"), Gs = GAESTE[S.gast.g];
@@ -506,8 +518,12 @@ function feldTipp(i) {
   }
   speichern(); aktualisieren();
 }
+const wzFertig = k => (S.wz?.[k] || 0) >= WAHRZEICHEN[k].abschnitte.length;
+const feldFaktor = () => wzFertig("windmuehle") ? .9 : 1;
+const lieferFaktor = () => wzFertig("leuchtturm") ? 1.15 : 1;
+const auftragFaktor = () => wzFertig("rathaus") ? 1.15 : 1;
 function saeen(i, p) {
-  const f = S.felder[i]; f.p = p; f.t = jetzt() + PFLANZEN[p].zeit * 1000; huepf(dinge.get("feld" + i));
+  const f = S.felder[i]; f.p = p; f.t = jetzt() + PFLANZEN[p].zeit * 1000 * feldFaktor(); huepf(dinge.get("feld" + i));
 }
 function saatAuswahl(i) {
   oeffnen("saat", () => `
@@ -575,6 +591,7 @@ function gebaeudeTipp(key) {
     <div class="reiseziele">
       <button class="reiseziel" data-aktion="zurinsel" data-w="sommer" ${S.level >= 2 ? "" : "disabled"}><img src="${bildUrl("insel")}" alt=""><b>Abenteuerinsel</b><small>${S.level >= 2 ? "Losfahren" : "ab Level 2"}</small></button>
       <button class="reiseziel" data-aktion="zurinsel" data-w="winter" ${S.level >= 8 ? "" : "disabled"}><img src="${bildUrl("schneeinsel")}" alt=""><b>Schneeinsel</b><small>${S.level >= 8 ? "Losfahren · wertvollere Schätze" : "🔒 ab Level 8"}</small></button>
+      <button class="reiseziel" data-aktion="zurinsel" data-w="wueste" ${S.level >= 40 ? "" : "disabled"}><img src="${bildUrl("wuesteninsel")}" alt=""><b>Wüsteninsel</b><small>${S.level >= 40 ? "Losfahren · Goldbarren!" : "🔒 ab Level 40"}</small></button>
     </div>`);
 }
 function abholen(key) {
@@ -709,6 +726,7 @@ function lohnText(L, gross = false) {
   const c = gross ? "ic mittel" : "ic klein", t = [];
   if (L.muenzen) t.push(`${muenze(c)}${L.muenzen}`);
   if (L.werkzeug) t.push(`🧰${L.werkzeug}`);
+  if (L.gold) t.push(`${icon("gold", c)}${L.gold}`);
   if (L.helfer) for (const [h, n] of Object.entries(L.helfer)) t.push(`${helferIcon(h, c)}${n}`);
   return t.join(" ");
 }
@@ -842,6 +860,26 @@ function erfolgWert(id) {
   return S.zaehler[id] || 0;
 }
 const erfolgeBereit = () => ERFOLGE.filter(E => { const st = S.erfolge[E.id] || 0; return st < E.stufen.length && erfolgWert(E.id) >= E.stufen[st]; }).length;
+/* ---------- Wahrzeichen ---------- */
+function wahrzeichenPanel(k) {
+  oeffnen("wz:" + k, () => {
+    const W = WAHRZEICHEN[k], ab = S.wz[k] || 0, fertig = ab >= W.abschnitte.length;
+    if (S.level < W.level && !ab) return `<div class="kopf"><h2>${W.name}</h2>${zu()}</div>
+      <div class="bauvorschau"><img src="${bildUrl(W.bild)}" alt=""></div><p>Ab Level ${W.level} kannst du hier bauen.</p><p><b>Bonus, wenn fertig:</b> ${W.bonus}</p>`;
+    if (fertig) return `<div class="kopf"><h2>${W.name} ✨</h2>${zu()}</div>
+      <div class="bauvorschau"><img src="${bildUrl(W.bild)}" alt=""></div><p>Fertig! <b>Dein Bonus:</b> ${W.bonus}.</p>`;
+    const Z = W.abschnitte[ab];
+    return `<div class="kopf"><h2>${W.name}</h2>${zu()}</div>
+      <div class="bauvorschau"><img src="${bildUrl(W.bild)}" alt=""></div>
+      <p><b>Bonus, wenn fertig:</b> ${W.bonus}</p>
+      <div class="wz-fortschritt">${W.abschnitte.map((_, i) => `<i class="${i < ab ? "fertig" : i === ab ? "jetzt" : ""}"></i>`).join("")}</div>
+      <p>Bauabschnitt ${ab + 1} von ${W.abschnitte.length}:</p>
+      <div class="waren gross-waren">${Object.entries(Z).map(([w, n]) => `<span class="${(S.lager[w] || 0) >= n ? "" : "fehlt"}">${icon(w)} ${Math.min(S.lager[w] || 0, n)}/${n} ${WAREN[w].name}</span>`).join("")}</div>
+      <button class="los" data-aktion="wzbauen" data-k="${k}" ${hat(Z) ? "" : "disabled"}>Bauabschnitt fertigstellen</button>
+      <p class="hinweis">Goldbarren gibt es für Eilaufträge, Gäste, Bosslevel im Puzzle, Gold im Wochen-Wettbewerb und in Truhen, besonders auf der Wüsteninsel.</p>`;
+  });
+}
+
 /* ---------- Gäste ---------- */
 function gastPruefen() {
   if (S.level < GAST.level) return;
@@ -1204,6 +1242,7 @@ function hindernisse() {
   for (const [k, g] of Object.entries(GEBAEUDE)) if (g.r && !(platzieren && platzieren.gebaeude === k)) { if (g.obsthof && !S.obsthof) continue; const q = gpos(k); zellen.add(zelle(q.x, q.y)); }
   S.bauten.forEach((b, i) => { if (platzieren && platzieren.index === i) return; zellen.add(zelle(b.x, b.y)); });
   zellen.add(zelle(TOUR.x, TOUR.y));
+  for (const [k, W] of Object.entries(WAHRZEICHEN)) if (!W.obsthof || S.obsthof) zellen.add(zelle(W.x, W.y));
   for (const w of Object.values(WEIDEN)) runde.push({ x: w.x, y: w.y + 10, rx: w.rx + 40, ry: w.ry + 30 });
   for (const z of DICKICHT) if (!S.dickicht.includes(z.id)) runde.push({ x: z.x, y: z.y, rx: z.rx * 1.15 + 40, ry: z.ry * 1.15 + 30 });
   return { zellen, runde };
@@ -1344,7 +1383,7 @@ host.addEventListener("click", e => {
   if (a === "liefern") {
     const i = +b.dataset.i, A = S.auftraege[i];
     if (!hat(A.waren)) return;
-    nehmen(A.waren); S.muenzen += A.muenzen; erfahrung(A.xp);
+    nehmen(A.waren); S.muenzen += Math.round(A.muenzen * auftragFaktor()); erfahrung(Math.round(A.xp * auftragFaktor()));
     if (A.werkzeug) { S.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 }; S.werkzeug[A.werkzeug]++; }
     insel.ereignis("auftrag");
     S.auftraege[i] = { ...neuerAuftrag(), ab: t + 8000 };
@@ -1372,7 +1411,7 @@ host.addEventListener("click", e => {
   if (a === "eilliefern") {
     const A = S.eil;
     if (!eilAktiv() || !hat(A.waren)) return;
-    nehmen(A.waren); S.muenzen += A.muenzen; erfahrung(A.xp);
+    nehmen(A.waren); S.muenzen += Math.round(A.muenzen * lieferFaktor()); erfahrung(A.xp); S.lager.gold = (S.lager.gold || 0) + 1;
     S.helfer[A.helfer] = (S.helfer[A.helfer] || 0) + 1; lohnGeben({ werkzeug: A.werkzeug });
     S.eil = { naechster: t + EIL.pauseMin * 60000 };
     insel.ereignis("auftrag"); zaehle("eil"); zaehle("liefern"); fliegtMuenzen(dinge.get("tafel")); eventGeben(EVENT_QUELLEN.eil, dinge.get("tafel"));
@@ -1436,13 +1475,21 @@ host.addEventListener("click", e => {
     const K = marktTag().kauf, p = Math.round(WAREN[K.w].wert * MARKT.kaufFaktor);
     if (K.rest > 0 && S.muenzen >= p && geben(K.w, 1)) { S.muenzen -= p; K.rest--; }
   }
+  if (a === "wzbauen") {
+    const k = b.dataset.k, W = WAHRZEICHEN[k], ab = S.wz[k] || 0, Z = W.abschnitte[ab];
+    if (!Z || !hat(Z)) return;
+    nehmen(Z); S.wz[k] = ab + 1; erfahrung(40 * (ab + 1)); leben.ton("level");
+    if (S.wz[k] >= W.abschnitte.length) { meldung(`${W.name} ist fertig! ${W.bonus}.`); schliessen(); }
+    else meldung(`Bauabschnitt ${ab + 1} geschafft!`);
+    weltAufbauen();
+  }
   if (a === "wette") {
     const w = wettbewerb(), W = WETTBEWERBE.find(x => x.typ === w.typ);
-    if (w.geholt < 3 && wetteStand(w) >= W.stufen[w.geholt]) { lohnGeben(WETTBEWERB_LOHN[w.geholt]); meldung(`${W.name}: ${WETTBEWERB_LOHN[w.geholt].name} geschafft!`); w.geholt++; leben.ton("level"); }
+    if (w.geholt < 3 && wetteStand(w) >= W.stufen[w.geholt]) { lohnGeben(WETTBEWERB_LOHN[w.geholt]); S.lager.gold = (S.lager.gold || 0) + GOLD_QUELLEN.wette[w.geholt]; meldung(`${W.name}: ${WETTBEWERB_LOHN[w.geholt].name} geschafft!`); w.geholt++; leben.ton("level"); }
   }
   if (a === "gastschenken") {
     const G = S.gast; if (!G || G.bis < t || !hat(G.waren)) return;
-    nehmen(G.waren); S.muenzen += G.muenzen; erfahrung(G.xp); lohnGeben({ werkzeug: 3, helfer: { [G.helfer]: 2 } });
+    nehmen(G.waren); S.muenzen += G.muenzen; erfahrung(G.xp); lohnGeben({ werkzeug: 3, helfer: { [G.helfer]: 2 } }); S.lager.gold = (S.lager.gold || 0) + GOLD_QUELLEN.gast;
     leben.ton("level"); meldung(`${GAESTE[G.g].name} bedankt sich: +${G.muenzen} Münzen, 2 ${HELFER[G.helfer].name} und Werkzeuge!`);
     S.gast = { naechster: t + GAST.pauseMin * 60000 }; schliessen(); weltAufbauen();
   }
@@ -1458,7 +1505,7 @@ host.addEventListener("click", e => {
   if (a === "tourlos") {
     const T = tourStand(); if (T.unterwegs || !T.kisten.some(k => k.voll)) return;
     const L = tourLohn(T);
-    S.muenzen += L.muenzen; erfahrung(L.xp); lohnGeben({ werkzeug: L.werkzeug, helfer: L.helfer ? { [wahl(Object.keys(HELFER))]: 1 } : null });
+    S.muenzen += Math.round(L.muenzen * lieferFaktor()); erfahrung(L.xp); lohnGeben({ werkzeug: L.werkzeug, helfer: L.helfer ? { [wahl(Object.keys(HELFER))]: 1 } : null });
     if (T.kisten.every(k => k.voll)) zaehle("tour");
     eventGeben(EVENT_QUELLEN.eil, dinge.get("tour")); insel.ereignis("auftrag");
     T.unterwegs = t + TOUR.fahrtMin * 60000; fliegtMuenzen(dinge.get("tour")); leben.ton("level");
@@ -1473,7 +1520,7 @@ host.addEventListener("click", e => {
   if (a === "eventholen") {
     const ev = eventStand(), St = eventStufe(ev.stufe);
     if (ev.menge < St.n) return;
-    lohnGeben(St); ev.stufe++; leben.ton("level"); meldung("Event-Belohnung abgeholt!");
+    lohnGeben(St); if (St.bonus) S.lager.gold = (S.lager.gold || 0) + GOLD_QUELLEN.eventBonus; ev.stufe++; leben.ton("level"); meldung("Event-Belohnung abgeholt!");
   }
   if (a === "wunsch") {
     const k = b.dataset.k, B = BEWOHNER[k], st = S.bewohner[k], w = st?.w;

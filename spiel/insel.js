@@ -26,8 +26,10 @@ export function inselStarten(api) {
   }
   function weltStand(w) {
     const s = S(); geteilt();
-    if (w === "winter") s.schnee ??= { frei: ["lager"], truhen: [], quests: [], naechste: 0, runde: 1, gesehen: false };
-    const I = w === "winter" ? s.schnee : s.insel;
+    const neu = () => ({ frei: ["lager"], truhen: [], quests: [], naechste: 0, runde: 1, gesehen: false });
+    if (w === "winter") s.schnee ??= neu();
+    if (w === "wueste") s.wueste ??= neu();
+    const I = w === "winter" ? s.schnee : w === "wueste" ? s.wueste : s.insel;
     while (I.quests.length < AKTIVE_QUESTS && I.naechste < QUESTS.length) I.quests.push({ q: I.naechste++, stand: 0 });
     return I;
   }
@@ -53,7 +55,7 @@ export function inselStarten(api) {
   function ereignis(typ, nurHier = false) {
     const s = S(), G = geteilt();
     if (typ === "puzzle") G.puzzleGut = Math.min(3, (G.puzzleGut || 0) + 1);
-    const welten = nurHier ? [welt] : ["sommer", ...(s.schnee ? ["winter"] : [])];
+    const welten = nurHier ? [welt] : ["sommer", ...(s.schnee ? ["winter"] : []), ...(s.wueste ? ["wueste"] : [])];
     for (const w of welten) {
       const I = weltStand(w);
       let geschafft = false;
@@ -85,7 +87,7 @@ export function inselStarten(api) {
   }
   function questsPruefen() {
     const s = S(), G = geteilt();
-    for (const w of ["sommer", ...(s.schnee ? ["winter"] : [])]) {
+    for (const w of ["sommer", ...(s.schnee ? ["winter"] : []), ...(s.wueste ? ["wueste"] : [])]) {
       const I = weltStand(w);
       let neu = true;
       while (neu) {
@@ -157,7 +159,7 @@ export function inselStarten(api) {
     nebel.width = Math.round(B * q); nebel.height = Math.round(H * q);
     const g = nebel.getContext("2d"); g.setTransform(q, 0, 0, q, 0, 0);
     const winter = welt === "winter";
-    g.fillStyle = winter ? "rgba(232,240,248,.97)" : "rgba(240,244,246,.97)"; g.fillRect(0, 0, B, H);
+    g.fillStyle = winter ? "rgba(232,240,248,.97)" : welt === "wueste" ? "rgba(246,238,222,.97)" : "rgba(240,244,246,.97)"; g.fillRect(0, 0, B, H);
     let seed = 5; const r = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
     for (let k = 0; k < 260; k++) {
       const x = r() * B, y = r() * H, rr = 60 + r() * 150, gr = g.createRadialGradient(x - rr * .3, y - rr * .3, 4, x, y, rr);
@@ -259,10 +261,10 @@ export function inselStarten(api) {
   function sonderTipp(id) {
     const P = INSEL_PLAETZE[id], Sd = SONDER[P.art];
     if (!erreichbar(id)) { api.meldung("Räume zuerst den Weg bis hierher frei."); return; }
-    if (P.art === "wimmel") { api.wimmelbild({ winter: welt === "winter", gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
+    if (P.art === "wimmel") { api.wimmelbild({ winter: welt === "winter", karte: WELTEN[welt].karte, gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
     if (P.art === "memory") { api.memory({ gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
     if (P.art === "unterschied") { api.unterschiede({ gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
-    if (P.art === "schiebe") { api.schiebepuzzle({ winter: welt === "winter", gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
+    if (P.art === "schiebe") { api.schiebepuzzle({ winter: welt === "winter", karte: WELTEN[welt].karte, gewonnen: () => { punkte(4, dinge.get(id)); befreien(id); } }); return; }
     const G = geteilt();
     if (G.puzzleGut > 0) { G.puzzleGut--; api.meldung("Das Puzzle-Tor öffnet sich!"); befreien(id); return; }
     api.oeffnen("i-raetsel", () => `<div class="kopf"><h2>${Sd.zeichen} ${Sd.name}</h2>${api.zu()}</div>
@@ -280,6 +282,7 @@ export function inselStarten(api) {
     punkte(PUNKTE.truhe, d);
     api.meldung(`Schatz gefunden: ${muenzen} Münzen, ${WERKZEUGE[w1].name}${w2 ? " und " + WERKZEUGE[w2].name : ""}`);
     ereignis("truhe", true); api.eventGeben?.(3, d);
+    if (Math.random() < (welt === "wueste" ? .4 : .15)) { s.lager.gold = (s.lager.gold || 0) + 1; api.meldung("Ein Goldbarren lag auch in der Truhe!"); }
     api.speichern(); api.aktualisieren();
     setTimeout(() => { d.el.classList.add("verschwindet"); setTimeout(aufbauen, 500); }, 1300);
   }
@@ -403,6 +406,7 @@ export function inselStarten(api) {
     q$("#insel-karte").src = api.bildUrl(Wd.karte);
     rahmen.style.background = Wd.meer;
     document.body.classList.toggle("schnee", w === "winter");
+    document.body.classList.toggle("wueste", w === "wueste");
     aktiv = true; document.body.classList.add("auf-insel");
     zufallsWerkzeugAnzeige = zufallsWerkzeug();
     startKamera(); aufbauen(); zeigeHud();
@@ -415,7 +419,7 @@ export function inselStarten(api) {
         <button class="los" data-aktion="zu">Los geht's</button>`);
     }
   }
-  function verlassen() { aktiv = false; document.body.classList.remove("auf-insel", "schnee"); api.schliessen(); api.aktualisieren(); }
+  function verlassen() { aktiv = false; document.body.classList.remove("auf-insel", "schnee", "wueste"); api.schliessen(); api.aktualisieren(); }
   q$("#knopf-hof").onclick = verlassen;
   q$("#knopf-quests").onclick = questPanel;
   q$("#knopf-pfad").onclick = pfadPanel;

@@ -426,6 +426,7 @@ export function puzzleStarten(api) {
     const P = stand(), s = S(), erstmals = nummer >= P.level;
     const lohn = !erstmals ? { muenzen: 10 + nummer, werkzeuge: 0, punkte: 0 } : istBoss(nummer) ? BOSS_LOHN(nummer) : PUZZLE_LOHN(nummer);
     if (lohn.helfer) { s.helfer ??= {}; for (const [h, n] of Object.entries(lohn.helfer)) s.helfer[h] = (s.helfer[h] || 0) + n; }
+    if (erstmals && L.boss) { s.lager ??= {}; s.lager.gold = (s.lager.gold || 0) + 2; }
     const anteil = zuege / L.zuege, sterne = anteil >= .35 ? 3 : anteil >= .15 ? 2 : 1;
     P.sterne ??= {}; P.sterne[nummer] = Math.max(P.sterne[nummer] || 0, sterne);
     s.helfer ??= {};

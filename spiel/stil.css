@@ -515,3 +515,12 @@ body.bearbeiten .ding.feld .spr { outline: 3px dashed rgba(255, 255, 255, .85); 
 .wette-stufe.bronze { border-color: #cd8a4b; } .wette-stufe.silber { border-color: #a7b3bf; } .wette-stufe.gold { border-color: var(--gold); }
 .wette-stufe.geholt { opacity: .6; }
 .ding.gast .spr { filter: drop-shadow(0 0 10px rgba(255, 230, 120, .95)); }
+.reiseziele { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+body.wueste .ding.fern .spr { filter: saturate(.6) brightness(.95) opacity(.85); }
+
+/* Wahrzeichen */
+.wz-fortschritt { display: flex; gap: 6px; margin: 8px 0; }
+.wz-fortschritt i { flex: 1; height: 10px; border-radius: 5px; background: #efe3cc; }
+.wz-fortschritt i.fertig { background: linear-gradient(#a7e874, #5cb82f); }
+.wz-fortschritt i.jetzt { background: linear-gradient(#ffd56a, #f0a91e); }
+.ding.wahrzeichen .spr { filter: drop-shadow(0 0 12px rgba(255, 230, 140, .8)); }

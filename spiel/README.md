@@ -73,6 +73,15 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - Zusätzliche Stationen auf den Wegen, darunter Sonderstationen: Wimmelbild (90 Sekunden), Memory, Puzzle-Tor (öffnet sich nach einem gewonnenen Puzzle-Level)
 - Puzzle: übrige Züge werden am Ende zu Raketen und Bomben, die gezündet werden und Extra-Münzen bringen (antippen überspringt)
 
+## Paket F: neue Gebäude, Tiere, Wahrzeichen, Wüsteninsel
+
+- Neue Fabriken: Pizzeria (30), Eisdiele (40), Schokoladenfabrik (50), Blumenladen (60), Kerzenzieherei (70), Kaffeerösterei (80), Hotel (90)
+- Neue Felder: Tomaten (28), Kakao (48), Rosen (58), Kaffee (78)
+- Entenhaus (25, Federn) und Pferdestall (35, Hufeisen)
+- Wahrzeichen in 3 Bauabschnitten: Große Windmühle (32, Felder 10 % schneller), Leuchtturm (52, Eilaufträge und Lieferwagen +15 %), Rathaus (75, Aufträge +15 %)
+- Goldbarren für Wahrzeichen: Eilaufträge, Gäste, Bosslevel, Wochen-Wettbewerb, Truhen
+- Wüsteninsel ab Level 40 mit Kakteen, Sanddünen und Sandsteinfelsen, wertvollste Truhen
+
 ## Paket E: Bosslevel, Wettbewerb, Gäste, neue Minispiele
 
 - Jedes 10. Puzzle-Level ist ein Bosslevel (👑): mehr Ziele, mehr Züge, große Belohnung mit je einem Hammer, Besen, Regenbogen
