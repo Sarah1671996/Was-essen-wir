@@ -524,3 +524,11 @@ body.wueste .ding.fern .spr { filter: saturate(.6) brightness(.95) opacity(.85);
 .wz-fortschritt i.fertig { background: linear-gradient(#a7e874, #5cb82f); }
 .wz-fortschritt i.jetzt { background: linear-gradient(#ffd56a, #f0a91e); }
 .ding.wahrzeichen .spr { filter: drop-shadow(0 0 12px rgba(255, 230, 140, .8)); }
+
+/* Wischen über Felder */
+#werkzeug-zeiger { position: fixed; left: 0; top: 0; width: 68px; height: 68px; z-index: 600; pointer-events: none; display: grid; place-items: center;
+  filter: drop-shadow(0 4px 4px rgba(0,0,0,.35)); }
+#werkzeug-zeiger svg { width: 64px; height: 64px; animation: schwingen .35s ease-in-out infinite alternate; transform-origin: 20% 80%; }
+#werkzeug-zeiger .ic.gross { width: 56px; height: 56px; }
+@keyframes schwingen { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+.raster3 .karte[data-aktion="saeen"] { touch-action: none; }
