@@ -637,7 +637,7 @@ export const GAST = { pauseMin: 50, dauerMin: 180, level: 6 };
 // Neue Inselminispiele
 Object.assign(SONDER, {
   unterschied: { name: "Unterschiede", zeichen: "👀", text: "Finde die 5 Unterschiede" },
-  schiebe:     { name: "Schiebepuzzle", zeichen: "🧱", text: "Schiebe die Teile in die richtige Reihenfolge" },
+  schiebe:     { name: "Bildpuzzle", zeichen: "🖼️", text: "Tausche die Teile, bis das Bild stimmt" },
 });
 
 /* ================= Paket F: neue Gebäude bis Level 90, Pferde, Enten, Wahrzeichen ================= */
