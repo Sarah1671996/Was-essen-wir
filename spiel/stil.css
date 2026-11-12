@@ -17,6 +17,15 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 #welt { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
 #boden { position: absolute; inset: 0; }
 
+/* Hof oder Insel */
+#insel-rahmen { position: fixed; inset: 0; overflow: hidden; touch-action: none; cursor: grab; background: #2fa7b8; display: none; }
+#insel-rahmen.zieht { cursor: grabbing; }
+#insel-welt { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+#insel-karte { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; -webkit-user-drag: none; }
+body.auf-insel #insel-rahmen { display: block; }
+body.auf-insel #welt-rahmen, body.auf-insel .nur-hof, body.auf-insel #schritt, body.auf-insel #saatleiste { display: none !important; }
+body:not(.auf-insel) .nur-insel { display: none !important; }
+
 /* Dinge in der Welt */
 .ding { position: absolute; cursor: pointer; transition: left 3.5s ease-in-out, top 3.5s ease-in-out; }
 .ding .spr { display: block; width: 100%; height: 100%; pointer-events: none; -webkit-user-drag: none; }
@@ -73,7 +82,7 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
 .pille .ew { font-size: 20px; width: 30px; text-align: center; }
 .pille.rund { padding: 0; width: 42px; height: 42px; justify-content: center; font-size: 22px; cursor: pointer; color: #fff; }
 .lvl { position: relative; width: 38px; height: 38px; display: grid; place-items: center; }
-.lvl img { position: absolute; inset: 0; width: 38px; height: 38px; }
+.pille .lvl img { position: absolute; inset: 0; width: 100%; height: 100%; }
 .lvl b { position: relative; z-index: 1; color: var(--tinte); font-size: 15px; margin-top: 3px; }
 .xp { width: 88px; height: 12px; border-radius: 6px; background: rgba(255, 255, 255, .22); overflow: hidden; }
 .xp i { display: block; height: 100%; width: 0; background: linear-gradient(#a7e874, #5cb82f); border-radius: 6px; transition: width .5s; }
@@ -188,6 +197,47 @@ button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
   .xp { width: 60px; } .pille { font-size: 15px; } .pille img { width: 26px; height: 26px; }
   .raster3 { grid-template-columns: repeat(3, 1fr); gap: 6px; }
   .schritt { top: calc(62px + env(safe-area-inset-top, 0px)); font-size: 13px; max-width: calc(100% - 24px); padding: 6px 10px; }
-  .lvl b { font-size: 14px; }
+  .lvl { width: 34px; height: 34px; } .lvl b { font-size: 14px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition: none !important; } }
+
+/* Insel */
+.ding.fern .spr { filter: brightness(.72) saturate(.7); }
+.ding.erreichbar .spr { filter: drop-shadow(0 0 8px rgba(255, 245, 160, .95)); animation: leuchten 1.8s ease-in-out infinite; }
+@keyframes leuchten { 50% { filter: drop-shadow(0 0 14px rgba(255, 235, 120, 1)) brightness(1.08); } }
+.ding.verschwindet { transition: transform .5s ease-in, opacity .5s ease-in; transform: scale(.2) translateY(20px); opacity: 0; }
+.truhe-ding .spr { animation: wippen 1.6s ease-in-out infinite; }
+.truhe-ding.offen .spr { animation: huepf .45s ease; }
+.preis { position: absolute; left: 50%; top: -14px; transform: translateX(-50%); display: flex; align-items: center; gap: 3px; white-space: nowrap;
+  background: var(--creme); border: 3px solid var(--holz-hell); border-radius: 12px; padding: 1px 9px; font-weight: 700; font-size: 15px; box-shadow: 0 3px 0 var(--holz); }
+.preis.fehlt { color: var(--beere); }
+.mini { position: absolute; right: -4px; bottom: -4px; background: var(--beere); color: #fff; border-radius: 10px; font-size: 13px; padding: 0 6px; }
+.schwebt { position: absolute; transform: translateX(-50%); z-index: 6000; pointer-events: none; font-weight: 700; font-size: 26px; color: #fff;
+  text-shadow: 0 2px 0 var(--tinte), 0 0 8px rgba(0, 0, 0, .4); animation: steigen 1.3s ease-out forwards; }
+@keyframes steigen { 0% { transform: translate(-50%, 0); opacity: 0; } 15% { opacity: 1; } 100% { transform: translate(-50%, -70px); opacity: 0; } }
+.pille.werkzeuge { padding: 2px 10px 2px 6px; gap: 2px; }
+.pille.werkzeuge img { width: 26px; height: 26px; }
+.pille.werkzeuge b { margin-right: 6px; }
+.gastgeberin { display: flex; gap: 12px; align-items: center; background: #fff; border-radius: 16px; padding: 8px 12px; border: 2px solid #f0dfbf; margin-bottom: 10px; }
+.gastgeberin img { width: 70px; height: 84px; object-fit: contain; flex: none; }
+.gastgeberin p { margin: 0; font-size: 15px; }
+.quests { display: grid; gap: 8px; }
+.quest { position: relative; background: #fff; border: 2px solid #f0dfbf; border-radius: 14px; padding: 8px 12px 14px; display: flex; justify-content: space-between; gap: 10px; align-items: center; }
+.quest div { display: grid; gap: 2px; min-width: 0; } .quest small { color: #8a6a45; font-variant-numeric: tabular-nums; }
+.questpunkte { font-weight: 700; white-space: nowrap; }
+.questbalken { position: absolute; left: 12px; right: 12px; bottom: 6px; height: 5px; border-radius: 3px; background: #efe3cc; overflow: hidden; }
+.questbalken i { position: absolute; inset: 0 auto 0 0; background: linear-gradient(90deg, #ffd56a, #f0a91e); }
+.werkzeugzeile { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 12px 0; }
+.werkzeugzeile span { background: #fff; border: 2px solid #f0dfbf; border-radius: 14px; display: flex; flex-direction: column; align-items: center; padding: 6px; font-size: 18px; }
+.werkzeugzeile small { font-size: 12px; color: #8a6a45; }
+.pfad { display: grid; gap: 8px; }
+.stufe { display: flex; align-items: center; gap: 10px; background: #fff; border: 2px solid #f0dfbf; border-radius: 14px; padding: 8px 10px; }
+.stufe.bereit { border-color: var(--gold); background: #fff6d6; }
+.stufe.geholt { opacity: .6; }
+.stufenpunkte { font-weight: 700; white-space: nowrap; min-width: 62px; }
+.stufenlohn { flex: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; font-size: 14px; min-width: 0; }
+.haken { color: var(--gruen-dunkel); font-weight: 700; font-size: 20px; }
+.gross-waren { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-bottom: 12px; font-weight: 600; }
+.gross-waren span { display: flex; align-items: center; gap: 4px; }
+.karte.geschenk { border-color: var(--gold); background: #fff8dc; }
+@media (max-width: 480px) { .pille.werkzeuge img { width: 22px; height: 22px; } .hud-rechts { max-width: 62vw; } }

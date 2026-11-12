@@ -13,7 +13,17 @@ Adresse auf GitHub Pages: `https://DEIN-NAME.github.io/Was-essen-wir/spiel/` · 
 - „Erste Schritte“ als kleine Anleitung, Level mit Freischaltungen
 - Spielstand bleibt im Browser gespeichert, Zeiten laufen weiter, auch wenn das Spiel zu ist
 
-Die Spielregeln (Zeiten, Preise, Rezepte) stehen alle in `daten.js`.
+## Stand: Schritt 2 – die Abenteuerinsel
+
+- Über den Steg (ab Level 2) mit dem Boot zur Insel und zurück
+- Dichte Büsche (Axt), Baumstümpfe (Schaufel) und Felsen (Spitzhacke) freiräumen, immer vom schon freien Weg aus
+- Schatztruhen mit Münzen und Werkzeugen, zwei Brücken, die mit Waren vom Hof repariert werden
+- Das alte Dorf und der Wasserfall als Ziele
+- Quests der Entdeckerin Mila mit Punkten, Belohnungspfad mit Münzen, Werkzeugen und besonderer Deko für den Hof
+- Werkzeuge gibt es für Aufträge auf dem Hof, in Truhen und alle 8 Minuten in der Kiste am Zelt
+- Ist alles freigeräumt, startet auf Wunsch eine neue Expedition
+
+Die Spielregeln (Zeiten, Preise, Rezepte, Inselplätze, Quests) stehen alle in `daten.js`.
 
 ## Dateien
 

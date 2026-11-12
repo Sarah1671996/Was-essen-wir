@@ -3,7 +3,9 @@ import { GROESSE } from "./img/groessen.js";
 import {
   WAREN, PFLANZEN, TIERE, FABRIKEN, WARTESCHLANGE, GEBAEUDE, WEIDEN, FELD_BREITE, FELDPLAETZE, START_FELDER,
   feldPreis, BAUTEN, WELT, xpFuer, SCHEUNE, FREISCHALTUNG, AUFTRAGS_WAREN, SCHRITTE,
+  WERKZEUGE,
 } from "./daten.js";
+import { inselStarten } from "./insel.js";
 
 /* ================= Hilfen ================= */
 const $ = s => document.querySelector(s);
@@ -39,6 +41,7 @@ function neuerStand() {
 let S;
 try { S = JSON.parse(localStorage.getItem(SPEICHER) || "null"); } catch { S = null; }
 if (!S || S.v !== 1) S = neuerStand();
+S.dekoFrei ??= {};
 let speicherTimer = 0;
 function speichern() {
   clearTimeout(speicherTimer);
@@ -84,7 +87,8 @@ function neuerAuftrag() {
     const m = roh ? 2 + Math.floor(Math.random() * (2 + S.level)) : 1 + Math.floor(Math.random() * 2);
     waren[w] = m; wert += m * WAREN[w].wert;
   }
-  return { waren, muenzen: Math.round(wert * 1.3 + S.level * 2), xp: Math.round(wert / 4) + 2, ab: 0 };
+  const werkzeug = Math.random() < .6 ? wahl(Object.keys(WERKZEUGE)) : null;
+  return { waren, muenzen: Math.round(wert * 1.3 + S.level * 2), xp: Math.round(wert / 4) + 2, werkzeug, ab: 0 };
 }
 function auftraegeAuffuellen() {
   const anzahl = Math.min(6, 3 + Math.floor(S.level / 2));
@@ -415,7 +419,8 @@ function gebaeudeTipp(key) {
   else if (key === "steg") oeffnen("steg", () => `
     <div class="kopf"><h2>Steg zur Insel</h2>${zu()}</div>
     <div class="insel-vorschau"><img src="${bildUrl("insel")}" alt="Die Abenteuerinsel"></div>
-    <p>Mit dem Boot geht es bald zur Abenteuerinsel: Wege freiräumen, Schätze finden und Quests erfüllen. Das kommt im nächsten Schritt.</p>`);
+    <p>Mit dem Boot geht es zur Abenteuerinsel: Wege freiräumen, Schätze finden, Brücken reparieren und Quests erfüllen.</p>
+    <button class="los" data-aktion="zurinsel" ${S.level >= 2 ? "" : "disabled"}>${S.level >= 2 ? "Losfahren" : "Ab Level 2"}</button>`);
 }
 function abholen(key) {
   const F = S.fabrik[key], e = F.fertig[0];
@@ -489,7 +494,7 @@ function auftragsPanel() {
       const ok = hat(a.waren);
       return `<div class="auftrag ${ok ? "bereit" : ""}">
         <div class="waren">${Object.entries(a.waren).map(([w, n]) => `<span class="${(S.lager[w] || 0) >= n ? "" : "fehlt"}">${icon(w)}${Math.min(S.lager[w] || 0, n)}/${n}</span>`).join("")}</div>
-        <div class="lohn"><span>${muenze("ic klein")}${a.muenzen}</span><span>${stern("ic klein")}${a.xp}</span></div>
+        <div class="lohn"><span>${muenze("ic klein")}${a.muenzen}</span><span>${stern("ic klein")}${a.xp}</span>${a.werkzeug ? `<span><img class="ic klein" src="${bildUrl(WERKZEUGE[a.werkzeug].bild)}" alt="${WERKZEUGE[a.werkzeug].name}">1</span>` : ""}</div>
         <div class="knoepfe"><button class="los" data-aktion="liefern" data-i="${i}" ${ok ? "" : "disabled"}>Liefern</button>
         <button class="weg" data-aktion="ablehnen" data-i="${i}" aria-label="Auftrag ablehnen">✕</button></div>
       </div>`;
@@ -513,7 +518,9 @@ let platzieren = null; // { typ, index? } index = vorhandenes Ding verschieben
 function baumenu() {
   oeffnen("bauen", () => `
     <div class="kopf"><h2>Bauen</h2>${zu()}</div>
-    <div class="baumenu">${Object.entries(BAUTEN).map(([k, B]) => {
+    <div class="baumenu">${Object.entries(BAUTEN).filter(([k, B]) => !B.insel || S.dekoFrei[k] > 0).map(([k, B]) => {
+      if (B.insel) return `<button class="karte geschenk" data-aktion="platzieren" data-t="${k}">
+        <img class="bauicon" src="${bildUrl(B.bild)}" alt=""><b>${B.name}</b><small>Belohnung · ${S.dekoFrei[k]}× frei</small></button>`;
       const frei = S.level >= B.level, geld = S.muenzen >= B.preis;
       return `<button class="karte" data-aktion="platzieren" data-t="${k}" ${frei && geld ? "" : "disabled"}>
         <img class="bauicon" src="${bildUrl(B.bild)}" alt=""><b>${B.name}</b>
@@ -573,6 +580,7 @@ function platzierenEnde(ok) {
     if (platzieren.index !== null) Object.assign(S.bauten[platzieren.index], { x: platzieren.x, y: platzieren.y });
     else {
       if (S.muenzen < B.preis) return;
+      if (B.insel) { if (!(S.dekoFrei[platzieren.typ] > 0)) return; S.dekoFrei[platzieren.typ]--; }
       S.muenzen -= B.preis; S.bauten.push({ typ: platzieren.typ, x: platzieren.x, y: platzieren.y });
       erfahrung(B.xp); if (B.art === "haus") ereignis("bauen:haus");
       meldung(`${B.name} gebaut${B.einwohner ? `: +${B.einwohner} Einwohner` : ""}`);
@@ -644,12 +652,15 @@ host.addEventListener("click", e => {
     const i = +b.dataset.i, A = S.auftraege[i];
     if (!hat(A.waren)) return;
     nehmen(A.waren); S.muenzen += A.muenzen; erfahrung(A.xp);
+    if (A.werkzeug) { S.werkzeug ??= { axt: 3, schaufel: 2, spitzhacke: 2 }; S.werkzeug[A.werkzeug]++; }
+    insel.ereignis("auftrag");
     S.auftraege[i] = { ...neuerAuftrag(), ab: t + 8000 };
     fliegtMuenzen(dinge.get("tafel")); ereignis("liefern");
   }
   if (a === "ablehnen") { const i = +b.dataset.i; S.auftraege[i] = { ...neuerAuftrag(), ab: t + 20000 }; }
   if (a === "scheuneausbauen") { const p = SCHEUNE.preis(S.scheuneLvl); if (S.muenzen >= p) { S.muenzen -= p; S.scheuneLvl++; erfahrung(5); } }
   if (a === "platzieren") { platzierenStart(b.dataset.t); return; }
+  if (a === "zurinsel") { insel.betreten(); return; }
   if (a === "verschieben") { platzierenStart(S.bauten[+b.dataset.i].typ, +b.dataset.i); return; }
   speichern(); aktualisieren();
 });
@@ -716,8 +727,14 @@ function aktualisieren() {
   const n = S.auftraege.filter(a => a.ab <= jetzt() && hat(a.waren)).length;
   const bd = $("#auftrag-zahl"); bd.hidden = !n; bd.textContent = n;
   for (const d of dinge.values()) d.upd(d);
+  insel.aktualisieren();
   fensterZeichnen();
 }
+
+/* ================= Insel ================= */
+const insel = inselStarten({
+  S: () => S, speichern, meldung, oeffnen, schliessen, zu, icon, muenze, bildUrl, hoehe, hat, nehmen, dauer, aktualisieren,
+});
 
 /* ================= Start ================= */
 addEventListener("keydown", e => { if (e.key === "Escape") { if (platzieren) platzierenEnde(false); else schliessen(); } });
@@ -729,7 +746,7 @@ $("#knopf-neu").onclick = () => oeffnen("neu", () => `
   <p>Dein ganzer Hof wird gelöscht und du fängst wieder bei Level 1 an.</p>
   <div class="knoepfe"><button class="los rot" data-aktion="neustart">Ja, neu beginnen</button><button class="los zweit" data-aktion="zu">Abbrechen</button></div>`);
 host.addEventListener("click", e => {
-  if (e.target.closest("[data-aktion='neustart']")) { S = neuerStand(); auftraegeAuffuellen(); try { localStorage.removeItem(SPEICHER); } catch {} schliessen(); weltAufbauen(); zeichneSchritt(); aktualisieren(); speichern(); }
+  if (e.target.closest("[data-aktion='neustart']")) { S = neuerStand(); S.dekoFrei = {}; if (insel.aktiv) insel.verlassen(); auftraegeAuffuellen(); try { localStorage.removeItem(SPEICHER); } catch {} schliessen(); weltAufbauen(); zeichneSchritt(); aktualisieren(); speichern(); }
 });
 zeichneBoden();
 weltAufbauen();

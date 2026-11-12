@@ -20,6 +20,7 @@
 <body>
 <!--SPIEL-->
 <div id="welt-rahmen"><div id="welt"><canvas id="boden"></canvas><div id="geist" class="geist" hidden></div></div></div>
+<div id="insel-rahmen"><div id="insel-welt"><img id="insel-karte" src="img/insel.webp" alt="" draggable="false"></div></div>
 
 <div class="hud">
   <div class="pille" title="Level und Erfahrung">
@@ -27,7 +28,9 @@
     <div class="xp"><i id="anz-xp"></i></div>
   </div>
   <div class="hud-rechts">
-    <div class="pille" id="anz-einwohner" title="Einwohner"><span class="ew" aria-hidden="true">🏠</span><b>0</b></div>
+    <div class="pille nur-insel werkzeuge" id="anz-werkzeug" title="Werkzeuge"></div>
+    <div class="pille nur-insel" id="anz-punkte" title="Inselpunkte"><span class="ew" aria-hidden="true">⭐</span><b>0</b></div>
+    <div class="pille nur-hof" id="anz-einwohner" title="Einwohner"><span class="ew" aria-hidden="true">🏠</span><b>0</b></div>
     <div class="pille" id="anz-muenzen" title="Münzen"><img src="img/i-muenze.webp" alt=""><b>0</b></div>
     <button class="pille rund" id="knopf-neu" aria-label="Spiel neu beginnen">↺</button>
   </div>
@@ -39,10 +42,15 @@
   <button id="platz-ok">Hier aufstellen</button><button id="platz-ab" class="ab">Abbrechen</button>
 </div>
 
-<nav class="aktionen">
+<nav class="aktionen nur-hof" id="hof-aktionen">
   <button class="knopf" id="knopf-auftraege"><img src="img/tafel.webp" alt="">Aufträge<span class="zahl" id="auftrag-zahl" hidden>0</span></button>
   <button class="knopf" id="knopf-lager"><img src="img/scheune.webp" alt="">Scheune</button>
   <button class="knopf" id="knopf-bauen"><img src="img/haus1.webp" alt="">Bauen</button>
+</nav>
+<nav class="aktionen nur-insel" id="insel-aktionen">
+  <button class="knopf" id="knopf-hof"><img src="img/steg.webp" alt="">Zum Hof</button>
+  <button class="knopf" id="knopf-quests"><img src="img/gastgeberin.webp" alt="">Quests</button>
+  <button class="knopf" id="knopf-pfad"><img src="img/truhe.webp" alt="">Belohnungen<span class="zahl" id="pfad-zahl" hidden>!</span></button>
 </nav>
 <div id="fenster"></div>
 <div class="meldung" id="meldung" hidden></div>
