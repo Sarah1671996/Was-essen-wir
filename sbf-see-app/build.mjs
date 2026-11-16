@@ -30,11 +30,12 @@ const headPart = src.slice(0, src.indexOf("<header"));
 const bodyPart = src.slice(src.indexOf("<header"), src.indexOf(DATA_TAG));
 const csp = [
   "default-src 'self'",
-  "script-src 'self' https://www.gstatic.com",
+  "script-src 'self' https://www.gstatic.com https://www.google.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src https://fonts.gstatic.com",
   "img-src 'self' data: blob:",
-  "connect-src 'self' https://*.googleapis.com https://www.gstatic.com",
+  "connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://www.google.com",
+  "frame-src https://www.google.com https://recaptcha.google.com",
   "worker-src 'self' blob:", "manifest-src 'self'", "object-src 'none'", "base-uri 'self'", "form-action 'none'"
 ].join("; ");
 const pwaHead = `<meta http-equiv="Content-Security-Policy" content="${csp}">

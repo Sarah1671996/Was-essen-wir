@@ -108,6 +108,8 @@ async function fbInit() {
   ]);
   // Eigener App-Name, damit sich der Offline-Speicher nicht mit den anderen Apps mischt
   const app = appMod.initializeApp(cfg.firebaseConfig, "sbfsee");
+  // App Check: ohne diesen Nachweis lehnt Google die KI-Anfragen (Foto-Prüfung) ab
+  try { await cfg.startAppCheck(app, FB); } catch (e) {}
   const auth = authMod.getAuth(app);
   await new Promise((resolve, reject) => {
     const stop = authMod.onAuthStateChanged(auth, u => { if (u) { stop(); resolve(); } });

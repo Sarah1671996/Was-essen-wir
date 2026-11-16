@@ -2,7 +2,7 @@ import { createStore, hasFirebase, randomCode } from "./store.js";
 import { allCats, norm, keyOf, guessCat as guessFrom, splitQty } from "./cats.js";
 
 // Bei jeder neuen Version hochzählen und in VERSIONEN.md eintragen (Git-Tag einkauf-vN)
-const APP_VERSION = "4";
+const APP_VERSION = "5";
 const APP_DATE = "16.11.2026";
 
 const $ = s => document.querySelector(s);

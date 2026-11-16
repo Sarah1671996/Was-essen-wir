@@ -1,6 +1,6 @@
 // Datenzugriff: Firebase (geteilt zwischen allen Handys) oder Demo-Modus (nur dieses Gerät).
 // Gleiches Firebase-Projekt wie die Essens-App, aber eigene Sammlung "households".
-import { firebaseConfig } from "../essen-match-app/firebase-config.js";
+import { firebaseConfig, startAppCheck } from "../essen-match-app/firebase-config.js";
 
 const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
 // KI zum Lesen von Kassenbons (Firebase AI Logic, Gemini Developer API), dasselbe Modell wie in der Essens-App.
@@ -28,6 +28,8 @@ async function firebaseStore() {
   ]);
   // Eigener App-Name, damit sich der Offline-Speicher nicht mit der Essens-App mischt
   const app = initializeApp(firebaseConfig, "einkauf");
+  // App Check: ohne diesen Nachweis lehnt Google das Lesen der Kassenbons per KI ab
+  try { await startAppCheck(app, FB); } catch {}
   const auth = authMod.getAuth(app);
   const uid = await new Promise((resolve, reject) => {
     const stop = authMod.onAuthStateChanged(auth, user => {

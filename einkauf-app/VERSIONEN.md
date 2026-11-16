@@ -16,6 +16,9 @@ Die Firestore-Regeln bleiben, wie sie sind: Sie erlauben die neueren Felder nur 
 
 ## Versionen
 
+### Version 5 · 16.11.2026
+- Kassenbon lesen per KI: Die App weist sich jetzt per App Check (reCAPTCHA Enterprise) bei Google aus. Ohne diesen Nachweis lehnt Google die KI-Anfragen ab.
+
 ### Version 4 · 16.11.2026
 - Keine Reiter mehr: Eine Liste für alles. Angebote, die erst später gelten, stehen blass mit „ab Do …“ in ihrer Abteilung und sind ab dem Tag ganz normal.
 - Schalter „Angebot ab: – / Mo / Do / Fr“ unter dem Eingabefeld, bleibt beim Durchgehen eines Prospekts eingestellt.
