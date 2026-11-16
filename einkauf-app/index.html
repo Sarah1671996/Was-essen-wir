@@ -94,12 +94,12 @@
       <button class="iconbtn adv" id="storeEditBtn" aria-label="Laden bearbeiten">✎</button>
     </header>
     <div class="tripbar" id="tripBar"></div>
-    <div class="tabbar" id="tabBar" role="group" aria-label="Für wann?"></div>
     <form class="addbar" id="addForm" autocomplete="off">
       <input id="addInput" enterkeyhint="done" placeholder="Was fehlt?" aria-label="Neuer Eintrag">
       <button type="button" class="btn ghost mic" id="micBtn" aria-label="Einsprechen" hidden>🎤</button>
       <button class="btn add" aria-label="Hinzufügen">+</button>
     </form>
+    <div class="offermode" id="offerMode" role="group" aria-label="Angebot ab"></div>
     <div class="suggest" id="suggest" hidden></div>
     <div class="scroll" id="listScroll">
       <div id="items"></div>
@@ -181,11 +181,19 @@
       <div class="chips" id="fWants"></div>
     </div>
 
-    <label>Im Angebot?</label>
+    <label>Im Angebot? Gilt ab</label>
     <div class="chips" id="fOffer"></div>
     <div class="offerpick">
       <label for="fOfferDate" class="small">oder anderer Tag:</label>
       <input type="date" id="fOfferDate">
+    </div>
+    <div id="fOfferEndRow" hidden>
+      <label>Gilt bis</label>
+      <div class="chips" id="fOfferEnd"></div>
+      <div class="offerpick">
+        <label for="fOfferEndDate" class="small">oder anderer Tag:</label>
+        <input type="date" id="fOfferEndDate">
+      </div>
     </div>
     <p class="small" id="fOfferInfo"></p>
 

@@ -380,13 +380,19 @@ textarea {
 @keyframes flash { 0%, 40% { box-shadow: 0 0 0 3px var(--c, var(--accent)); } 100% { box-shadow: 0 0 0 3px transparent; } }
 li.flash .item { animation: flash 1.6s ease-out; border-radius: 14px; }
 
-/* ---------- Reiter: Jetzt / Angebote ab … ---------- */
-.tabbar { display: flex; gap: 6px; padding: 8px var(--gutter-r) 0 var(--gutter-l); overflow-x: auto; scrollbar-width: none; }
-.tabbar::-webkit-scrollbar { display: none; }
-.tab { flex: none; border: 0; border-radius: 999px; padding: 8px 14px; min-height: 40px; font: inherit; font-weight: 700; font-size: .92rem;
-  background: var(--chip); color: var(--ink); white-space: nowrap; position: relative; display: inline-flex; align-items: center; }
-.tab.on { background: var(--c, var(--accent)); color: #fff; }
-.tab.pick input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+/* ---------- Eine Liste mit Angeboten ---------- */
+.offermode { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 2px var(--gutter-r) 6px var(--gutter-l); }
+.offermode .chip { min-height: 34px; padding: 4px 12px; }
+.offermode .chip.on { background: var(--c, var(--accent)); color: #fff; }
+.offerlabel { color: var(--muted); }
+.offerinfo { flex: 1 1 100%; color: var(--accent); }
+li.later .item > * { opacity: .5; }
+.overbox { margin: 16px 0 4px; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.overhead { width: 100%; text-align: left; border: 0; background: var(--surface); color: var(--ink); font: inherit; font-weight: 700; padding: 12px 14px; min-height: 48px; }
+.overrow { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.overtext { flex: 1; min-width: 0; display: grid; }
+.overtext .small { color: var(--muted); }
+.overall { display: block; margin: 0 14px 10px auto; }
 .appversion { text-align: center; opacity: .75; }
 
 /* ---------- Notbremse beim Start ---------- */

@@ -16,6 +16,12 @@ Die Firestore-Regeln bleiben, wie sie sind: Sie erlauben die neueren Felder nur 
 
 ## Versionen
 
+### Version 4 · 16.11.2026
+- Keine Reiter mehr: Eine Liste für alles. Angebote, die erst später gelten, stehen blass mit „ab Do …“ in ihrer Abteilung und sind ab dem Tag ganz normal.
+- Schalter „Angebot ab: – / Mo / Do / Fr“ unter dem Eingabefeld, bleibt beim Durchgehen eines Prospekts eingestellt.
+- Im Eintrag „Gilt ab“ und „Gilt bis“ (nur an dem Tag / bis Samstag / anderer Tag).
+- Abgelaufene Angebote verschwinden aus der Liste in „Angebot abgelaufen“ ganz unten: „Trotzdem kaufen“, löschen oder alle löschen.
+
 ### Version 3 · 10.11.2026
 - Notbremse beim Start (boot.js): Startet die App nicht, kommt statt eines schwarzen Bildschirms eine Meldung mit dem Fehler und „Neu laden“ (leert den Zwischenspeicher).
 - Sonst wie Version 2.

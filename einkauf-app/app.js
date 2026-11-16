@@ -2,8 +2,8 @@ import { createStore, hasFirebase, randomCode } from "./store.js";
 import { allCats, norm, keyOf, guessCat as guessFrom, splitQty } from "./cats.js";
 
 // Bei jeder neuen Version hochzählen und in VERSIONEN.md eintragen (Git-Tag einkauf-vN)
-const APP_VERSION = "3";
-const APP_DATE = "10.11.2026";
+const APP_VERSION = "4";
+const APP_DATE = "16.11.2026";
 
 const $ = s => document.querySelector(s);
 const ls = {
@@ -105,13 +105,14 @@ function tripOf(m) {
 }
 const myTrip = () => tripOf(S.members.find(m => m.id === S.uid) || {});
 const itemsOf = id => S.items.filter(i => i.storeId === id);
-// Reiter einer Liste: 0 = "Jetzt", sonst der Tag, ab dem ein Angebot gilt (Prospekt von nächster Woche)
-const tabOf = i => offerState(i) === "soon" ? dayStart(i.offerFrom) : 0;
-const openOf = (id, tab = 0) => itemsOf(id).filter(i => !i.done && tabOf(i) === tab);
-const laterOf = id => itemsOf(id).filter(i => !i.done && tabOf(i));
-const curTabs = {}; // gewählter Reiter je Laden
-const curTab = () => curTabs[S.current] || 0;
-const nextMonday = () => { const d = new Date(dayStart(Date.now())); d.setDate(d.getDate() + (8 - d.getDay()) % 7 || 7); return d.getTime(); };
+// Eine Liste für alles: Angebote, die erst später gelten, stehen blass mit drin; abgelaufene Angebote gesammelt unten
+const openOf = id => itemsOf(id).filter(i => !i.done && offerState(i) !== "over"); // was noch gekauft werden soll
+const nowOf = id => openOf(id).filter(i => offerState(i) !== "soon");             // was man heute kaufen kann
+const laterOf = id => openOf(id).filter(i => offerState(i) === "soon");
+const overOf = id => itemsOf(id).filter(i => !i.done && offerState(i) === "over");
+// Nächster Wochentag (1 = Mo … 6 = Sa), heute mitgezählt
+const nextDay = wd => { const d = new Date(dayStart(Date.now())); d.setDate(d.getDate() + (wd - d.getDay() + 7) % 7); return d.getTime(); };
+const entryOffer = {}; // Schalter "Angebot ab" je Laden: Tag oder leer
 // Wer braucht den Eintrag (uid → eigene Menge)? Ohne "wants" nur die Person, die ihn eingetragen hat
 const wantsOf = i => i.wants && Object.keys(i.wants).length ? i.wants : { [i.by]: i.qty || splitQty(i.text).qty };
 // Gleicher Eintrag? Ohne Menge, Groß/Klein, Satzzeichen und einfache Mehrzahl ("Möhre"/"Möhren", "Entenbrust 2x"/"entenbrust")
@@ -303,7 +304,7 @@ function renderHome() {
   const box = $("#stores");
   box.textContent = "";
   for (const s of sortedStores()) {
-    const open = openOf(s.id);
+    const open = nowOf(s.id);
     const card = el("button", "store");
     card.style.setProperty("--c", safeColor(s.color));
     const head = el("div", "storehead");
@@ -317,12 +318,13 @@ function renderHome() {
     const urgent = open.filter(i => i.urgent);
     const preview = [...urgent, ...open.filter(i => !i.urgent)].slice(0, 4).map(i => i.text).join(" · ");
     card.appendChild(el("p", "preview", open.length ? preview + (open.length > 4 ? " …" : "") : "Nichts zu holen"));
-    const later = laterOf(s.id);
-    if (news.length || urgent.length || later.length) {
+    const later = laterOf(s.id), over = overOf(s.id);
+    if (news.length || urgent.length || later.length || over.length) {
       const tags = el("div", "tags");
       if (urgent.length) tags.appendChild(el("span", "tag urgent", `${urgent.length} dringend`));
       if (news.length) tags.appendChild(el("span", "tag new", `${news.length} neu von ${nameOf(news[0].by)}`));
-      if (later.length) tags.appendChild(el("span", "tag offer soon", `⏳ ${later.length} für später`));
+      if (later.length) tags.appendChild(el("span", "tag offer soon", `${later.length} kommt ab ${shortDay(Math.min(...later.map(i => i.offerFrom)))}`));
+      if (over.length) tags.appendChild(el("span", "tag offer over", `${over.length} Angebot${over.length > 1 ? "e" : ""} abgelaufen`));
       card.appendChild(tags);
     }
     card.onclick = () => showView(s.id);
@@ -527,25 +529,27 @@ function renderList() {
 
   const box = $("#items");
   box.textContent = "";
-  renderTabs(s);
-  const tab = curTab();
-  const all = itemsOf(s.id).filter(i => i.done ? !tab : tabOf(i) === tab); // Erledigtes nur unter "Jetzt"
-  const open = all.filter(i => !i.done), done = all.filter(i => i.done);
+  renderOfferMode(s);
+  const all = itemsOf(s.id);
+  const open = openOf(s.id), done = all.filter(i => i.done), later = laterOf(s.id), over = overOf(s.id);
+  const nowCount = open.length - later.length;
   // Unterwegs liegt's im Wagen, danach bleibt es zum Nachschauen durchgestrichen stehen
   const shopping = S.members.some(m => tripOf(m)?.state === "los" && tripOf(m).storeId === s.id);
-  $("#listSub").textContent = open.length || done.length
-    ? [open.length ? `${open.length} offen` : "alles besorgt", done.length ? `${done.length} ${shopping ? "im Wagen" : "eingekauft"}` : ""].filter(Boolean).join(" · ")
+  $("#listSub").textContent = all.length
+    ? [nowCount ? `${nowCount} offen` : "alles besorgt",
+      later.length ? `${later.length} kommt ab ${shortDay(Math.min(...later.map(i => i.offerFrom)))}` : "",
+      done.length ? `${done.length} ${shopping ? "im Wagen" : "eingekauft"}` : ""].filter(Boolean).join(" · ")
     : "";
 
   if (!all.length) {
-    box.appendChild(el("div", "notice", tab
-      ? `Hier kommt rein, was erst ab ${dayDate(tab)} im Angebot ist (KW ${kw(tab)}). Ab dem Tag steht es von selbst unter „Jetzt“.`
-      : `Die Liste für ${s.name} ist leer. Schreib oben rein, was fehlt. Alle sehen es sofort.`));
+    box.appendChild(el("div", "notice", `Die Liste für ${s.name} ist leer. Schreib oben rein, was fehlt. Alle sehen es sofort.`));
   }
 
   renderTripBar(s);
 
-  // Dringendes ganz oben, der Rest nach Abteilungen in der Reihenfolge des Ladens
+  // Dringendes ganz oben, der Rest nach Abteilungen in der Reihenfolge des Ladens.
+  // Angebote, die erst später gelten, stehen blass am Ende ihrer Abteilung.
+  const byTime = (a, b) => (offerState(a) === "soon") - (offerState(b) === "soon") || (a.offerFrom || 0) - (b.offerFrom || 0) || a.at - b.at;
   const groups = [{ label: "❗ Dringend", list: open.filter(i => i.urgent) }, ...catsFor(s).map(cat => ({
     label: `${cat.emoji} ${cat.name}`,
     list: open.filter(i => !i.urgent && shownCat(i) === cat.id)
@@ -554,9 +558,11 @@ function renderList() {
     if (!g.list.length) continue;
     box.appendChild(el("p", "sectionlabel", g.label));
     const ul = el("ul", "items");
-    g.list.sort((a, b) => a.at - b.at).forEach(i => ul.appendChild(itemRow(i)));
+    g.list.sort(byTime).forEach(i => ul.appendChild(itemRow(i)));
     box.appendChild(ul);
   }
+
+  if (over.length) box.appendChild(overBox(over));
 
   if (done.length) {
     const head = el("div", "donehead");
@@ -574,44 +580,66 @@ function renderList() {
   showFlash();
 }
 
-let pickedDay = null; // per Kalender gewählter Tag, der noch keine Einträge hat
-// Reiter oben: "Jetzt", der nächste Montag (Prospekt der nächsten Woche) und jeder andere Tag, für den schon etwas eingetragen ist
-function renderTabs(s) {
-  const later = laterOf(s.id);
-  if (pickedDay && pickedDay <= Date.now()) pickedDay = null;
-  const days = [...new Set([nextMonday(), pickedDay, ...later.map(tabOf)].filter(Boolean))].sort((a, b) => a - b);
-  if (curTab() && !days.includes(curTab())) curTabs[s.id] = 0; // der Tag ist da, also wieder "Jetzt"
-  const bar = $("#tabBar");
+// Schalter "Angebot ab" unter dem Eingabefeld: bleibt eingestellt, während man einen Prospekt durchgeht
+function renderOfferMode(s) {
+  const bar = $("#offerMode");
   bar.textContent = "";
-  const tab = (t, label) => {
-    const n = t ? later.filter(i => tabOf(i) === t).length : openOf(s.id).length;
-    const b = el("button", "tab" + (curTab() === t ? " on" : ""), label + (n ? ` (${n})` : ""));
+  let cur = entryOffer[s.id] || null;
+  if (cur && offerEnd(cur) < Date.now()) cur = entryOffer[s.id] = null; // Woche vorbei
+  bar.appendChild(el("span", "small offerlabel", "Angebot ab:"));
+  const opts = [["–", null], ...[1, 4, 5].map(wd => [shortDay(nextDay(wd)), nextDay(wd)])];
+  opts.forEach(([label, t]) => {
+    const on = cur === t;
+    const b = el("button", "chip" + (on ? " on" : ""), label);
     b.type = "button";
-    b.setAttribute("aria-pressed", curTab() === t ? "true" : "false");
-    b.onclick = () => { curTabs[s.id] = t; $("#listScroll").scrollTop = 0; renderList(); };
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    if (t) b.title = dayDate(t);
+    b.onclick = () => { entryOffer[s.id] = t; renderOfferMode(s); $("#addInput").focus(); };
     bar.appendChild(b);
-  };
-  tab(0, "Jetzt");
-  days.forEach(t => tab(t, `ab ${dayDate(t)}`));
-  // Anderer Tag, z. B. ein Angebot ab Donnerstag
-  const pick = el("label", "tab pick", "📅");
-  pick.title = "Anderer Tag";
-  const inp = el("input");
-  inp.type = "date";
-  inp.setAttribute("aria-label", "Reiter für einen anderen Tag");
-  inp.onchange = () => {
-    const [y, m, d] = inp.value.split("-").map(Number);
-    if (!y) return;
-    const t = new Date(y, m - 1, d).getTime();
-    curTabs[s.id] = t > Date.now() ? t : 0;
-    if (t > Date.now() && !days.includes(t)) toast(`Neuer Reiter „ab ${dayDate(t)}“: Was du hier einträgst, gilt erst ab dann`);
-    pickedDay = t > Date.now() ? t : null;
-    renderList();
-  };
-  pick.appendChild(inp);
-  bar.appendChild(pick);
+  });
+  if (cur) bar.appendChild(el("span", "small offerinfo", `Neue Einträge: Angebot ${dayDate(cur)} bis ${dayDate(offerEnd(cur))}`));
+  $("#addInput").placeholder = cur ? `Angebot ab ${dayDate(cur)} …` : "Was fehlt?";
 }
 
+// Abgelaufene Angebote: eingeklappt unten, mit "Trotzdem kaufen" oder weg damit
+let overOpen = false;
+function overBox(over) {
+  const box = el("div", "overbox");
+  const head = el("button", "overhead", `⌛ Angebot abgelaufen (${over.length}) ${overOpen ? "▾" : "▸"}`);
+  head.type = "button";
+  head.setAttribute("aria-expanded", overOpen ? "true" : "false");
+  head.onclick = () => { overOpen = !overOpen; renderList(); };
+  box.appendChild(head);
+  if (!overOpen) return box;
+  over.sort((a, b) => a.offerTo - b.offerTo).forEach(i => {
+    const row = el("div", "overrow");
+    const txt = el("div", "overtext");
+    txt.appendChild(el("span", "itemtext", splitQty(i.text).text));
+    const end = i.offerTo || offerEnd(i.offerFrom);
+    txt.appendChild(el("span", "small", `KW ${kw(i.offerFrom)} · ` + (dayStart(end) === dayStart(i.offerFrom) ? `nur ${dayDate(i.offerFrom)}` : `war bis ${dayDate(end)}`)));
+    const keep = el("button", "btn ghost small", "Trotzdem kaufen");
+    keep.onclick = () => house.update("items", i.id, { offerFrom: null, offerTo: null }).catch(fail("Speichern"));
+    const del = el("button", "btn ghost small adv", "🗑");
+    del.setAttribute("aria-label", `${i.text} löschen`);
+    del.onclick = () => removeItems([i]);
+    row.append(txt, keep, del);
+    box.appendChild(row);
+  });
+  if (over.length > 1) {
+    const all = el("button", "btn ghost small adv overall", "Alle löschen");
+    all.onclick = () => removeItems(over);
+    box.appendChild(all);
+  }
+  return box;
+}
+function removeItems(list) {
+  house.batch(list.map(i => ({ type: "delete", c: "items", id: i.id })))
+    .then(() => toast(list.length === 1 ? `„${splitQty(list[0].text).text}“ gelöscht` : `${list.length} Einträge gelöscht`, {
+      label: "Rückgängig",
+      run: () => house.batch(list.map(({ id, ...data }) => ({ c: "items", id, data }))).catch(fail("Wiederherstellen"))
+    }))
+    .catch(fail("Löschen"));
+}
 
 // Nach dem Eintragen zum Eintrag hinscrollen und ihn kurz aufleuchten lassen
 // Die Liste wird beim Speichern evtl. mehrmals neu gezeichnet, darum gilt das Aufleuchten kurz für jede neue Zeile
@@ -749,7 +777,7 @@ $("#photoClose").onclick = () => $("#photoDlg").close();
 $("#photoDlg").onclick = e => { if (e.target.id !== "photoClose") $("#photoDlg").close(); };
 
 function itemRow(i) {
-  const li = el("li", "swipe");
+  const li = el("li", "swipe" + (!i.done && offerState(i) === "soon" ? " later" : ""));
   li.dataset.id = i.id;
   li.appendChild(el("span", "swipebg", i.done ? "↩ wieder auf die Liste" : "✓ abhaken"));
   const row = el("div", "item" + (i.done ? " isdone" : "") + (i.urgent ? " urgent" : "") + (i.missing ? " missing" : ""));
@@ -779,7 +807,7 @@ function itemRow(i) {
   if (!i.done) {
     const o = offerState(i);
     if (o) meta.appendChild(el("span", "tag offer " + o, `🏷️ KW ${kw(i.offerFrom)} · ` +
-      (o === "soon" ? `ab ${dayDate(i.offerFrom)}` : o === "now" ? `Angebot bis ${shortDay(i.offerTo || offerEnd(i.offerFrom))}` : "Angebot vorbei")));
+      (o === "soon" ? `${dayStart(i.offerTo || offerEnd(i.offerFrom)) === dayStart(i.offerFrom) ? "nur" : "ab"} ${dayDate(i.offerFrom)}` : o === "now" ? (dayStart(i.offerTo || offerEnd(i.offerFrom)) === dayStart(Date.now()) ? "nur noch heute" : `bis ${shortDay(i.offerTo || offerEnd(i.offerFrom))}`) : "Angebot vorbei")));
     else if (Date.now() - i.at > 7 * DAY) meta.appendChild(el("span", "tag old", `seit KW ${kw(i.at)}`));
     if (i.missing) meta.appendChild(el("span", "tag missing", `gab's nicht · ${when(i.missingAt)}`));
     if (isNew(i)) meta.appendChild(el("span", "tag new", "neu"));
@@ -837,8 +865,8 @@ const addItem = (raw, extra = {}) => addItems([raw], extra);
 
 // Mehrere Einträge auf einmal, z. B. "Milch, Eier, Brot" oder eine eingefügte WhatsApp-Liste
 async function addItems(raws, extra = {}) {
-  const tab = curTab(); // im Reiter "ab Mo …" gilt der Eintrag erst ab dann
-  const open = new Map(openOf(S.current, tab).map(i => [sameKey(i.text), i]));
+  const offer = entryOffer[S.current] && offerEnd(entryOffer[S.current]) >= Date.now() ? entryOffer[S.current] : null; // Schalter "Angebot ab"
+  const open = new Map(openOf(S.current).map(i => [sameKey(i.text), i]));
   const ops = [], added = [], skipped = [], joined = [], elsewhere = [];
   const now = Date.now();
   let first = null; // dorthin wird danach gescrollt
@@ -866,7 +894,7 @@ async function addItems(raws, extra = {}) {
     const k = S.known.find(x => x.id === keyOf(text)), id = uid20();
     first ??= id;
     ops.push(
-      { c: "items", id, data: { text, qty, note: "", cat, storeId: S.current, done: false, urgent: false, by: S.uid, at, ...(tab && { offerFrom: tab, offerTo: offerEnd(tab) }) } },
+      { c: "items", id, data: { text, qty, note: "", cat, storeId: S.current, done: false, urgent: false, by: S.uid, at, ...(offer && { offerFrom: offer, offerTo: offerEnd(offer) }) } },
       { c: "known", id: keyOf(text), data: { text, cat, count: (k?.count || 0) + 1, last: at, stores: { ...(k?.stores || {}), [S.current]: at } } }
     );
     added.push(text);
@@ -959,7 +987,7 @@ $("#addInput").oninput = () => {
   const q = norm(text);
   const box = $("#suggest");
   if (q.length < 2) return hideSuggest();
-  const openNow = new Set(openOf(S.current, curTab()).map(i => sameKey(i.text)));
+  const openNow = new Set(openOf(S.current).map(i => sameKey(i.text)));
   const hits = S.known
     .filter(k => !openNow.has(sameKey(k.text)) && norm(k.text) !== q && norm(k.text).includes(q))
     .sort((a, b) => (norm(b.text).startsWith(q) - norm(a.text).startsWith(q)) || b.count - a.count)
@@ -1016,7 +1044,7 @@ $("#oftenClear").onclick = () => {
 
 function renderOften() {
   const id = S.current;
-  const openNow = new Set(openOf(id, curTab()).map(i => sameKey(i.text)));
+  const openNow = new Set(openOf(id).map(i => sameKey(i.text)));
   const all = S.known
     .filter(k => k.stores?.[id] && !openNow.has(sameKey(k.text)) && (k.count || 0) >= 2)
     .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, "de"));
@@ -1080,6 +1108,7 @@ function openItemDlg(i) {
   $("#fMeta").textContent = `Eingetragen von ${nameOf(i.by)}, ${when(i.at)}` + (i.done ? ` · besorgt ${when(i.doneAt)}` : "");
   editWants = { ...wantsOf(i) };
   editOffer = i.offerFrom || null;
+  editOfferTo = i.offerFrom && i.offerTo && i.offerTo !== offerEnd(i.offerFrom) ? i.offerTo : null;
   renderOfferChips();
   renderPhoto();
   renderStoreChips();
@@ -1104,32 +1133,43 @@ function renderWantChips() {
     box.appendChild(b);
   });
 }
-// "Im Angebot?": Kein / Gilt schon / die nächsten Montag, Donnerstag, Freitag (die üblichen Prospekt-Tage)
-let editOffer = null;
-function renderOfferChips() {
-  const box = $("#fOffer"), today = dayStart(Date.now());
+// "Im Angebot?": ab wann (Kein / Gilt schon / nächster Mo, Do, Fr / Kalender) und bis wann (nur an dem Tag / Samstag / Kalender)
+let editOffer = null, editOfferTo = null;
+const fromIso = v => { const [y, m, d] = v.split("-").map(Number); return y ? new Date(y, m - 1, d).getTime() : null; };
+const dayEnd = t => dayStart(t) + DAY - 1;
+function chipRow(box, opts, pick) {
   box.textContent = "";
-  const next = [1, 2, 3, 4, 5, 6, 7].map(n => { const d = new Date(today); d.setDate(d.getDate() + n); return d.getTime(); })
-    .filter(t => [1, 4, 5].includes(new Date(t).getDay()));
-  const isNow = editOffer && editOffer <= Date.now();
-  const opts = [["Kein Angebot", null, !editOffer], ["Gilt schon", isNow ? editOffer : today, isNow],
-    ...next.map(t => [`ab ${dayDate(t)}`, t, editOffer === t])];
   opts.forEach(([label, val, on]) => {
     const b = el("button", "chip" + (on ? " on" : ""), label);
     b.type = "button";
     b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.onclick = () => { editOffer = val; renderOfferChips(); };
+    b.onclick = () => { pick(val); renderOfferChips(); };
     box.appendChild(b);
   });
-  const d = editOffer && new Date(editOffer);
-  $("#fOfferDate").value = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "";
-  $("#fOfferInfo").textContent = editOffer
-    ? `Angebot KW ${kw(editOffer)}: ${dayDate(editOffer)} bis ${dayDate(offerEnd(editOffer))}` + (editOffer > Date.now() ? ` · steht bis dahin im Reiter „ab ${dayDate(editOffer)}“` : "")
-    : "";
 }
-$("#fOfferDate").onchange = e => {
-  const [y, m, d] = e.target.value.split("-").map(Number);
-  editOffer = y ? new Date(y, m - 1, d).getTime() : null;
+function renderOfferChips() {
+  const today = dayStart(Date.now());
+  const next = [1, 4, 5].map(nextDay).map(t => t === today ? t + 7 * DAY : t).sort((a, b) => a - b);
+  const isNow = editOffer && editOffer <= Date.now();
+  chipRow($("#fOffer"), [["Kein Angebot", null, !editOffer], ["Gilt schon", isNow ? editOffer : today, isNow],
+    ...next.map(t => [`ab ${dayDate(t)}`, t, editOffer === t])], v => {
+    editOffer = v;
+    if (v && editOfferTo && editOfferTo < v) editOfferTo = null; // Ende vor dem Anfang passt nicht
+  });
+  $("#fOfferDate").value = editOffer ? isoDay(editOffer) : "";
+  $("#fOfferEndRow").hidden = !editOffer;
+  if (!editOffer) { $("#fOfferInfo").textContent = ""; return; }
+  const end = editOfferTo || offerEnd(editOffer), sat = offerEnd(editOffer), single = dayEnd(editOffer);
+  chipRow($("#fOfferEnd"), [["Nur an dem Tag", single, end === single && single !== sat],
+    [`bis ${dayDate(sat)}`, null, end === sat]], v => { editOfferTo = v; });
+  $("#fOfferEndDate").value = isoDay(end);
+  $("#fOfferInfo").textContent = `KW ${kw(editOffer)} · ${dayStart(end) === dayStart(editOffer) ? `nur ${dayDate(editOffer)}` : `${dayDate(editOffer)} bis ${dayDate(end)}`}` +
+    (editOffer > Date.now() ? " · steht bis dahin blass auf der Liste" : "");
+}
+$("#fOfferDate").onchange = e => { editOffer = fromIso(e.target.value); editOfferTo = null; renderOfferChips(); };
+$("#fOfferEndDate").onchange = e => {
+  const t = fromIso(e.target.value);
+  editOfferTo = t && t >= dayStart(editOffer) ? dayEnd(t) : null;
   renderOfferChips();
 };
 function renderPhoto() {
@@ -1208,7 +1248,7 @@ $("#itemForm").onsubmit = async e => {
   const data = {
     text, qty, note: $("#fNote").value.trim(), cat, wants: people.length > 1 ? editWants : null,
     urgent: $("#fUrgent").checked, photo: editPhoto || null, storeId: editStoreId,
-    offerFrom: editOffer || null, offerTo: editOffer ? offerEnd(editOffer) : null
+    offerFrom: editOffer || null, offerTo: editOffer ? editOfferTo || offerEnd(editOffer) : null
   };
   const ops = [{ type: "update", c: "items", id: editItem.id, data }];
   // Geänderte Abteilung merken, damit sie beim nächsten Mal stimmt
