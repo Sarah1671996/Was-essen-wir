@@ -225,6 +225,14 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 @media (orientation:portrait){.fsportrait{display:block;position:absolute;left:50%;top:40%;transform:translateX(-50%);background:rgba(10,22,32,.8);padding:8px 14px;border-radius:99px;font-weight:700;pointer-events:none;white-space:nowrap;z-index:2}}
 .fsresult{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,460px);max-height:90vh;overflow:auto;display:grid;gap:8px;background:var(--surface);color:var(--ink);border-radius:14px;padding:16px 18px;border-top:6px solid var(--sb);z-index:6}
 .fsresult.no{border-top-color:var(--bb)}
+.knotlist{display:grid;gap:10px}
+.knot{display:grid;gap:8px}
+.knothead{display:flex;gap:10px;align-items:center;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left;width:100%}
+.knothead b{font-family:var(--f-display);font-size:1.15rem;margin-right:auto}
+.ksteps{margin:0;padding-left:1.3em;display:grid;gap:4px;max-width:70ch}
+.kres{display:grid;gap:4px;border-radius:10px;padding:10px 12px;background:var(--bg)}
+.kres.ok{background:var(--sb-soft)} .kres.ok b{color:var(--sb)}
+.kres.no{background:var(--bb-soft)} .kres.no b{color:var(--bb)}
 .fslook{position:absolute;right:max(10px,env(safe-area-inset-right,0px));bottom:max(10px,env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:1fr 1fr;gap:6px;z-index:3}
 .fslook .fsbtn{padding:8px 10px}
 .fsbtn.on{background:#ff7a3d;border-color:#ff7a3d}
@@ -368,7 +376,7 @@ const imgTag = (q, cls = "qimg") => q.img.map(id => `<img class="${cls}${LIGHT.h
 /* ---------- Lernstand (lokal + optional synchronisiert) ---------- */
 const LS_KEY = "sbfsee-progress-v1";
 let P = blank();
-function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {}, nav: {}, notes: {}, termin: null }; }
+function blank() { return { c: {}, daily: null, exams: [], dailySize: 10, days: {}, nav: {}, notes: {}, termin: null, knoten: {} }; }
 try { const raw = localStorage.getItem(LS_KEY); if (raw) P = Object.assign(blank(), JSON.parse(raw)); } catch (e) {}
 function merge(a, b) {
   const out = Object.assign(blank(), a);
@@ -381,7 +389,7 @@ function merge(a, b) {
   out.days = Object.assign({}, a.days);
   for (const [k, v] of Object.entries(b.days || {})) out.days[k] = Math.max(out.days[k] || 0, v);
   if (b.termin && (!out.termin || (b.termin.t || 0) > (out.termin.t || 0))) out.termin = b.termin;
-  for (const f of ["nav", "notes"]) {
+  for (const f of ["nav", "notes", "knoten"]) {
     out[f] = Object.assign({}, a[f]);
     for (const [k, v] of Object.entries(b[f] || {})) if (!out[f][k] || (v.t || 0) > (out[f][k].t || 0)) out[f][k] = v;
   }
@@ -462,7 +470,7 @@ async function fbInit() {
   });
   let db;
   try { db = fs.initializeFirestore(app, { localCache: fs.persistentLocalCache() }); } catch (e) { db = fs.getFirestore(app); }
-  fb = { fs, db };
+  fb = { fs, db, app };
   return fb;
 }
 // Mit einem Lerncode verbinden; isNew legt ihn mit dem Lernstand dieses Geräts an
@@ -2148,9 +2156,10 @@ function loadThree() {
 }
 
 function vPraxis(m) {
+  if (praxisTab === "knoten" && !simPick) return vKnoten(m);
   if (!simPick) {
     m.innerHTML = `<div class="view">
-      <div><div class="eyebrow">Manöver üben</div><h2>Praxis-Simulator</h2></div>
+      <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Manöver üben</div><h2>Praxis-Simulator</h2></div>${praxisSeg()}</div>
       <section class="panel" style="display:grid;gap:8px">
         <p style="margin:0;max-width:70ch">Du stehst am Steuerstand eines Motorboots: <b>Steuerrad in der Mitte</b>, <b>Schalthebel links</b>. Das Ruder bleibt liegen, wo du es hindrehst, das Boot reagiert verzögert und dreht nach. Die orange markierte Speiche oben am Rad heißt: Ruder mittschiffs.</p>
         <p class="muted" style="margin:0;font-size:.88rem">Am besten das <b>Handy quer halten</b>. Das Rad drehst du mit dem Finger, den Hebel schiebst du nach oben (voraus) oder unten (zurück). Am PC: Pfeiltasten ← → für das Rad, ↑ ↓ für den Hebel. Ein vereinfachtes Modell ohne Wind und Strömung, es ersetzt keine Fahrstunde.</p>
@@ -2410,6 +2419,195 @@ document.addEventListener("keydown", e => {
 });
 document.addEventListener("keyup", e => { if (sim && (e.key === "ArrowLeft" || e.key === "ArrowRight")) sim.steer = 0; });
 
+
+/* ---------- Knoten für die praktische Prüfung ---------- */
+// Zweck und Anleitung in eigenen Worten; „kw“ sind Stichwörter, an denen die gesprochene Antwort erkannt wird
+const KNOTEN = [
+  { id: "acht", name: "Achtknoten", alias: ["acht", "achter", "achtknoten"],
+    zweck: "Stopperknoten am Ende einer Leine. Er verhindert, dass die Leine (z. B. eine Schot) durch einen Block, eine Klemme oder eine Öse ausrauscht.",
+    kw: ["ausrauschen", "rausrutschen", "durchrutschen", "durchrauschen", "stopper", "ende", "block", "klemme", "öse", "schot", "rausrauschen"],
+    schritte: ["Mit dem Ende eine Bucht über die stehende Part legen, sodass ein Auge entsteht.", "Das Ende hinten um die stehende Part herumführen.", "Das Ende von vorne durch das Auge stecken.", "Festziehen: Der Knoten sieht aus wie eine liegende 8."],
+    fehler: ["Nur ein einfacher Überhandknoten (keine 8 zu sehen).", "Ende zu kurz, Knoten löst sich."],
+    pruefen: ["Ist eine klare 8 zu erkennen?", "Sitzt der Knoten am Ende der Leine und lässt sich leicht wieder lösen?"] },
+  { id: "kreuz", name: "Kreuzknoten", alias: ["kreuz", "kreuzknoten", "reffknoten"],
+    zweck: "Verbindet zwei gleich dicke Enden, z. B. Reffbändsel oder zum Zusammenbinden eines Pakets. Nicht für unterschiedlich dicke oder stark belastete Leinen.",
+    kw: ["gleich", "gleichstark", "gleich dick", "zwei enden", "reff", "bändsel", "paket", "zusammenbinden", "verbinden"],
+    schritte: ["Linkes Ende über das rechte legen und einmal umschlingen.", "Jetzt das (neue) rechte Ende über das linke legen und wieder umschlingen.", "Festziehen: Beide Enden liegen parallel auf derselben Seite."],
+    fehler: ["Altweiberknoten: beide Male in dieselbe Richtung geschlungen, die Enden stehen schräg ab.", "Enden auf verschiedenen Seiten (Diebesknoten)."],
+    pruefen: ["Bilden die beiden Schlaufen ein flaches, symmetrisches Bild?", "Liegen beide kurzen Enden auf derselben Seite parallel zu den Leinen?"] },
+  { id: "pal", name: "Palstek", alias: ["palstek", "pahlstek", "pal"],
+    zweck: "Feste Schlinge (Auge) am Ende einer Leine, die sich nicht zuzieht, z. B. zum Überlegen über einen Poller oder als Rettungsschlinge um eine Person.",
+    kw: ["schlinge", "auge", "zieht sich nicht zu", "nicht zuzieht", "poller", "rettung", "person", "festmachen", "überlegen", "feste schlaufe", "schlaufe"],
+    schritte: ["In die stehende Part ein kleines Auge legen, das Ende oben drauf.", "Das Ende von unten durch das Auge stecken („der Frosch kommt aus dem Teich“).", "Das Ende hinter der stehenden Part herumführen („um den Baum“).", "Das Ende zurück durch das kleine Auge stecken („zurück in den Teich“) und festziehen."],
+    fehler: ["Kleines Auge falsch herum gelegt: Der Knoten rutscht oder fällt beim Belasten auseinander.", "Ende um die falsche Seite der stehenden Part geführt."],
+    pruefen: ["Zieht sich die große Schlinge unter Zug NICHT zu?", "Liegt das kurze Ende innerhalb der großen Schlinge?"] },
+  { id: "schot", name: "Schotstek (einfach und doppelt)", alias: ["schotstek", "schot", "doppelter schotstek", "einfacher schotstek"],
+    zweck: "Verbindet zwei Leinen unterschiedlicher Stärke oder steckt eine Leine an ein Auge an (z. B. am Schothorn). Der doppelte Schotstek hält sicherer.",
+    kw: ["unterschiedlich", "verschieden", "dick", "dünn", "ungleich", "zwei leinen", "schothorn", "auge", "anstecken", "verbinden"],
+    schritte: ["Mit der dickeren Leine eine Bucht legen.", "Das dünne Ende von unten durch die Bucht stecken.", "Um beide Parten der Bucht herumführen.", "Unter sich selbst durchstecken, nicht durch die Bucht. Doppelt: noch einmal herum und wieder unter sich selbst durch."],
+    fehler: ["Ende durch die Bucht statt unter sich selbst gesteckt.", "Kurzes Ende auf der falschen Seite: hält schlechter."],
+    pruefen: ["Liegen beide kurzen Enden auf derselben Seite?", "Hält die Verbindung, wenn du an beiden Leinen ziehst?"] },
+  { id: "webe", name: "Webeleinstek", alias: ["webeleinstek", "webeleine", "webleinstek"],
+    zweck: "Belegt eine Leine an einer Stange, Reling oder einem Pfahl, z. B. einen Fender an der Reling. Schnell gemacht und in der Höhe verstellbar.",
+    kw: ["fender", "reling", "stange", "pfahl", "rundholz", "festmachen", "dalbe", "pfosten", "aufhängen"],
+    schritte: ["Das Ende einmal um die Stange legen.", "Über die stehende Part kreuzen und ein zweites Mal um die Stange.", "Das Ende unter der Kreuzung durchstecken, sodass es in die entgegengesetzte Richtung der stehenden Part zeigt.", "Festziehen."],
+    fehler: ["Ende nicht unter der Kreuzung durch: Der Stek rutscht ab.", "Nur ein Törn statt zwei."],
+    pruefen: ["Ist auf der Vorderseite ein „X“ zu sehen?", "Kommen stehende Part und Ende unter dem X in entgegengesetzte Richtungen heraus?"] },
+  { id: "rund", name: "Rundtörn mit zwei halben Schlägen", alias: ["rundtörn", "rundtoern", "halbe schläge", "zwei halben schlägen"],
+    zweck: "Macht eine Leine an einem Ring, Poller oder Pfahl fest, wenn Zug darauf ist. Der Rundtörn nimmt die Last, der Knoten lässt sich auch unter Last lösen.",
+    kw: ["ring", "poller", "pfahl", "last", "zug", "belastet", "festmachen", "boje", "lösen unter last", "unter zug"],
+    schritte: ["Das Ende zweimal ganz um den Ring oder Pfahl führen (Rundtörn).", "Einen halben Schlag um die stehende Part legen.", "Einen zweiten halben Schlag in derselben Richtung daneben legen.", "Zusammenschieben und festziehen."],
+    fehler: ["Die beiden halben Schläge in verschiedene Richtungen: ergibt keinen Webeleinstek-Abschluss und rutscht.", "Nur ein Törn um den Ring."],
+    pruefen: ["Liegen zwei volle Windungen um den Ring?", "Sehen die beiden halben Schläge wie ein Webeleinstek um die stehende Part aus?"] },
+  { id: "klampe", name: "Klampe belegen (mit Kopfschlag)", alias: ["klampe", "klampe belegen", "kopfschlag", "belegen"],
+    zweck: "Belegt eine Leine sicher auf einer Klampe, z. B. Festmacher oder Fall, und lässt sich schnell wieder lösen.",
+    kw: ["klampe", "belegen", "festmacher", "festmachen", "kopfschlag", "fall", "leine sichern"],
+    schritte: ["Die Leine einmal ganz um den Fuß der Klampe führen (Rundtörn), auf der Seite beginnen, die vom Zug abgewandt ist.", "In Achterschlägen über die beiden Hörner legen.", "Zum Schluss einen Kopfschlag: eine Schlinge so umdrehen, dass das Ende darunter liegt, und über das Horn legen.", "Das Ende liegt parallel zu den anderen Schlägen."],
+    fehler: ["Ohne Rundtörn am Fuß: Die Leine klemmt beim Lösen.", "Mehrere Kopfschläge übereinander: schwer zu lösen."],
+    pruefen: ["Liegt zuerst ein Törn um den Fuß?", "Liegen die Schläge sauber als 8 über den Hörnern mit genau einem Kopfschlag?"] }
+];
+let praxisTab = "sim", knotTask = null, knotOpen = null;
+const knotStat = id => (P.knoten && P.knoten[id]) || { ok: 0, w: 0, t: 0 };
+function knotRecord(id, ok) { const k = Object.assign({}, P.knoten), s = Object.assign({ ok: 0, w: 0 }, k[id]); ok ? s.ok++ : s.w++; s.last = ok; s.t = Date.now(); k[id] = s; P.knoten = k; logDay(); save(); }
+const youtube = k => "https://www.youtube.com/results?search_query=" + encodeURIComponent(k.name.replace(/\s*\(.*\)/, "") + " Knoten Anleitung");
+const normT = s => s.toLowerCase().replace(/ß/g, "ss").replace(/[^a-zäöü0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+// Bewertet eine gesprochene oder getippte Antwort zum Zweck: mindestens ein Stichwort des Knotens
+function judgeZweck(k, text) { const t = normT(text); const hits = k.kw.filter(w => t.includes(normT(w))); return { ok: hits.length > 0, hits }; }
+function judgeName(k, text) { const t = normT(text); return k.alias.some(a => t.includes(normT(a))); }
+
+const praxisSeg = () => `<div class="seg" role="group" aria-label="Praxis"><button data-ptab="sim" aria-pressed="${praxisTab === "sim"}">Simulator</button><button data-ptab="knoten" aria-pressed="${praxisTab === "knoten"}">Knoten</button></div>`;
+document.addEventListener("click", e => { const b = e.target.closest("[data-ptab]"); if (!b) return; praxisTab = b.dataset.ptab; knotTask = null; render(); });
+
+function vKnoten(m) {
+  if (knotTask) return vKnotTask(m);
+  const doneOk = KNOTEN.filter(k => knotStat(k.id).last === true).length;
+  m.innerHTML = `<div class="view">
+    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praktische Prüfung</div><h2>Knoten</h2></div>${praxisSeg()}</div>
+    <section class="panel" style="display:grid;gap:10px">
+      <p style="margin:0;max-width:70ch">In der praktischen Prüfung musst du diese <b>7 Knoten</b> binden und sagen können, <b>wofür</b> man sie braucht. Frag zur Sicherheit bei deiner Bootsschule nach, ob sie genau diese Liste prüft.</p>
+      <div class="row"><button class="btn primary" id="kstart">Zufällige Aufgabe</button><button class="btn" id="kname">Welcher Knoten wofür?</button><span class="muted" style="font-size:.85rem">${doneOk} von 7 zuletzt richtig</span></div>
+    </section>
+    <div class="knotlist">${KNOTEN.map(k => { const s = knotStat(k.id), open = knotOpen === k.id; return `<article class="panel knot">
+      <button class="knothead" data-kopen="${k.id}"><b>${esc(k.name)}</b>${s.t ? `<span class="pill ${s.last ? "ok" : "no"}">${s.last ? "zuletzt richtig" : "zuletzt falsch"}</span>` : `<span class="pill n">noch nicht geübt</span>`}<span class="muted">${open ? "▲" : "▼"}</span></button>
+      <p style="margin:0"><b>Wofür:</b> ${esc(k.zweck)}</p>
+      ${open ? `<div style="display:grid;gap:8px"><b>So geht's</b><ol class="ksteps">${k.schritte.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
+        <b>Typische Fehler</b><ul class="ksteps">${k.fehler.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+        <b>Selbst prüfen</b><ul class="ksteps">${k.pruefen.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+        <div class="row"><a class="btn small" href="${youtube(k)}" target="_blank" rel="noopener">Videos ansehen ↗</a><button class="btn small primary" data-ktask="${k.id}">Diesen Knoten üben</button></div></div>` : ""}
+    </article>`; }).join("")}</div>
+  </div>`;
+  m.querySelectorAll("[data-kopen]").forEach(b => b.onclick = () => { knotOpen = knotOpen === b.dataset.kopen ? null : b.dataset.kopen; render(); });
+  m.querySelectorAll("[data-ktask]").forEach(b => b.onclick = () => { knotTask = { k: KNOTEN.find(x => x.id === b.dataset.ktask), mode: "binden", step: 1, t0: Date.now() }; render(); window.scrollTo(0, 0); });
+  $("#kstart").onclick = () => { knotTask = { k: pickKnot(), mode: "binden", step: 1, t0: Date.now() }; render(); window.scrollTo(0, 0); };
+  $("#kname").onclick = () => { knotTask = { k: pickKnot(), mode: "name", step: 1 }; render(); window.scrollTo(0, 0); };
+}
+// Bevorzugt Knoten, die noch nicht oder zuletzt falsch geübt wurden
+function pickKnot() { return KNOTEN.map(k => [k, (knotStat(k.id).last === true ? 2 : knotStat(k.id).t ? 0 : 1) + Math.random() * 1.5]).sort((a, b) => a[1] - b[1])[0][0]; }
+
+function vKnotTask(m) {
+  const T = knotTask, k = T.k;
+  const head = `<div class="row" style="justify-content:space-between"><div><div class="eyebrow">Knoten üben</div><h2>${T.mode === "name" ? "Welcher Knoten?" : esc(k.name)}</h2></div><button class="btn small" id="kback">Zurück</button></div>`;
+  if (T.mode === "name") {
+    m.innerHTML = `<div class="view">${head}
+      <section class="panel" style="display:grid;gap:12px">
+        <p style="margin:0">Welchen Knoten nimmst du dafür?</p><b style="font-size:1.15rem">${esc(k.zweck.split(". ")[0].replace(/\.$/, "") + ".")}</b>
+        ${answerBox("Knoten nennen")}
+        <div id="kres"></div>
+      </section></div>`;
+    wireAnswer(text => { const ok = judgeName(k, text); knotRecord(k.id, ok); return ok ? `<div class="kres ok"><b>Richtig: ${esc(k.name)}</b></div>` : `<div class="kres no"><b>Gesucht war: ${esc(k.name)}</b><span>Du hast gesagt: „${esc(text)}“</span></div>`; },
+      () => { knotTask = { k: pickKnot(), mode: "name", step: 1 }; render(); });
+  } else {
+    m.innerHTML = `<div class="view">${head}
+      <section class="panel" style="display:grid;gap:12px">
+        <div class="eyebrow">Schritt 1</div><b style="font-size:1.15rem">Binde jetzt einen ${esc(k.name.replace(/\s*\(.*\)/, ""))}.</b>
+        <p class="muted" style="margin:0">Nimm ein Stück Leine. Wenn du fertig bist, prüfe ihn mit den Fragen unten${CAN_FB ? " oder lass ein Foto prüfen" : ""}.</p>
+        <ul class="ksteps">${k.pruefen.map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+        ${CAN_FB ? `<div class="row"><button class="btn" id="kphoto">📷 Foto prüfen lassen (KI)</button><input type="file" id="kfile2" accept="image/*" capture="environment" hidden><span class="muted" style="font-size:.8rem">ohne Gewähr</span></div><div id="kai"></div>` : ""}
+        <details><summary class="muted">Anleitung anzeigen</summary><ol class="ksteps">${k.schritte.map(x => `<li>${esc(x)}</li>`).join("")}</ol></details>
+      </section>
+      <section class="panel" style="display:grid;gap:12px">
+        <div class="eyebrow">Schritt 2</div><b style="font-size:1.15rem">Wofür benutzt man den ${esc(k.name.replace(/\s*\(.*\)/, ""))}?</b>
+        ${answerBox("Zweck sagen")}
+        <div id="kres"></div>
+      </section></div>`;
+    wireAnswer(text => {
+      const r = judgeZweck(k, text); knotRecord(k.id, r.ok);
+      return `<div class="kres ${r.ok ? "ok" : "no"}"><b>${r.ok ? "Richtig!" : "Das passt noch nicht ganz."}</b>
+        <span>Du hast gesagt: „${esc(text)}“${r.hits.length ? ` (erkannt: ${esc(r.hits.join(", "))})` : ""}</span>
+        <span><b>Musterantwort:</b> ${esc(k.zweck)}</span></div>`;
+    }, () => { knotTask = { k: pickKnot(), mode: "binden", step: 1, t0: Date.now() }; render(); window.scrollTo(0, 0); });
+    if ($("#kphoto")) { $("#kphoto").onclick = () => $("#kfile2").click(); $("#kfile2").onchange = e => { const f = e.target.files[0]; if (f) checkKnotPhoto(k, f); e.target.value = ""; }; }
+  }
+  $("#kback").onclick = () => { knotTask = null; render(); };
+}
+
+/* Antwort per Sprache (Mikrofon) oder getippt */
+const SpeechRec = window.SpeechRecognition || window.webkitSpeechRecognition;
+function answerBox(label) {
+  return `<div class="row" style="align-items:end">
+    ${SpeechRec ? `<button class="btn primary" id="kmic">🎤 ${label}</button>` : ""}
+    <label class="field" style="flex:1 1 220px">${SpeechRec ? "oder tippen" : "Deine Antwort"}<input type="text" id="kans" autocomplete="off" placeholder="z. B. damit die Leine nicht ausrauscht"></label>
+    <button class="btn" id="kcheck">Prüfen</button></div>`;
+}
+function wireAnswer(judge, next) {
+  const show = text => {
+    if (!text.trim()) { toast("Bitte erst antworten."); return; }
+    $("#kres").innerHTML = judge(text) + `<div class="row" style="margin-top:10px"><button class="btn primary" id="knext">Nächster Knoten</button></div>`;
+    $("#knext").onclick = next; $("#kcheck").disabled = true; if ($("#kmic")) $("#kmic").disabled = true;
+  };
+  $("#kcheck").onclick = () => show($("#kans").value);
+  $("#kans").onkeydown = e => { if (e.key === "Enter") show($("#kans").value); };
+  if ($("#kmic")) $("#kmic").onclick = () => {
+    const rec = new SpeechRec(); rec.lang = "de-DE"; rec.interimResults = false; rec.maxAlternatives = 3;
+    const btn = $("#kmic"); btn.textContent = "🎤 Ich höre zu …"; btn.disabled = true;
+    rec.onresult = e => { const alts = [...e.results[0]].map(a => a.transcript); $("#kans").value = alts[0]; show(alts.join(" ")); };
+    rec.onerror = e => { toast(e.error === "not-allowed" ? "Mikrofon ist nicht erlaubt. Bitte in den Browser-Einstellungen freigeben." : "Nichts verstanden, bitte nochmal oder tippen."); };
+    rec.onend = () => { if (!$("#kcheck").disabled) { btn.disabled = false; btn.textContent = "🎤 Nochmal sprechen"; } };
+    try { rec.start(); } catch (e) { btn.disabled = false; }
+  };
+}
+
+/* Foto vom Knoten per KI prüfen (Firebase AI Logic, wie der Kassenbon in der Einkaufs-App) */
+const KNOT_AI_MODEL = "gemini-3.5-flash-lite"; // Google schaltet ältere Modelle ab; dann hier aktualisieren
+let knotModel = null;
+async function getKnotModel() {
+  if (knotModel) return knotModel;
+  const { app } = await fbInit();
+  const ai = await import(FB + "firebase-ai.js"), S = ai.Schema;
+  const schema = S.object({ properties: {
+    knotenSichtbar: S.boolean({ description: "Ist überhaupt ein Knoten in einer Leine zu sehen?" }),
+    erkannt: S.string({ description: "Welcher Knoten ist es am wahrscheinlichsten (deutscher Name)?" }),
+    korrekt: S.boolean({ description: "Ist der gesuchte Knoten korrekt gebunden?" }),
+    sicherheit: S.enumString({ enum: ["hoch", "mittel", "niedrig"] }),
+    hinweis: S.string({ description: "Kurzer Hinweis auf Deutsch: was gut ist oder was falsch aussieht" }) } });
+  knotModel = ai.getGenerativeModel(ai.getAI(app, { backend: new ai.GoogleAIBackend() }), { model: KNOT_AI_MODEL, generationConfig: { responseMimeType: "application/json", responseSchema: schema, temperature: 0 } });
+  return knotModel;
+}
+async function shrinkPhoto(file) {
+  const img = await createImageBitmap(file), max = 1024, sc = Math.min(1, max / Math.max(img.width, img.height));
+  const c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc); c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.85);
+}
+async function checkKnotPhoto(k, file) {
+  const box = $("#kai"); box.innerHTML = `<div class="kres"><span>Foto wird geprüft …</span></div>`;
+  try {
+    const [model, dataUrl] = await Promise.all([getKnotModel(), shrinkPhoto(file)]);
+    const prompt = `Auf dem Foto soll ein "${k.name}" zu sehen sein, ein Seemannsknoten aus der Prüfung zum Sportbootführerschein. ` +
+      `So wird er gebunden: ${k.schritte.join(" ")} Typische Fehler: ${k.fehler.join(" ")} ` +
+      `Beurteile ehrlich, ob der gesuchte Knoten korrekt gebunden ist. Wenn das Foto unscharf ist oder du unsicher bist, setze sicherheit auf "niedrig" und sage das im Hinweis. Erfinde nichts.`;
+    const res = await Promise.race([model.generateContent([prompt, { inlineData: { mimeType: "image/jpeg", data: dataUrl.split(",")[1] } }]),
+      new Promise((_, rej) => setTimeout(() => rej(new Error("Zeitüberschreitung")), 30000))]);
+    const r = JSON.parse(res.response.text());
+    const ok = r.knotenSichtbar && r.korrekt;
+    box.innerHTML = `<div class="kres ${!r.knotenSichtbar ? "" : ok ? "ok" : "no"}"><b>${!r.knotenSichtbar ? "Kein Knoten erkannt" : ok ? "Sieht nach einem richtigen " + esc(k.name.replace(/\s*\(.*\)/, "")) + " aus" : "Sieht noch nicht richtig aus"}</b>
+      ${r.erkannt ? `<span>Erkannt: ${esc(r.erkannt)} · Sicherheit: ${esc(r.sicherheit || "?")}</span>` : ""}<span>${esc(r.hinweis || "")}</span>
+      <span class="muted" style="font-size:.8rem">Die KI kann sich irren. Prüf zusätzlich mit den Fragen oben.</span></div>`;
+  } catch (e) {
+    const appCheck = /App Check/i.test(e.message || "");
+    box.innerHTML = `<div class="kres no"><span>${appCheck ? "Die Foto-Prüfung ist im Firebase-Projekt noch nicht freigeschaltet (App Check). Bis dahin: mit den Fragen oben selbst prüfen."
+      : `Das Foto konnte nicht geprüft werden (${esc(e.message || "Fehler")}). Bist du online?`}</span></div>`;
+  }
+}
 
 render();
 initSync();

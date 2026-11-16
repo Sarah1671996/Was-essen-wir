@@ -235,6 +235,14 @@ label.field select,label.field input{color:var(--ink);font-weight:400;font-size:
 @media (orientation:portrait){.fsportrait{display:block;position:absolute;left:50%;top:40%;transform:translateX(-50%);background:rgba(10,22,32,.8);padding:8px 14px;border-radius:99px;font-weight:700;pointer-events:none;white-space:nowrap;z-index:2}}
 .fsresult{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(92vw,460px);max-height:90vh;overflow:auto;display:grid;gap:8px;background:var(--surface);color:var(--ink);border-radius:14px;padding:16px 18px;border-top:6px solid var(--sb);z-index:6}
 .fsresult.no{border-top-color:var(--bb)}
+.knotlist{display:grid;gap:10px}
+.knot{display:grid;gap:8px}
+.knothead{display:flex;gap:10px;align-items:center;background:none;border:0;padding:0;color:inherit;font:inherit;cursor:pointer;text-align:left;width:100%}
+.knothead b{font-family:var(--f-display);font-size:1.15rem;margin-right:auto}
+.ksteps{margin:0;padding-left:1.3em;display:grid;gap:4px;max-width:70ch}
+.kres{display:grid;gap:4px;border-radius:10px;padding:10px 12px;background:var(--bg)}
+.kres.ok{background:var(--sb-soft)} .kres.ok b{color:var(--sb)}
+.kres.no{background:var(--bb-soft)} .kres.no b{color:var(--bb)}
 .fslook{position:absolute;right:max(10px,env(safe-area-inset-right,0px));bottom:max(10px,env(safe-area-inset-bottom,0px));display:grid;grid-template-columns:1fr 1fr;gap:6px;z-index:3}
 .fslook .fsbtn{padding:8px 10px}
 .fsbtn.on{background:#ff7a3d;border-color:#ff7a3d}
