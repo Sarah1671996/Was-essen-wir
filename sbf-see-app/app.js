@@ -2268,9 +2268,10 @@ async function checkKnotPhoto(k, file) {
       ${r.erkannt ? `<span>Erkannt: ${esc(r.erkannt)} · Sicherheit: ${esc(r.sicherheit || "?")}</span>` : ""}<span>${esc(r.hinweis || "")}</span>
       <span class="muted" style="font-size:.8rem">Die KI kann sich irren. Prüf zusätzlich mit den Fragen oben.</span></div>`;
   } catch (e) {
-    const appCheck = /App Check/i.test(e.message || "");
+    const msg = e.message || "", appCheck = /App Check/i.test(msg), credits = /prepayment credits|billing|429/i.test(msg);
     box.innerHTML = `<div class="kres no"><span>${appCheck ? "Die Foto-Prüfung ist im Firebase-Projekt noch nicht freigeschaltet (App Check). Bis dahin: mit den Fragen oben selbst prüfen."
-      : `Das Foto konnte nicht geprüft werden (${esc(e.message || "Fehler")}). Bist du online?`}</span></div>`;
+      : credits ? "Das KI-Guthaben im Google-Projekt ist aufgebraucht (Google AI Studio → Abrechnung). Bis dahin: mit den Fragen oben selbst prüfen."
+      : `Das Foto konnte nicht geprüft werden (${esc(msg || "Fehler")}). Bist du online?`}</span></div>`;
   }
 }
 
