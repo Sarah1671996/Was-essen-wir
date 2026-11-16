@@ -16,7 +16,7 @@ const boegen = JSON.parse(read("quelle/daten/boegen.json"));
 const navigation = JSON.parse(read("quelle/daten/navigation.json"));
 const data = "const DATA = " + JSON.stringify({ questions, images, lightImages, boegen, navigation }) + ";";
 
-const src = read("quelle/app.html").toString();
+const src = read("quelle/app.html").toString().replace(/\r\n/g, "\n"); // Windows-Zeilenenden (git autocrlf) vereinheitlichen
 const DATA_TAG = "<script>\n/*__DATA__*/\n</script>";
 if (!src.includes(DATA_TAG)) throw new Error("Platzhalter für die Daten fehlt in app.html");
 

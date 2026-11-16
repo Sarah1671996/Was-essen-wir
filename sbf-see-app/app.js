@@ -2068,48 +2068,66 @@ document.addEventListener("keyup", e => { if (sim && (e.key === "ArrowLeft" || e
 /* ---------- Knoten für die praktische Prüfung ---------- */
 // Zweck und Anleitung in eigenen Worten; „kw“ sind Stichwörter, an denen die gesprochene Antwort erkannt wird
 const KNOTEN = [
-  { id: "acht", name: "Achtknoten", alias: ["acht", "achter", "achtknoten"],
-    zweck: "Stopperknoten am Ende einer Leine. Er verhindert, dass die Leine (z. B. eine Schot) durch einen Block, eine Klemme oder eine Öse ausrauscht.",
-    kw: ["ausrauschen", "rausrutschen", "durchrutschen", "durchrauschen", "stopper", "ende", "block", "klemme", "öse", "schot", "rausrauschen"],
+  { id: "pal", name: "Palstek", alias: ["palstek", "pahlstek"], frage: "Eine feste Schlaufe, die sich nicht zuzieht, z. B. zum Festmachen an einem Poller oder zur Rettung.",
+    zweck: "Bildet eine feste Schlaufe, die sich nicht zuzieht, z. B. zum Festmachen an einem Poller oder zur Rettung.",
+    kw: ["schlinge", "schlaufe", "auge", "zieht sich nicht zu", "nicht zuzieht", "nicht zu", "poller", "rettung", "retten", "person", "festmachen"],
+    schritte: ["In die stehende Part ein kleines Auge legen, das Ende oben drauf.", "Das Ende von unten durch das Auge stecken („der Frosch kommt aus dem Teich“).", "Das Ende hinter der stehenden Part herumführen („um den Baum“).", "Das Ende zurück durch das kleine Auge stecken („zurück in den Teich“) und festziehen."],
+    fehler: ["Kleines Auge falsch herum gelegt: Der Knoten rutscht oder fällt beim Belasten auseinander.", "Ende um die falsche Seite der stehenden Part geführt."],
+    pruefen: ["Zieht sich die große Schlaufe unter Zug NICHT zu?", "Liegt das kurze Ende innerhalb der großen Schlaufe?"] },
+  { id: "acht", name: "Achtknoten", alias: ["achtknoten", "acht", "achter"], frage: "Ein Stopper am Leinenende, damit die Leine nicht durch eine Öse rutscht.",
+    zweck: "Dient als Stopper am Leinenende, um ein Durchrutschen durch eine Öse zu verhindern.",
+    kw: ["stopper", "durchrutschen", "rutschen", "ausrauschen", "rauschen", "öse", "ende", "block", "klemme"],
     schritte: ["Mit dem Ende eine Bucht über die stehende Part legen, sodass ein Auge entsteht.", "Das Ende hinten um die stehende Part herumführen.", "Das Ende von vorne durch das Auge stecken.", "Festziehen: Der Knoten sieht aus wie eine liegende 8."],
     fehler: ["Nur ein einfacher Überhandknoten (keine 8 zu sehen).", "Ende zu kurz, Knoten löst sich."],
     pruefen: ["Ist eine klare 8 zu erkennen?", "Sitzt der Knoten am Ende der Leine und lässt sich leicht wieder lösen?"] },
-  { id: "kreuz", name: "Kreuzknoten", alias: ["kreuz", "kreuzknoten", "reffknoten"],
-    zweck: "Verbindet zwei gleich dicke Enden, z. B. Reffbändsel oder zum Zusammenbinden eines Pakets. Nicht für unterschiedlich dicke oder stark belastete Leinen.",
-    kw: ["gleich", "gleichstark", "gleich dick", "zwei enden", "reff", "bändsel", "paket", "zusammenbinden", "verbinden"],
+  { id: "kreuz", name: "Kreuzknoten", alias: ["kreuzknoten", "kreuz", "reffknoten"], frage: "Verbindet zwei gleich dicke Leinen, z. B. zum Reffen.",
+    zweck: "Verbindet zwei gleich dicke Leinen, z. B. zum Reffen.",
+    kw: ["gleich", "gleich dick", "gleich stark", "reff", "reffen", "bändsel", "zwei enden"],
     schritte: ["Linkes Ende über das rechte legen und einmal umschlingen.", "Jetzt das (neue) rechte Ende über das linke legen und wieder umschlingen.", "Festziehen: Beide Enden liegen parallel auf derselben Seite."],
     fehler: ["Altweiberknoten: beide Male in dieselbe Richtung geschlungen, die Enden stehen schräg ab.", "Enden auf verschiedenen Seiten (Diebesknoten)."],
     pruefen: ["Bilden die beiden Schlaufen ein flaches, symmetrisches Bild?", "Liegen beide kurzen Enden auf derselben Seite parallel zu den Leinen?"] },
-  { id: "pal", name: "Palstek", alias: ["palstek", "pahlstek", "pal"],
-    zweck: "Feste Schlinge (Auge) am Ende einer Leine, die sich nicht zuzieht, z. B. zum Überlegen über einen Poller oder als Rettungsschlinge um eine Person.",
-    kw: ["schlinge", "auge", "zieht sich nicht zu", "nicht zuzieht", "poller", "rettung", "person", "festmachen", "überlegen", "feste schlaufe", "schlaufe"],
-    schritte: ["In die stehende Part ein kleines Auge legen, das Ende oben drauf.", "Das Ende von unten durch das Auge stecken („der Frosch kommt aus dem Teich“).", "Das Ende hinter der stehenden Part herumführen („um den Baum“).", "Das Ende zurück durch das kleine Auge stecken („zurück in den Teich“) und festziehen."],
-    fehler: ["Kleines Auge falsch herum gelegt: Der Knoten rutscht oder fällt beim Belasten auseinander.", "Ende um die falsche Seite der stehenden Part geführt."],
-    pruefen: ["Zieht sich die große Schlinge unter Zug NICHT zu?", "Liegt das kurze Ende innerhalb der großen Schlinge?"] },
-  { id: "schot", name: "Schotstek (einfach und doppelt)", alias: ["schotstek", "schot", "doppelter schotstek", "einfacher schotstek"],
-    zweck: "Verbindet zwei Leinen unterschiedlicher Stärke oder steckt eine Leine an ein Auge an (z. B. am Schothorn). Der doppelte Schotstek hält sicherer.",
-    kw: ["unterschiedlich", "verschieden", "dick", "dünn", "ungleich", "zwei leinen", "schothorn", "auge", "anstecken", "verbinden"],
-    schritte: ["Mit der dickeren Leine eine Bucht legen.", "Das dünne Ende von unten durch die Bucht stecken.", "Um beide Parten der Bucht herumführen.", "Unter sich selbst durchstecken, nicht durch die Bucht. Doppelt: noch einmal herum und wieder unter sich selbst durch."],
+  { id: "schot1", name: "Einfacher Schotstek", alias: ["schotstek", "einfacher schotstek"], nicht: ["doppelt"], frage: "Verbindet zwei unterschiedlich dicke Leinen.",
+    zweck: "Verbindet zwei unterschiedlich dicke Leinen.",
+    kw: ["unterschiedlich", "verschieden", "ungleich", "dick", "dünn", "zwei leinen"],
+    schritte: ["Mit der dickeren Leine eine Bucht legen.", "Das dünne Ende von unten durch die Bucht stecken.", "Um beide Parten der Bucht herumführen.", "Unter sich selbst durchstecken, nicht durch die Bucht. Festziehen."],
     fehler: ["Ende durch die Bucht statt unter sich selbst gesteckt.", "Kurzes Ende auf der falschen Seite: hält schlechter."],
     pruefen: ["Liegen beide kurzen Enden auf derselben Seite?", "Hält die Verbindung, wenn du an beiden Leinen ziehst?"] },
-  { id: "webe", name: "Webeleinstek", alias: ["webeleinstek", "webeleine", "webleinstek"],
-    zweck: "Belegt eine Leine an einer Stange, Reling oder einem Pfahl, z. B. einen Fender an der Reling. Schnell gemacht und in der Höhe verstellbar.",
-    kw: ["fender", "reling", "stange", "pfahl", "rundholz", "festmachen", "dalbe", "pfosten", "aufhängen"],
+  { id: "schot2", name: "Doppelter Schotstek", alias: ["doppelter schotstek", "doppelten schotstek", "doppelt"], frage: "Verbindet zwei unterschiedlich dicke Leinen bei glattem Tauwerk oder höherer Last.",
+    zweck: "Verbindet zwei unterschiedlich dicke Leinen bei glattem Tauwerk oder höherer Last (mit einem zusätzlichen Törn).",
+    kw: ["glatt", "last", "belastung", "zusätzlich", "törn", "unterschiedlich", "verschieden", "dick", "dünn", "sicherer"],
+    schritte: ["Wie beim einfachen Schotstek: Bucht mit der dicken Leine, dünnes Ende von unten durch.", "Um beide Parten der Bucht herum und unter sich selbst durch.", "Noch einmal um die Bucht herum (zusätzlicher Törn) und wieder unter sich selbst durch.", "Festziehen: zwei parallele Törns."],
+    fehler: ["Nur ein Törn: Das ist der einfache Schotstek.", "Zweiter Törn durch die Bucht statt unter sich selbst."],
+    pruefen: ["Sind zwei Törns um die Bucht zu sehen?", "Laufen beide Törns unter sich selbst durch?"] },
+  { id: "klampe", name: "Belegen einer Klampe", alias: ["klampe", "belegen", "kopfschlag"], frage: "Zum Festmachen des Bootes am Steg, mit Rundtörn, Kreuzschlägen und Kopfschlag.",
+    zweck: "Zum Festmachen des Bootes am Steg (mit Rundtörn, Kreuzschlägen und Kopfschlag).",
+    kw: ["klampe", "steg", "festmachen", "festmacher", "boot", "kopfschlag", "kreuzschlag", "belegen"],
+    schritte: ["Rundtörn: Die Leine einmal ganz um den Fuß der Klampe führen, auf der Seite beginnen, die vom Zug abgewandt ist.", "Kreuzschläge: In Achtern über die beiden Hörner legen.", "Kopfschlag: Zum Schluss eine Schlinge so umdrehen, dass das Ende darunter liegt, und über das Horn legen.", "Das Ende liegt parallel zu den Kreuzschlägen."],
+    fehler: ["Ohne Rundtörn am Fuß: Die Leine klemmt beim Lösen.", "Mehrere Kopfschläge übereinander: schwer zu lösen."],
+    pruefen: ["Liegt zuerst ein Rundtörn um den Fuß?", "Liegen die Kreuzschläge sauber als 8 über den Hörnern mit genau einem Kopfschlag?"] },
+  { id: "webe", name: "Webeleinenstek (Mastwurf)", alias: ["webeleinenstek", "webeleinstek", "mastwurf", "webeleine"], nicht: ["slip"], frage: "Zum schnellen Festmachen an Pfählen oder Stangen.",
+    zweck: "Zum schnellen Festmachen an Pfählen oder Stangen.",
+    kw: ["pfahl", "pfähle", "stange", "schnell", "festmachen", "reling", "rundholz", "dalbe"],
     schritte: ["Das Ende einmal um die Stange legen.", "Über die stehende Part kreuzen und ein zweites Mal um die Stange.", "Das Ende unter der Kreuzung durchstecken, sodass es in die entgegengesetzte Richtung der stehenden Part zeigt.", "Festziehen."],
     fehler: ["Ende nicht unter der Kreuzung durch: Der Stek rutscht ab.", "Nur ein Törn statt zwei."],
     pruefen: ["Ist auf der Vorderseite ein „X“ zu sehen?", "Kommen stehende Part und Ende unter dem X in entgegengesetzte Richtungen heraus?"] },
-  { id: "rund", name: "Rundtörn mit zwei halben Schlägen", alias: ["rundtörn", "rundtoern", "halbe schläge", "zwei halben schlägen"],
-    zweck: "Macht eine Leine an einem Ring, Poller oder Pfahl fest, wenn Zug darauf ist. Der Rundtörn nimmt die Last, der Knoten lässt sich auch unter Last lösen.",
-    kw: ["ring", "poller", "pfahl", "last", "zug", "belastet", "festmachen", "boje", "lösen unter last", "unter zug"],
-    schritte: ["Das Ende zweimal ganz um den Ring oder Pfahl führen (Rundtörn).", "Einen halben Schlag um die stehende Part legen.", "Einen zweiten halben Schlag in derselben Richtung daneben legen.", "Zusammenschieben und festziehen."],
-    fehler: ["Die beiden halben Schläge in verschiedene Richtungen: ergibt keinen Webeleinstek-Abschluss und rutscht.", "Nur ein Törn um den Ring."],
-    pruefen: ["Liegen zwei volle Windungen um den Ring?", "Sehen die beiden halben Schläge wie ein Webeleinstek um die stehende Part aus?"] },
-  { id: "klampe", name: "Klampe belegen (mit Kopfschlag)", alias: ["klampe", "klampe belegen", "kopfschlag", "belegen"],
-    zweck: "Belegt eine Leine sicher auf einer Klampe, z. B. Festmacher oder Fall, und lässt sich schnell wieder lösen.",
-    kw: ["klampe", "belegen", "festmacher", "festmachen", "kopfschlag", "fall", "leine sichern"],
-    schritte: ["Die Leine einmal ganz um den Fuß der Klampe führen (Rundtörn), auf der Seite beginnen, die vom Zug abgewandt ist.", "In Achterschlägen über die beiden Hörner legen.", "Zum Schluss einen Kopfschlag: eine Schlinge so umdrehen, dass das Ende darunter liegt, und über das Horn legen.", "Das Ende liegt parallel zu den anderen Schlägen."],
-    fehler: ["Ohne Rundtörn am Fuß: Die Leine klemmt beim Lösen.", "Mehrere Kopfschläge übereinander: schwer zu lösen."],
-    pruefen: ["Liegt zuerst ein Törn um den Fuß?", "Liegen die Schläge sauber als 8 über den Hörnern mit genau einem Kopfschlag?"] }
+  { id: "slip", name: "Webeleinenstek auf Slip", alias: ["auf slip", "slip"], frage: "Wie ein Mastwurf, aber mit einer Bucht, damit er sich unter Zug leicht lösen lässt, z. B. für Fender.",
+    zweck: "Wie der normale Webeleinenstek, jedoch mit einer Bucht zum leichten Lösen unter Zug (z. B. für Fender).",
+    kw: ["slip", "bucht", "lösen", "leicht lösen", "unter zug", "fender", "schnell lösen", "aufziehen"],
+    schritte: ["Wie beim Webeleinenstek zweimal um die Stange, über Kreuz.", "Beim letzten Durchstecken nicht das Ende, sondern eine Bucht (Schlaufe) unter der Kreuzung durchziehen.", "Festziehen. Zum Lösen am freien Ende ziehen, dann springt die Bucht heraus."],
+    fehler: ["Das ganze Ende durchgesteckt: Dann ist es ein normaler Webeleinenstek ohne Slip.", "Bucht zu kurz: rutscht von selbst heraus."],
+    pruefen: ["Steckt eine Bucht (Schlaufe) statt des Endes unter der Kreuzung?", "Löst sich der Stek, wenn du am freien Ende ziehst?"] },
+  { id: "rund", name: "Rundtörn mit zwei halben Schlägen", alias: ["rundtörn", "rundtoern", "halben schlägen", "halbe schläge"], frage: "Zum sicheren Festmachen einer Leine an einem Ring oder einer Stange, auch unter Last.",
+    zweck: "Zum sicheren Festmachen einer Leine an einem Ring oder einer Stange, auch unter Last (1,5 Rundtörn mit zwei halben Schlägen).",
+    kw: ["ring", "stange", "last", "unter last", "zug", "sicher", "festmachen", "poller", "pfahl", "boje"],
+    schritte: ["Das Ende anderthalbmal um den Ring oder die Stange führen (1,5 Rundtörn), sodass es auf derselben Seite wie die stehende Part herauskommt.", "Einen halben Schlag um die stehende Part legen.", "Einen zweiten halben Schlag in derselben Richtung daneben legen.", "Zusammenschieben und festziehen."],
+    fehler: ["Die beiden halben Schläge in verschiedene Richtungen: rutscht.", "Nur ein halber Rundtörn: Die Last liegt dann auf den halben Schlägen."],
+    pruefen: ["Liegt die Leine anderthalbmal um den Ring?", "Sehen die beiden halben Schläge wie ein Webeleinenstek um die stehende Part aus?"] },
+  { id: "stopper", name: "Stopperstek", alias: ["stopperstek", "stopper stek"], frage: "Verbindet eine dünne Leine mit einer dicken Leine, die unter Spannung steht, z. B. beim Schleppen.",
+    zweck: "Verbindet eine dünne Leine mit einer unter Spannung stehenden dicken Leine (z. B. beim Schleppen).",
+    kw: ["spannung", "unter zug", "zug", "dünn", "dick", "schleppen", "schlepp", "entlasten", "belastet"],
+    schritte: ["Die dünne Leine mit einem Törn um die dicke Leine legen, in Richtung, aus der der Zug kommt.", "Einen zweiten Törn daneben legen, der über den ersten kreuzt.", "Auf der anderen Seite einen halben Schlag um die dicke Leine legen und das Ende unter sich durchstecken.", "Festziehen und in Zugrichtung zusammenschieben: Der Stek klemmt und rutscht nicht."],
+    fehler: ["Törns auf der falschen Seite (weg vom Zug): Der Stek rutscht an der dicken Leine entlang.", "Nur ein Törn: hält nicht."],
+    pruefen: ["Klemmt der Stek, wenn du an der dünnen Leine in Zugrichtung ziehst?", "Liegen die Törns auf der Seite, aus der der Zug kommt?"] }
 ];
 let praxisTab = "sim", knotTask = null, knotOpen = null;
 const knotStat = id => (P.knoten && P.knoten[id]) || { ok: 0, w: 0, t: 0 };
@@ -2118,7 +2136,7 @@ const youtube = k => "https://www.youtube.com/results?search_query=" + encodeURI
 const normT = s => s.toLowerCase().replace(/ß/g, "ss").replace(/[^a-zäöü0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
 // Bewertet eine gesprochene oder getippte Antwort zum Zweck: mindestens ein Stichwort des Knotens
 function judgeZweck(k, text) { const t = normT(text); const hits = k.kw.filter(w => t.includes(normT(w))); return { ok: hits.length > 0, hits }; }
-function judgeName(k, text) { const t = normT(text); return k.alias.some(a => t.includes(normT(a))); }
+function judgeName(k, text) { const t = normT(text); return k.alias.some(a => t.includes(normT(a))) && !(k.nicht || []).some(w => t.includes(w)); }
 
 const praxisSeg = () => `<div class="seg" role="group" aria-label="Praxis"><button data-ptab="sim" aria-pressed="${praxisTab === "sim"}">Simulator</button><button data-ptab="knoten" aria-pressed="${praxisTab === "knoten"}">Knoten</button></div>`;
 document.addEventListener("click", e => { const b = e.target.closest("[data-ptab]"); if (!b) return; praxisTab = b.dataset.ptab; knotTask = null; render(); });
@@ -2129,8 +2147,8 @@ function vKnoten(m) {
   m.innerHTML = `<div class="view">
     <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praktische Prüfung</div><h2>Knoten</h2></div>${praxisSeg()}</div>
     <section class="panel" style="display:grid;gap:10px">
-      <p style="margin:0;max-width:70ch">In der praktischen Prüfung musst du diese <b>7 Knoten</b> binden und sagen können, <b>wofür</b> man sie braucht. Frag zur Sicherheit bei deiner Bootsschule nach, ob sie genau diese Liste prüft.</p>
-      <div class="row"><button class="btn primary" id="kstart">Zufällige Aufgabe</button><button class="btn" id="kname">Welcher Knoten wofür?</button><span class="muted" style="font-size:.85rem">${doneOk} von 7 zuletzt richtig</span></div>
+      <p style="margin:0;max-width:70ch">In der praktischen Prüfung musst du diese <b>${KNOTEN.length} Knoten</b> binden und sagen können, <b>wofür</b> man sie braucht. Frag zur Sicherheit bei deiner Bootsschule nach, ob sie genau diese Liste prüft.</p>
+      <div class="row"><button class="btn primary" id="kstart">Zufällige Aufgabe</button><button class="btn" id="kname">Welcher Knoten wofür?</button><span class="muted" style="font-size:.85rem">${doneOk} von ${KNOTEN.length} zuletzt richtig</span></div>
     </section>
     <div class="knotlist">${KNOTEN.map(k => { const s = knotStat(k.id), open = knotOpen === k.id; return `<article class="panel knot">
       <button class="knothead" data-kopen="${k.id}"><b>${esc(k.name)}</b>${s.t ? `<span class="pill ${s.last ? "ok" : "no"}">${s.last ? "zuletzt richtig" : "zuletzt falsch"}</span>` : `<span class="pill n">noch nicht geübt</span>`}<span class="muted">${open ? "▲" : "▼"}</span></button>
@@ -2155,7 +2173,7 @@ function vKnotTask(m) {
   if (T.mode === "name") {
     m.innerHTML = `<div class="view">${head}
       <section class="panel" style="display:grid;gap:12px">
-        <p style="margin:0">Welchen Knoten nimmst du dafür?</p><b style="font-size:1.15rem">${esc(k.zweck.split(". ")[0].replace(/\.$/, "") + ".")}</b>
+        <p style="margin:0">Welchen Knoten nimmst du dafür?</p><b style="font-size:1.15rem">${esc(k.frage)}</b>
         ${answerBox("Knoten nennen")}
         <div id="kres"></div>
       </section></div>`;
