@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <!-- Sicherheitsrichtlinie wie bei den anderen Apps: Code nur von dieser Seite und von Google (Firebase), Daten nur zu Google-Diensten. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'">
+  <meta name="referrer" content="no-referrer">
+  <title>Sauerteig</title>
+  <meta name="description" content="Backplan rückwärts vom Ofen, Mengen pro Brotsorte und Erinnerungen ans Füttern des Starters.">
+  <meta name="theme-color" content="#f3f2ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#191a17" media="(prefers-color-scheme: dark)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Sauerteig">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <script src="boot.js"></script>
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+<div class="bootfail" id="bootFail" hidden>
+  <p><b>Die App ist nicht richtig gestartet.</b> <span id="bootFailMsg"></span></p>
+  <button class="btn" id="bootReload" type="button">Neu laden</button>
+</div>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Sauerteig-Planer</h1>
+      <p class="sub">Plan deinen Backtag rückwärts vom Ofen aus, und behalte im Blick, wann dein Starter wieder Futter braucht.</p>
+    </div>
+    <div class="views" role="tablist">
+      <button class="view" role="tab" id="vBake" aria-selected="true" type="button">Backen planen</button>
+      <button class="view" role="tab" id="vStarter" aria-selected="false" type="button">Mein Starter <span class="chip ok" id="vChip">ok</span></button>
+    </div>
+  </header>
+
+  <!-- ===================== BACKEN ===================== -->
+  <div id="bakeView" class="grid">
+    <section class="panel stack" aria-label="Einstellungen">
+      <div class="field">
+        <label for="target">Brot kommt in den Ofen am</label>
+        <input type="datetime-local" id="target">
+      </div>
+      <div class="field">
+        <span class="lbl">Welches Brot?</span>
+        <div class="breads" id="breads"></div>
+      </div>
+      <div class="row2">
+        <div class="field">
+          <label for="count">Anzahl Brote</label>
+          <select id="count"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        </div>
+        <div class="field">
+          <label for="weight">Teig pro Brot</label>
+          <select id="weight">
+            <option value="600">600 g (klein)</option>
+            <option value="800">800 g</option>
+            <option value="1000" selected>1000 g (Standard)</option>
+            <option value="1200">1200 g (groß)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label for="temp">Raumtemperatur</label>
+        <div class="range"><input type="range" id="temp" min="18" max="28" step="0.5" value="22"><output id="tempOut">22 °C</output></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="cold" checked>
+        <span>Stückgare über Nacht im Kühlschrank<small>Mehr Aroma, und du kannst nachts schlafen.</small></span>
+      </label>
+      <div class="field" id="coldWrap">
+        <label for="coldH">Dauer im Kühlschrank</label>
+        <div class="range"><input type="range" id="coldH" min="6" max="18" step="0.5" value="12"><output id="coldOut">12 h</output></div>
+      </div>
+      <label class="toggle"><input type="checkbox" id="bakeRemind">
+        <span>Bei jedem Schritt erinnern<small id="bakeRemindInfo">Dein Handy meldet sich, wenn du füttern, falten, formen oder backen musst.</small></span>
+      </label>
+      <div class="btns">
+        <button class="btn" id="optimize" type="button">Nachtschichten vermeiden</button>
+        <button class="btn ghost" id="copy" type="button">Plan kopieren</button>
+      </div>
+      <div class="toast" id="toast" role="status"></div>
+    </section>
+
+    <section aria-label="Ergebnis">
+      <div class="panel summary" id="summary"></div>
+      <div id="alerts"></div>
+      <div class="panel">
+        <div class="tabs" role="tablist">
+          <button class="tab" role="tab" id="tabPlan" aria-selected="true" type="button">Zeitplan</button>
+          <button class="tab" role="tab" id="tabRec" aria-selected="false" type="button">Zutaten</button>
+        </div>
+        <div id="plan"></div>
+        <div id="recipe" hidden></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ===================== STARTER ===================== -->
+  <div id="starterView" class="grid" hidden>
+    <section class="stack" aria-label="Status">
+      <div class="panel">
+        <div class="jar">
+          <svg viewBox="0 0 58 74" aria-hidden="true">
+            <rect x="12" y="2" width="34" height="8" rx="2" fill="var(--muted)"/>
+            <rect x="6" y="10" width="46" height="62" rx="9" fill="var(--sunk)" stroke="var(--line)" stroke-width="2"/>
+            <rect id="jarFill" x="9" y="40" width="40" height="29" rx="6" fill="var(--accent-soft)"/>
+            <circle cx="20" cy="52" r="2.2" fill="var(--surface)"/><circle cx="33" cy="58" r="1.6" fill="var(--surface)"/><circle cx="38" cy="47" r="2.6" fill="var(--surface)"/>
+          </svg>
+          <div style="min-width:0">
+            <div id="stName" class="lbl">Weizen-Sauerteig</div>
+            <div id="stMode" style="margin-top:4px"></div>
+            <div class="due" id="stDue">–</div>
+            <div id="stDueSub" style="color:var(--muted);font-size:14px"></div>
+          </div>
+        </div>
+        <div class="bar" id="stBar"><i style="width:0"></i></div>
+        <div class="sync" id="stSync"></div>
+      </div>
+
+      <div class="panel stack">
+        <div class="btns" id="stActions"></div>
+
+        <div class="confirm" id="fridgeBox" hidden>
+          <h3>Starter in den Kühlschrank stellen</h3>
+          <label class="toggle"><input type="checkbox" id="fridgeFed" checked>
+            <span>Ich habe ihn gerade gefüttert<small>Am besten füttern, 1–2 h anspringen lassen und dann kalt stellen.</small></span>
+          </label>
+          <div class="field">
+            <label for="fridgeDays">Erinnere mich alle</label>
+            <div class="range"><input type="range" id="fridgeDays" min="3" max="14" step="1" value="7"><output id="fridgeDaysOut">7 Tage</output></div>
+          </div>
+          <div class="btns">
+            <button class="btn" id="fridgeGo" type="button">In den Kühlschrank</button>
+            <button class="btn plain" id="fridgeCancel" type="button">Abbrechen</button>
+          </div>
+        </div>
+
+        <div class="confirm" id="wakeBox" hidden>
+          <h3>Starter aus dem Kühlschrank holen</h3>
+          <p style="margin:0;font-size:14px">Nach mehr als 3 Tagen im Kühlschrank braucht er meist 2–3 Fütterungen bei Raumtemperatur, bis er sich innerhalb von 4–6 h verdoppelt. Erst dann ist er bereit zum Backen.</p>
+          <label class="toggle"><input type="checkbox" id="wakeFed" checked>
+            <span>Ich habe ihn gerade zum ersten Mal gefüttert</span>
+          </label>
+          <div class="btns">
+            <button class="btn" id="wakeGo" type="button">Starter ist wieder aktiv</button>
+            <button class="btn plain" id="wakeCancel" type="button">Abbrechen</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="lastFed">Zuletzt gefüttert</label>
+          <input type="datetime-local" id="lastFed">
+        </div>
+        <div class="row2">
+          <div class="field">
+            <label for="stNameIn">Name</label>
+            <input type="text" id="stNameIn" maxlength="40" placeholder="z. B. Weizen-Sauerteig">
+          </div>
+          <div class="field">
+            <label for="stFlour">Mehlsorte</label>
+            <select id="stFlour">
+              <option value="weizen">Weizen</option>
+              <option value="roggen">Roggen</option>
+              <option value="dinkel">Dinkel</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel stack">
+        <div>
+          <h2>Erinnerungen</h2>
+          <p style="margin:0;font-size:14px;color:var(--muted)" id="notifState">Benachrichtigungen werden geprüft …</p>
+        </div>
+        <label class="toggle"><input type="checkbox" id="starterRemind" checked>
+          <span>Ans Füttern erinnern<small>Mit Knopf „Gerade gefüttert“ direkt in der Benachrichtigung.</small></span>
+        </label>
+        <div class="btns">
+          <button class="btn" id="notifAllow" type="button" hidden>Benachrichtigungen erlauben</button>
+          <button class="btn plain" id="notifTest" type="button" hidden>Test-Benachrichtigung</button>
+        </div>
+        <p class="note" id="calNote" style="margin:0"></p>
+      </div>
+
+      <div class="panel stack" id="syncBox" hidden>
+        <div>
+          <h2>Auf einem anderen Gerät</h2>
+          <p style="margin:0;font-size:14px;color:var(--muted)">Mit diesem Code siehst du denselben Starter auf einem zweiten Handy oder am PC.</p>
+        </div>
+        <div class="btns">
+          <span class="lbl" style="align-self:center">Dein Code</span>
+          <b class="code" id="syncCode">–</b>
+          <button class="btn plain" id="syncCopy" type="button">Kopieren</button>
+        </div>
+        <div class="row2">
+          <input type="text" id="syncIn" maxlength="40" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="Code vom anderen Gerät">
+          <button class="btn ghost" id="syncJoin" type="button">Übernehmen</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="stack" aria-label="Hinweise">
+      <div class="panel">
+        <h2 id="tipsHead">Das musst du beachten</h2>
+        <div id="ratioBox"></div>
+        <ul class="tips" id="tips"></ul>
+      </div>
+      <div class="panel">
+        <h2>Verlauf</h2>
+        <ul class="log" id="log"></ul>
+      </div>
+    </section>
+  </div>
+</div>
+</body>
+</html>

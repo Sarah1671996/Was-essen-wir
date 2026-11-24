@@ -286,6 +286,60 @@ async function pushTest(room, uid) {
   await db.doc(`rooms/${room}/meta/pushtest_${uid}`).set(result);
 }
 
+/* ---------- 🍞 Sauerteig-App (sauerteig/<code>) ----------
+   Die App legt ihre anstehenden Erinnerungen in due ab ({ at, title, body, tag, view, fed }) und
+   next = frühester Zeitpunkt. Alle 5 Minuten (und direkt nach jedem Speichern) wird verschickt,
+   was fällig ist, und aus due entfernt. test = Zeitpunkt einer gewünschten Test-Benachrichtigung. */
+const SAUERTEIG_URL = "https://sarah1671996.github.io/Was-essen-wir/sauerteig-app/";
+const SOON = 30 * 1000;
+
+async function sendSauerteig(ref) {
+  const job = await db.runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return null;
+    const { due = [], tokens = [], test = null } = snap.data();
+    const now = Date.now();
+    const ready = due.filter(d => d.at <= now + SOON);
+    if (!ready.length && test == null) return null;
+    const rest = due.filter(d => d.at > now + SOON);
+    tx.update(ref, { due: rest, next: rest.length ? Math.min(...rest.map(d => d.at)) : null, test: FieldValue.delete() });
+    // Was länger als 6 Stunden überfällig ist, nicht mehr nachschicken
+    const msgs = ready.filter(d => now - d.at < 6 * 3600 * 1000);
+    if (typeof test === "number" && now - test < 10 * 60 * 1000) msgs.push({
+      title: "🔔 Test-Benachrichtigung", body: "So sehen deine Erinnerungen aus. Tipp auf „Gerade gefüttert“, um es auszuprobieren.",
+      tag: "test", view: "starter", fed: true
+    });
+    return { msgs, tokens };
+  });
+  if (!job || !job.msgs.length || !job.tokens.length) return;
+  const dead = new Set();
+  for (const m of job.msgs) {
+    const res = await getMessaging().sendEachForMulticast({
+      tokens: job.tokens,
+      data: {
+        title: String(m.title || "Sauerteig").slice(0, 120), body: String(m.body || "").slice(0, 400),
+        tag: String(m.tag || ""), fed: m.fed ? "1" : "0", link: SAUERTEIG_URL + "#" + (m.view || "starter")
+      },
+      webpush: { headers: { Urgency: "high", TTL: "21600" } }
+    });
+    res.responses.forEach((r, i) => { if (!r.success && DEAD_TOKEN.includes(r.error?.code)) dead.add(job.tokens[i]); });
+    logger.info("sauerteig push", { tag: m.tag, ok: res.successCount, failed: res.failureCount });
+  }
+  if (dead.size) await ref.update({ tokens: FieldValue.arrayRemove(...dead) });
+}
+
+export const sauerteigOnWrite = onDocumentWritten("sauerteig/{code}", async event => {
+  const after = event.data.after.data();
+  if (!after) return;
+  const now = Date.now();
+  if (after.test != null || (after.due || []).some(d => d.at <= now + SOON)) await sendSauerteig(event.data.after.ref);
+});
+
+export const sauerteigReminders = onSchedule({ schedule: "every 5 minutes", timeZone: "Europe/Berlin" }, async () => {
+  const snap = await db.collection("sauerteig").where("next", "<=", Date.now() + SOON).get();
+  for (const d of snap.docs) await sendSauerteig(d.ref).catch(e => logger.error("sauerteig", e));
+});
+
 // „Nochmal erinnern“-Knopf (kind "cleaning") und Test-Benachrichtigung (kind "test")
 export const onPing = onDocumentCreated("rooms/{room}/pings/{id}", async event => {
   const ping = event.data?.data();

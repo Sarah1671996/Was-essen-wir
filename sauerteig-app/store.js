@@ -1,0 +1,70 @@
+// Datenzugriff für die Sauerteig-App: Firebase (gleiches Projekt wie die anderen Apps).
+// Ein Dokument pro Sauerteig-Code: sauerteig/<code> { j, st, due, next, tokens, test }
+//   j      Starter + Backplan als JSON-Text (für Abgleich zwischen Geräten)
+//   due    anstehende Erinnerungen [{ at, title, body, tag, view, fed }]; der Server verschickt sie
+//   next   frühester Zeitpunkt in due (danach sucht der Server alle 5 Minuten)
+//   tokens Push-Tokens der Geräte
+// Ohne Firebase (oder offline beim Start) liefert createStore() null und die App läuft nur auf diesem Gerät.
+import { firebaseConfig, vapidKey } from "../essen-match-app/firebase-config.js";
+
+const FB = "https://www.gstatic.com/firebasejs/12.19.0/";
+
+export function randomCode(len = 10) {
+  const abc = "abcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  return Array.from(bytes, b => abc[b % abc.length]).join("");
+}
+
+export async function createStore() {
+  if (!firebaseConfig?.apiKey) return null;
+  const [{ initializeApp }, authMod, fs] = await Promise.all([
+    import(FB + "firebase-app.js"),
+    import(FB + "firebase-auth.js"),
+    import(FB + "firebase-firestore.js")
+  ]);
+  const app = initializeApp(firebaseConfig);
+  const auth = authMod.getAuth(app);
+  await new Promise((resolve, reject) => {
+    const stop = authMod.onAuthStateChanged(auth, user => { if (user) { stop(); resolve(); } });
+    authMod.signInAnonymously(auth).catch(reject);
+  });
+  let db;
+  try { db = fs.initializeFirestore(app, { localCache: fs.persistentLocalCache() }); }
+  catch { db = fs.getFirestore(app); }
+  const ref = code => fs.doc(db, "sauerteig", code);
+
+  let messaging;
+  async function getMessaging() {
+    if (messaging !== undefined) return messaging;
+    const msg = await import(FB + "firebase-messaging.js");
+    messaging = (await msg.isSupported()) ? { msg, m: msg.getMessaging(app) } : null;
+    return messaging;
+  }
+
+  return {
+    async load(code) {
+      const snap = await fs.getDoc(ref(code));
+      return snap.exists() ? snap.data() : null;
+    },
+    // Speichert Stand und Erinnerungen. due wird komplett ersetzt.
+    save(code, { j, due }) {
+      const next = due.length ? Math.min(...due.map(d => d.at)) : null;
+      return fs.setDoc(ref(code), { j, due, next, st: Date.now() }, { merge: true });
+    },
+    addToken: (code, token) => fs.setDoc(ref(code), { tokens: fs.arrayUnion(token) }, { merge: true }),
+    // Bittet den Server um eine sofortige Test-Benachrichtigung
+    test: code => fs.setDoc(ref(code), { test: Date.now() }, { merge: true }),
+    async pushSupported() {
+      return !!vapidKey && "Notification" in window && "serviceWorker" in navigator && !!(await getMessaging());
+    },
+    async pushToken(serviceWorkerRegistration) {
+      const x = await getMessaging();
+      if (!x) return null;
+      return x.msg.getToken(x.m, { vapidKey, serviceWorkerRegistration });
+    },
+    async onPush(cb) {
+      const x = await getMessaging();
+      if (x) x.msg.onMessage(x.m, cb);
+    }
+  };
+}

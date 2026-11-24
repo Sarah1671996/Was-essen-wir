@@ -292,5 +292,23 @@ service cloud.firestore {
     }
 
     // Filme & Serien („Was gucken wir?“) nutzen dieselbe Regel: Dokumente reisen/film-{code}.
+
+    // Sauerteig-App: Starter, Backplan und anstehende Erinnerungen pro Sauerteig-Code.
+    // Nur mit dem 10-stelligen Code erreichbar; Auflisten und Löschen sind verboten.
+    // Die Erinnerungen in "due" verschickt der Server (functions/index.js, sauerteig…).
+    match /sauerteig/{code} {
+      function s() { return request.resource.data; }
+      allow get: if request.auth != null;
+      allow create, update: if request.auth != null
+        && code.size() >= 10 && code.size() <= 40
+        && s().keys().hasOnly(["j", "st", "due", "next", "tokens", "test"])
+        && (!("j" in s()) || (s().j is string && s().j.size() <= 200000))
+        && (!("st" in s()) || s().st is number)
+        && (!("due" in s()) || (s().due is list && s().due.size() <= 60))
+        && (!("next" in s()) || s().next == null || s().next is number)
+        && (!("tokens" in s()) || (s().tokens is list && s().tokens.size() <= 10))
+        && (!("test" in s()) || s().test is number);
+      allow list, delete: if false;
+    }
   }
 }
