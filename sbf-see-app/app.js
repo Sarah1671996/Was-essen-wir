@@ -1475,8 +1475,8 @@ async function navPdf(t) {
    - Das Ruder bleibt stehen, wo du es hinstellst. Das Boot dreht verzögert und dreht weiter, solange Ruder liegt.
    - Rechtzeitig mittschiffs und kurz Gegenruder geben, sonst schießt man über den Kurs hinaus („Rumeiern“).
    - Das Boot dreht um einen Punkt im vorderen Drittel: das Heck schwenkt weit aus.
-   - Außenborder/Z-Antrieb (Standard): Der Schub wird mitgelenkt. Rückwärts geht das Heck zu der Seite, zu der das Rad liegt.
-   - Starre Welle mit Ruderblatt: rückwärts wirkt bei wenig Fahrt fast nur der Radeffekt. */
+   - Standard ist das Prüfungsboot: starre Welle, linksdrehend. Rückwärts geht das Heck nach Steuerbord, das Ruder wirkt dabei kaum.
+   - Außenborder/Z-Antrieb (wählbar): Der Schub wird mitgelenkt, rückwärts geht das Heck zu der Seite, zu der das Rad liegt. */
 const SIM = { L: 8, B: 2.8, PIVOT: 0.3, RUD_MAX: 35, RUD_RATE: 22 };
 const D2R = Math.PI / 180, R2D = 180 / Math.PI, KN = 1.9438;
 const norm360 = a => ((a % 360) + 360) % 360;
@@ -1496,32 +1496,31 @@ const SCENARIOS = [
     brief: [
       "Du fährst mit etwa 5 kn genau auf der gestrichelten Kurslinie. Bringe das Boot <b>zwischen den beiden gelben Tonnen</b> zum Stehen.",
       "Dabei soll der Bug auf dem Kurs bleiben (±10°) und das Boot nicht mehr als 4 m neben der Linie stehen.",
-      "<b>So geht's:</b> Auskuppeln, etwa <b>1 Sekunde warten</b> (schont das Getriebe), nach achtern schauen, dann <b>rückwärts</b>, bis das Boot steht, und sofort auskuppeln.",
-      "Der <b>Radeffekt</b> zieht das Heck nach Backbord, der Bug wandert nach Steuerbord. Mit Außenborder: Rad zu <b>der Seite einschlagen, zu der sich der Bug dreht</b>."],
+      "<b>So geht's:</b> Auskuppeln, dann <b>rückwärts</b> und dabei das Ruder <b>eine Viertelumdrehung nach Steuerbord</b>. Der Radeffekt zieht das Heck nach Steuerbord und den Bug nach Backbord, das gleichst du damit aus.",
+      "Nach vorne schauen und nachsteuern. Steht das Boot: <b>sofort auskuppeln</b> und das Ruder <b>wieder mittig</b>."],
     start: { x: 0, y: 0, psi: 0, u: 2.5, T: 2 }, view: 90, follow: true, zone: { y1: 70, y2: 82, x: 4 } },
   { id: "anlegen", title: "Anlegen (Backbord an den Steg)", kurz: "Spitzer Winkel, wenig Fahrt, rückwärts aufstoppen.",
     brief: [
-      "Lege mit der <b>Backbordseite</b> am Steg an, im grün markierten Liegeplatz.",
-      "<b>So geht's:</b> Mit wenig Fahrt (Voraus 1) in einem <b>spitzen Winkel von etwa 20–30°</b> auf den Liegeplatz zufahren.",
-      "Ist der Bug noch <b>1–2 m bis eine halbe Bootslänge</b> vom Steg weg: auskuppeln, 1 Sekunde warten, dann <b>Rad zum Steg (Backbord) und gleichzeitig rückwärts</b>. Das stoppt das Boot und zieht das Heck an den Steg.",
-      "Sobald das Boot <b>parallel</b> liegt: sofort <b>auskuppeln</b>.",
-      "Ziel: parallel zum Steg (±12°), höchstens 1 m Abstand, Fahrt unter 0,3 kn. Anstoßen mit mehr als 1 kn zählt als Rumms."],
+      "Lege mit der <b>Backbordseite</b> am Steg an, im grün markierten Liegeplatz. Das ist die <b>schwerere Seite</b>: Rückwärts zieht der Radeffekt das Heck vom Steg weg.",
+      "<b>So geht's:</b> Im spitzen Winkel (20–40°) langsam anfahren und <b>früh auskuppeln</b>, Ruder mittig.",
+      "Kurz vor dem Steg Ruder <b>eine ganze Umdrehung nach Steuerbord, also vom Steg weg</b>, und festhalten. Der Bug schwenkt ab, das Heck kommt zum Steg. Dreht das Boot zu langsam: ganz kurzer Schub voraus.",
+      "<b>Warten, bis das Boot parallel liegt.</b> Erst dann kurz rückwärts zum Aufstoppen und sofort auskuppeln."],
     start: { x: 22, y: -24, psi: 345, u: 1.0, T: 1 }, view: 80, follow: false, center: { x: 6, y: 4 },
     piers: [{ x1: -8, x2: 0, y1: -10, y2: 40 }], berth: { y1: 12, y2: 26 },
     moored: [{ x: 1.5, y: 33, psi: 0 }, { x: 1.5, y: 3, psi: 0 }] },
   { id: "heckweg", check: "anlegen", title: "Korrektur: Heck zu weit weg", kurz: "Bug liegt am Steg, Heck steht ab. Heck heranziehen.",
     brief: [
-      "Der Bug ist am Steg, das <b>Heck steht zu weit ab</b>, du hast noch ganz wenig Fahrt voraus. Bring das Boot parallel an den Steg (Backbordseite).",
-      "<b>Außenborder / Z-Antrieb:</b> Rad <b>zum Steg</b> und <b>kurz rückwärts</b> (Zurück 1, hier etwa 3–4 s). Das Heck kommt heran und die Fahrt ist raus.",
-      "Früh wieder auskuppeln: Das Boot dreht noch nach. Lieber zwei kurze Schübe als ein langer."],
+      "Der Bug ist am Steg, das <b>Heck steht zu weit ab</b>, du hast noch ganz wenig Fahrt. Bring das Boot parallel an den Steg (Backbordseite).",
+      "<b>So geht's:</b> Ruder <b>hart Steuerbord (vom Steg weg)</b> und <b>kurz voraus</b>. Der Schraubenstrom trifft das Ruder und drückt das Heck an den Steg.",
+      "Früh auskuppeln, das Boot dreht nach. <b>Nicht rückwärts:</b> Das zieht das Heck an dieser Seite noch weiter weg."],
     start: { x: 2.1, y: 13, psi: 335, u: 0.45, T: 0 }, tol: 0.6, view: 50, follow: false, center: { x: 8, y: 14 },
     piers: [{ x1: -8, x2: 0, y1: -20, y2: 50 }], berth: { y1: 2, y2: 30 } },
   { id: "bugweg", check: "anlegen", title: "Korrektur: Bug zu weit weg", kurz: "Heck liegt am Steg, Bug steht ab. Bug heranholen.",
     brief: [
       "Das Heck ist nah am Steg, der <b>Bug steht zu weit ab</b>. Bring das Boot parallel an den Steg (Backbordseite).",
-      "<b>So geht's:</b> Rad <b>zum Steg</b> und <b>langsam voraus</b> (Voraus 1), bis der Bug <b>leicht zum Steg</b> zeigt (etwa 15–20°). Das Heck geht dabei etwas weg.",
-      "Dann auskuppeln, 1 Sekunde warten, Rad <b>weiter zum Steg</b> und <b>kurz rückwärts</b>: Das stoppt und holt das Heck wieder heran.",
-      "Ist der Abstand groß, in echt lieber <b>neu anfahren</b>. Das ist kein Fehler."],
+      "<b>So geht's:</b> Ruder <b>hart Backbord (zum Steg)</b> und <b>kurz voraus</b>, bis der Bug zum Steg zeigt. Auskuppeln.",
+      "Das Heck ist jetzt etwas weg: Ruder <b>hart Steuerbord</b>, <b>kurz voraus</b>, dann liegt es wieder an. Zum Schluss kurz rückwärts, wenn noch Fahrt drin ist.",
+      "Bei großem Abstand in echt lieber <b>neu anfahren</b>, kleine Lücken mit Leine oder Bootshaken schließen."],
     start: { x: 3.2, y: 10, psi: 15, u: 0, T: 0 }, tol: 0.6, view: 50, follow: false, center: { x: 8, y: 14 },
     piers: [{ x1: -8, x2: 0, y1: -20, y2: 60 }], berth: { y1: 2, y2: 34 } },
   { id: "ruder", title: "Ruder finden (ohne Anzeige)", kurz: "Das Rad steht irgendwo. Finde mittschiffs ohne Ruderanzeige.",
@@ -1530,23 +1529,31 @@ const SCENARIOS = [
       "<b>Methode 1, Anschlag:</b> Rad bis zum Anschlag drehen, dann die <b>halben Gesamtumdrehungen zurück</b>. Hier sind es von Anschlag zu Anschlag 3 Umdrehungen, also <b>1,5 zurück</b>.",
       "<b>Methode 2, Bug:</b> Auf einen festen Punkt voraus schauen. Wandert der Bug, steht das Ruder nicht in der Mitte."],
     start: { x: 0, y: 0, psi: 0, u: 1.2, T: 1 }, view: 90, follow: true, hideRudder: true },
-  { id: "ablegen", title: "Ablegen (Heck rauskurbeln)", kurz: "Ruder hart Bb, im Wechsel kurz voraus und zurück bis 45°, dann rückwärts raus.",
+  { id: "ablegen", title: "Ablegen mit Vorspring", kurz: "Ruder zum Steg, langsam voraus bis 45°, dann rückwärts raus.",
     brief: [
-      "Du liegst mit Backbord am Steg, vor und hinter dir liegen andere Boote. Fahre hinaus, bis du <b>15 m vom Steg</b> entfernt bist, ohne anzustoßen.",
-      "1. Ruder <b>hart Backbord</b> (zum Steg).",
-      "2. <b>Kurz Voraus 1</b>: Der Schraubenstrom trifft das Ruder, das Heck wird nach Steuerbord vom Steg weggedrückt, bevor das Boot Fahrt aufnimmt.",
-      "3. Auskuppeln, dann <b>Zurück 1</b>: Das stoppt die Vorausfahrt. <b>Außenborder:</b> vorher im Leerlauf das Rad auf <b>hart Steuerbord</b> umlegen, sonst zieht rückwärts das Heck wieder zum Steg. Solange das Heck noch seitlich weggeht, warten. Sobald es anfängt nach hinten zu fahren, auskuppeln, Rad wieder Backbord und <b>kurz voraus</b>.",
-      "4. So im Wechsel, bis das Boot etwa <b>45° vom Steg</b> weg zeigt (oben steht der Winkel). Dann <b>Ruder mittschiffs</b> und <b>rückwärts heraus</b>, bis du 15 m Abstand hast.",
-      "Der Bug darf dabei am Steg anliegen, dort hängt in echt ein Fender. Nur zu viel Gas führt zum Rumms. Bleibt auf deinem Boot das Rad die ganze Zeit auf Backbord und es klappt trotzdem, stell unten „Starre Welle“ und „linksdrehend“ ein. Frag das am besten in der Fahrstunde nach."],
+      "Du liegst mit Backbord am Steg, nur die <b>Vorspring</b> ist noch fest. Fahre hinaus, bis du <b>15 m vom Steg</b> entfernt bist.",
+      "1. Achtern frei? Ruder <b>hart Backbord (zum Steg)</b>.",
+      "2. <b>Voraus 1</b> und stehen lassen: Die Spring hält das Boot, das Heck schwenkt vom Steg weg. Warten bis etwa <b>45°</b> (oben steht der Winkel).",
+      "3. <b>Auskuppeln</b>, Spring los, Ruder <b>mittschiffs</b>, nach achtern schauen.",
+      "4. <b>Rückwärts</b> heraus (die Spring löst sich hier beim Rückwärtsgang von selbst). Der Radeffekt zieht das Heck zusätzlich vom Steg weg. Ruder festhalten."],
     start: { x: 1.5, y: 18, psi: 0, u: 0, T: 0 }, view: 60, follow: false, center: { x: 10, y: 16 },
     piers: [{ x1: -8, x2: 0, y1: -10, y2: 45 }],
-    moored: [{ x: 1.5, y: 29, psi: 0 }, { x: 1.5, y: 5, psi: 0 }], leave: 15 },
+    moored: [{ x: 1.5, y: 29, psi: 0 }, { x: 1.5, y: 5, psi: 0 }], leave: 15, spring: true },
+  { id: "wenden", title: "Drehen auf engem Raum (über Backbord)", kurz: "Ruder hart Bb festhalten, im Wechsel voraus und zurück, bis 180°.",
+    brief: [
+      "Drehe das Boot auf der Stelle um <b>180°</b>, ohne weiter als 12 m vom Startpunkt wegzukommen. Über <b>Backbord</b>, weil der Radeffekt dabei hilft.",
+      "1. Ruder <b>hart Backbord</b> und dort <b>festhalten</b>, auch beim Umschalten.",
+      "2. <b>Kurz voraus</b>: Das Boot dreht. Sobald es Fahrt aufnimmt, auskuppeln.",
+      "3. <b>Rückwärts</b>, ohne Gas: Das Heck geht nach Steuerbord, der Bug weiter nach Backbord. Sobald es nicht mehr dreht, sondern nach achtern fährt: auskuppeln, wieder kurz voraus.",
+      "Wiederholen, bis der Kurs 180° anliegt. Dann rechtzeitig Ruder mittschiffs."],
+    start: { x: 0, y: 0, psi: 0, u: 0, T: 0 }, view: 60, follow: false, center: { x: 0, y: 0 } },
   { id: "mob", title: "Mensch über Bord", kurz: "Heck weg von der Person, Kreis fahren, mit Neutral ankommen.",
     brief: [
       "Du fährst mit 6 kn geradeaus. Irgendwann fällt eine Person über Bord. Die Seite wird angesagt.",
-      "<b>Sofort auskuppeln</b> und das Ruder <b>zur Seite der Person</b> legen: So schwenkt das Heck mit der Schraube von ihr weg. (In echt zusätzlich: „Mensch über Bord“ rufen, Rettungsring werfen, Person nicht aus den Augen lassen.)",
-      "Dann in einem Kreis zurückfahren und <b>langsam</b> an die Person heranfahren. Kommt die Schraube der Person näher als 4 m, während sie dreht, ist das lebensgefährlich.",
-      "Ziel: Person höchstens 3 m neben dem Boot, Fahrt unter 0,5 kn und <b>Schalthebel auf Neutral</b>."],
+      "<b>Sofort</b> das Ruder <b>zur Seite der Person</b> legen, so schwenkt das Heck weg, und <b>sofort auskuppeln</b>. (In echt: „Mensch über Bord“ rufen, Rettungsmittel, Person beobachten lassen.)",
+      "Dann einkuppeln, etwa zwei Schiffslängen weg, wenden und <b>langsam gegen den Wind</b> zurück. Etwa 10 m vorher <b>auskuppeln</b>, die Person seitlich der Kurslinie.",
+      "Ist sie noch vor dem Bug, darfst du kurz rückwärts bremsen. <b>Ist sie im Bereich des Schiffs: kein Gang mehr!</b>",
+      "Ziel: Person höchstens 3 m neben dem Boot, Fahrt unter 0,5 kn und <b>Neutral</b>."],
     start: { x: 0, y: 0, psi: 0, u: 3.0, T: 3 }, view: 130, follow: true }
 ];
 
@@ -1557,9 +1564,9 @@ try { simBest = JSON.parse(localStorage.getItem("sbfsee-simbest") || "{}"); simH
 const WIND_LEVELS = [["0", "Kein Wind", 0], ["6", "Leicht (6 kn, Bft 2)", 6], ["12", "Mittel (12 kn, Bft 4)", 12], ["18", "Frisch (18 kn, Bft 5)", 18]];
 const CUR_LEVELS = [["0", "Keine Strömung", 0], ["0.5", "0,5 kn", 0.5], ["1", "1 kn", 1], ["1.5", "1,5 kn", 1.5]];
 const DIRS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
-let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall", prop: "rechts", drive: "aussen" };
-// Einstellungen aus der Zeit vor der Antriebs-Auswahl: Schraube wieder auf den Normalfall „rechtsdrehend“ stellen
-try { const e0 = JSON.parse(localStorage.getItem("sbfsee-simenv") || "{}"); Object.assign(simEnv, e0); if (!e0.drive) simEnv.prop = "rechts"; } catch (e) {}
+let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall", prop: "links", drive: "welle" };
+// Gespeicherte Einstellungen von vor dem Prüfungsboot (v < 2): Antrieb und Schraube auf das Prüfungsboot stellen
+try { const e0 = JSON.parse(localStorage.getItem("sbfsee-simenv") || "{}"); if (e0.v !== 2) { delete e0.drive; delete e0.prop; } Object.assign(simEnv, e0); } catch (e) {}
 const dirName = deg => DIRS[Math.round(norm360(deg) / 45) % 8];
 function makeEnv() {
   const pick = d => d === "zufall" ? Math.floor(Math.random() * 8) * 45 : DIRS.indexOf(d) * 45;
@@ -1617,6 +1624,7 @@ function simStep(st, dt) {
   b.thr += (b.T - b.thr) * Math.min(1, dt / 0.4);
   const a = b.thr > 0 ? b.thr * 0.25 : b.thr * 0.16;
   b.u += (a - 0.05 * b.u - 0.07 * b.u * Math.abs(b.u)) * dt;
+  if (sc.spring && st.spring !== false) { if (b.T < 0) st.spring = false; else b.u = Math.min(b.u, 0); }
   // Drehung: Ruderwirkung braucht Anströmung (Fahrt oder Schraubenstrahl voraus)
   // Schraubenstrom voraus trifft das Ruder: wirkt auch aus dem Stand kräftig („Ruder anblasen“), bei Fahrt weniger zusätzlich
   // Außenborder: gelenkter Schub wirkt voraus UND zurück; ohne Schub lenkt nur das Unterwasserteil (schwächer)
@@ -1698,7 +1706,7 @@ const CHECKS = {
       const inZone = b.y >= z.y1 && b.y <= z.y2, onLine = Math.abs(b.x) <= z.x, straight = Math.abs(err) <= 10;
       const tips = [];
       if (!inZone) tips.push(b.y < z.y1 ? "Zu früh gestoppt: länger auslaufen lassen." : "Zu spät: Früher auf Neutral, dann rechtzeitig kurz rückwärts.");
-      if (!straight) tips.push(`Der Bug ist ${Math.round(Math.abs(err))}° vom Kurs abgedreht. Beim Rückwärtsfahren das Rad zu der Seite legen, zu der sich der Bug dreht.`);
+      if (!straight) tips.push(`Der Bug ist ${Math.round(Math.abs(err))}° vom Kurs abgedreht. Beim Rückwärtsgang das Ruder etwa eine Viertelumdrehung nach Steuerbord legen und nachsteuern.`);
       if (!onLine) tips.push(`Du stehst ${Math.abs(b.x).toFixed(1).replace(".", ",")} m neben der Kurslinie.`);
       const ok = inZone && onLine && straight;
       if (ok) tips.push("Gut aufgestoppt: auf Position, auf Kurs, ohne Abdrehen.");
@@ -1714,7 +1722,7 @@ const CHECKS = {
     st.msg = st.hardHit ? "Rumms! Zu schnell an den Steg." : good ? "Liegt gut … halten" : `Abstand ${Math.max(0, minX).toFixed(1).replace(".", ",")} m · Winkel ${Math.round(Math.abs(err))}° · ${kn.toFixed(1).replace(".", ",")} kn`;
     if (st.hardHit) st.done = { ok: false, text: "Zu hart angelegt", tips: ["Langsamer anfahren (Voraus 1, dann Neutral) und mit kurzem Rückwärts aufstoppen, bevor der Rumpf den Steg berührt."] };
     else if (st.hold > 1.5) st.done = { ok: true, text: `Angelegt nach ${Math.round(st.t)} s`, tips: [st.contacts > 2 ? "Angelegt, aber mehrmals am Steg angestoßen. Etwas früher aufstoppen." : "Sauber angelegt."], score: Math.round(st.t) };
-    else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Spitzer Anlaufwinkel (20–30°), wenig Fahrt, kurz vor dem Steg auskuppeln, dann Rad zum Steg und kurz rückwärts."] };
+    else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Spitzer Anlaufwinkel (20–30°), wenig Fahrt, früh auskuppeln, kurz vor dem Steg Ruder vom Steg weg, warten bis das Boot parallel liegt, dann erst kurz rückwärts."] };
   },
   ruder(st, dt) {
     const s = st.stats;
@@ -1732,13 +1740,21 @@ const CHECKS = {
     }
     if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Bis zum Anschlag drehen, dann 1,5 Umdrehungen zurück."] };
   },
+  wenden(st) {
+    const b = st.b, dist = Math.hypot(b.x, b.y), err = Math.round(angDiff(b.psi * R2D, 180));
+    st.msg = `Noch ${Math.abs(err)}° · ${dist.toFixed(0)} m vom Startpunkt`;
+    if (dist > 12) st.done = { ok: false, text: "Zu weit vom Startpunkt", tips: ["Kürzere Schübe: auskuppeln, sobald das Boot Fahrt aufnimmt."] };
+    else if (Math.abs(err) <= 10) st.done = { ok: true, text: `Gedreht nach ${Math.round(st.t)} s`, tips: ["Merke: über Backbord drehen, Ruder hart Backbord festhalten, der Rückwärtsgang hilft mit."], score: Math.round(st.t) };
+    else if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Ruder hart Backbord lassen und im Wechsel kurz voraus und zurück."] };
+  },
   ablegen(st) {
-    const b = st.b, minX = Math.min(...hullLocal().map(p => toWorld(b, p)[0])), ang = Math.round(Math.abs(angDiff(b.psi * R2D, 0)));
+    const b = st.b, sc = st.sc, minX = Math.min(...hullLocal().map(p => toWorld(b, p)[0])), ang = Math.round(Math.abs(angDiff(b.psi * R2D, 0)));
     st.msg = st.hardHit ? "Rumms!" : `Winkel zum Steg ${ang}° · Abstand ${minX.toFixed(1).replace(".", ",")} m`;
-    if (st.hardHit) st.done = { ok: false, text: "Zu hart angestoßen", tips: ["Nur kurz und mit wenig Gas einkuppeln (Voraus 1 / Zurück 1). Das Boot soll sich drehen, nicht Fahrt aufnehmen."] };
+    if (sc.spring) st.msg += st.spring === false ? " · Spring los" : " · Spring fest";
+    if (st.hardHit) st.done = { ok: false, text: "Zu hart angestoßen", tips: ["Nur mit wenig Gas (Voraus 1 / Zurück 1). Das Boot soll sich drehen, nicht Fahrt aufnehmen."] };
     else if (minX >= st.sc.leave) st.done = { ok: true, text: `Abgelegt nach ${Math.round(st.t)} s`,
-      tips: [st.contacts ? "Der Bug lag beim Rauskurbeln am Steg an. Das ist normal, dafür hängt dort ein Fender." : "Sauber abgelegt, ohne Berührung.", "Merke: Heck rauskurbeln bis etwa 45°, dann rückwärts heraus."], score: Math.round(st.t) };
-    else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Im Wechsel kurz Voraus 1 (Rad Backbord) und Zurück 1 (Außenborder: Rad Steuerbord), bis das Heck etwa 45° vom Steg weg zeigt. Dann Ruder mittschiffs und rückwärts heraus."] };
+      tips: [st.contacts ? "Der Bug lag beim Rauskurbeln am Steg an. Das ist normal, dafür hängt dort ein Fender." : "Sauber abgelegt, ohne Berührung.", "Merke: Ruder zum Steg, voraus bis etwa 45°, auskuppeln, Spring los, Ruder mittschiffs, rückwärts heraus."], score: Math.round(st.t) };
+    else if (st.t > 180) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Ruder hart Backbord, Voraus 1 stehen lassen, bis das Heck etwa 45° vom Steg weg zeigt. Dann auskuppeln, Ruder mittschiffs und rückwärts heraus."] };
   },
   mob(st, dt) {
     const s = st.stats, b = st.b;
@@ -1860,12 +1876,13 @@ function vPraxis(m) {
       </section>
       <div class="navgrid">${SCENARIOS.map(s => `<button class="panel navcard" data-sim="${s.id}"><b>${s.title}</b><span class="muted">${s.kurz}</span>
         ${simBest[s.id] ? `<span class="pill ok">geschafft · beste Zeit ${simBest[s.id]} s</span>` : `<span class="pill n">noch offen</span>`}</button>`).join("")}</div>
-      <details class="panel grundlagen"><summary><b>Spickzettel: Ruder, Heck, Bug</b></summary>
-        <h4>Wo steht mein Ruder?</h4><p>Vor dem Ablegen im Leerlauf von Anschlag zu Anschlag drehen und zählen. Die Hälfte davon ist die Mitte. Nach jedem Manöver: auskuppeln, Ruder mittschiffs stellen, erst dann wieder Gang rein.</p>
-        <h4>Heck zu weit weg (Außenborder / Z-Antrieb)</h4><p>Rad zum Steg, kurz rückwärts, früh auskuppeln.</p>
-        <h4>Bug zu weit weg</h4><p>Rad zum Steg, langsam voraus, bis der Bug leicht zum Steg zeigt. Dann auskuppeln und mit Rad zum Steg kurz rückwärts, damit das Heck wieder herankommt. Fehlt nur wenig: Vorleine oder Bootshaken.</p>
-        <h4>Beides zu weit weg oder zu schnell</h4><p>Auskuppeln, abbrechen, neu anfahren.</p>
-        <p class="muted">Nach den Manöverblättern für Außenborder (FU und HU Berlin) zusammengestellt, der Teil „Bug zu weit weg“ steht dort nicht. Dein Fahrlehrer hat Vorrang. Bei starrer Welle mit Ruderblatt gilt rückwärts etwas anderes.</p>
+      <details class="panel grundlagen" open><summary><b>Spickzettel für dein Prüfungsboot (starre Welle, linksdrehend)</b></summary>
+        <h4>Der wichtigste Satz</h4><p><b>Rückwärts geht das Heck nach Steuerbord und der Bug nach Backbord</b>, fast egal, wie das Ruder steht. Lenken kannst du mit dem Ruder vor allem, wenn du kurz voraus einkuppelst.</p>
+        <h4>Wo steht mein Ruder?</h4><p>Vor dem Ablegen von Anschlag zu Anschlag drehen und zählen, die Hälfte ist die Mitte. Nach jedem Manöver: auskuppeln, Ruder mittschiffs, erst dann wieder einkuppeln. Rückwärts das Rad immer festhalten.</p>
+        <h4>Heck zu weit weg</h4><p><b>Backbord am Steg:</b> Ruder vom Steg weg (Stb), kurz voraus. Nicht rückwärts. <b>Steuerbord am Steg:</b> kurz rückwärts, der Radeffekt zieht das Heck heran.</p>
+        <h4>Bug zu weit weg</h4><p><b>Beide Seiten:</b> Ruder zum Steg, kurz voraus. Danach Ruder vom Steg weg und kurz voraus, damit das Heck wieder anliegt. Kleine Lücke: Leine oder Bootshaken.</p>
+        <h4>Beides zu weit weg oder zu schnell</h4><p>Aufstoppen, abbrechen, neu anfahren.</p>
+        <p class="muted">Nach einem Schulungsblatt für feste Welle mit linksdrehender Schraube. Die Korrekturen für Heck und Bug sind daraus und aus Erfahrungsberichten abgeleitet. Dein Fahrlehrer hat Vorrang.</p>
       </details>
       <details class="panel grundlagen"><summary><b>Warum eiert man am Anfang herum?</b></summary>
         <p style="margin-top:10px">Beim Auto lenkt sich das Rad von selbst zurück, und das Auto folgt sofort. Beim Boot <b>bleibt das Ruder liegen</b>, und das Boot dreht erst verzögert, dann aber weiter, auch wenn man schon zurückdreht. Wer wartet, bis der Bug auf dem Ziel steht, ist zu spät. Dann steuert man kräftig gegen, das Boot schießt auf die andere Seite, und so weiter.</p>
@@ -1893,7 +1910,7 @@ function vPraxis(m) {
   </div>`;
   $("#simback").onclick = () => { simPick = null; render(); };
   $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
-  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value, prop: $("#envprop").value, drive: $("#envdrive").value }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
+  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value, prop: $("#envprop").value, drive: $("#envdrive").value, v: 2 }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
   ["#envwind", "#envwdir", "#envcur", "#envcdir", "#envprop", "#envdrive"].forEach(id => $(id).onchange = envSave);
   $("#simgo").onclick = () => startSimFullscreen(sc);
 }
