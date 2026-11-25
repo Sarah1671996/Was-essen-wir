@@ -1488,8 +1488,8 @@ const SCENARIOS = [
     brief: [
       "Du fährst mit 5 kn Kurs 000°. Ändere den Kurs auf <b>090°</b> und halte ihn 20 Sekunden lang auf ±5° genau.",
       "<b>So geht's:</b> Ruder nach Steuerbord legen. Das Boot beginnt erst nach einem Moment zu drehen, dann aber immer schneller.",
-      "<b>Etwa 15–20° vor dem Zielkurs</b> das Ruder zurück auf <b>mittschiffs</b> (Anzeige grün). Das Boot dreht trotzdem noch weiter!",
-      "Dreht es zu weit, <b>kurz</b> Gegenruder geben und gleich wieder mittschiffs. Kleine Ruderbewegungen, dann abwarten.",
+      "Das Boot dreht nach „mittschiffs“ noch lange weiter. Deshalb <b>vorher zurück</b>: mit ½ Umdrehung Ruder etwa <b>10°</b>, mit 1 Umdrehung etwa <b>20–25°</b> vor dem Zielkurs (Anzeige grün).",
+      "Dreht es noch zu schnell, <b>kurz Gegenruder (Stützruder)</b>, bis die Drehrate fast 0 ist, und gleich wieder mittschiffs. Kleine Ruderbewegungen, dann abwarten.",
       "Achte auf die <b>Drehrate</b>: Sie zeigt, wie schnell sich das Boot gerade dreht. Der orange Pfeil zeigt, wo der Bug in 3 Sekunden steht."],
     start: { x: 0, y: 0, psi: 0, u: 2.6, T: 2 }, view: 110, follow: true, target: 90 },
   { id: "aufstoppen", title: "Kursgerecht aufstoppen", kurz: "Anhalten, ohne vom Kurs abzukommen.",
@@ -1518,7 +1518,7 @@ const SCENARIOS = [
   { id: "bugweg", check: "anlegen", title: "Korrektur: Bug zu weit weg", kurz: "Heck liegt am Steg, Bug steht ab. Bug heranholen.",
     brief: [
       "Das Heck ist nah am Steg, der <b>Bug steht zu weit ab</b>. Bring das Boot parallel an den Steg (Backbordseite).",
-      "<b>So geht's:</b> Ruder <b>hart Backbord (zum Steg)</b> und <b>kurz voraus</b>, bis der Bug zum Steg zeigt. Auskuppeln.",
+      "<b>So geht's:</b> Ruder <b>hart Backbord (zum Steg)</b> und <b>kurz voraus</b>. <b>Auskuppeln, sobald das Boot etwa parallel liegt</b>: Es dreht von selbst weiter, bis der Bug zum Steg zeigt.",
       "Das Heck ist jetzt etwas weg: Ruder <b>hart Steuerbord</b>, <b>kurz voraus</b>, dann liegt es wieder an. Zum Schluss kurz rückwärts, wenn noch Fahrt drin ist.",
       "Bei großem Abstand in echt lieber <b>neu anfahren</b>, kleine Lücken mit Leine oder Bootshaken schließen."],
     start: { x: 3.2, y: 10, psi: 15, u: 0, T: 0 }, tol: 0.6, view: 50, follow: false, center: { x: 8, y: 14 },
@@ -1564,7 +1564,9 @@ try { simBest = JSON.parse(localStorage.getItem("sbfsee-simbest") || "{}"); simH
 const WIND_LEVELS = [["0", "Kein Wind", 0], ["6", "Leicht (6 kn, Bft 2)", 6], ["12", "Mittel (12 kn, Bft 4)", 12], ["18", "Frisch (18 kn, Bft 5)", 18]];
 const CUR_LEVELS = [["0", "Keine Strömung", 0], ["0.5", "0,5 kn", 0.5], ["1", "1 kn", 1], ["1.5", "1,5 kn", 1.5]];
 const DIRS = ["N", "NO", "O", "SO", "S", "SW", "W", "NW"];
-let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall", prop: "links", drive: "welle" };
+let simEnv = { wind: "0", windDir: "zufall", cur: "0", curDir: "zufall", prop: "links", drive: "welle", mass: "traege" };
+// Trägheit beim Drehen: k = wie schnell sich die Drehung ändert, g = wie stark das Ruder dreht
+const MASS = { leicht: { k: 1, g: 1 }, mittel: { k: 0.6, g: 0.9 }, traege: { k: 0.38, g: 0.85 } };
 // Gespeicherte Einstellungen von vor dem Prüfungsboot (v < 2): Antrieb und Schraube auf das Prüfungsboot stellen
 try { const e0 = JSON.parse(localStorage.getItem("sbfsee-simenv") || "{}"); if (e0.v !== 2) { delete e0.drive; delete e0.prop; } Object.assign(simEnv, e0); } catch (e) {}
 const dirName = deg => DIRS[Math.round(norm360(deg) / 45) % 8];
@@ -1591,7 +1593,7 @@ function newSim(sc) {
   const st = {
     sc, t: 0, done: null, steer: 0, lastSteer: 0, wheelChanges: 0, contacts: 0, hardHit: false, inContact: false,
     b: { x: s.x, y: s.y, psi: s.psi * D2R, u: s.u, r: 0, delta: 0, T: s.T, thr: s.T },
-    prop: simEnv.prop === "links" ? -1 : 1, outboard: simEnv.drive !== "welle",
+    prop: simEnv.prop === "links" ? -1 : 1, outboard: simEnv.drive !== "welle", mass: MASS[simEnv.mass] || MASS.traege,
     trail: [], msg: "", hold: 0, stats: {}, env: makeEnv(), drift: [0, 0]
   };
   if (sc.id === "kurs") Object.assign(st.stats, { reached: false, maxOver: 0, inBand: 0, crossings: 0, lastSign: 0 });
@@ -1636,7 +1638,9 @@ function simStep(st, dt) {
   // Wind dreht den Bug nach Lee (stärker, wenn das Boot langsam ist)
   const env = st.env || { windKn: 0, curKn: 0 }, Wms = env.windKn / KN;
   const windYaw = Wms ? 0.0005 * Wms * Wms * Math.sin((env.windFrom + 180) * D2R - b.psi) / (1 + b.u * b.u) : 0;
-  b.r += (0.06 * (b.delta * D2R) * flow + walk + windYaw - 0.5 * b.r) * dt;
+  // Träges Boot: Die Drehung baut sich langsam auf und läuft nach „Ruder mittschiffs“ lange nach
+  const ms = st.mass || MASS.traege;
+  b.r += ms.k * (ms.g * (0.06 * (b.delta * D2R) * flow + walk + windYaw) - 0.5 * b.r) * dt;
   b.psi += b.r * dt;
   // Abdrift: bei Fahrt etwas weniger, weil der Rumpf seitlich „greift“
   st.drift = env.windKn || env.curKn ? envDrift(env, 1 / (1 + 0.6 * Math.abs(b.u))) : [0, 0];
@@ -1692,7 +1696,7 @@ const CHECKS = {
     st.msg = !s.reached ? `Noch ${Math.abs(Math.round(err))}° bis 090°` : Math.abs(err) <= 5 ? `Kurs halten … ${Math.max(0, 20 - s.inBand).toFixed(0)} s` : `Abweichung ${Math.round(err) > 0 ? "+" : ""}${Math.round(err)}°`;
     if (s.inBand >= 20) {
       const tips = [];
-      if (s.maxOver > 10) tips.push(`Du bist bis zu ${Math.round(s.maxOver)}° über den Zielkurs hinausgedreht. Ruder früher auf mittschiffs, etwa 15–20° vor dem Ziel.`);
+      if (s.maxOver > 10) tips.push(`Du bist bis zu ${Math.round(s.maxOver)}° über den Zielkurs hinausgedreht. Ruder früher auf mittschiffs (1 Umdrehung: etwa 20–25° vorher) und die Drehung mit kurzem Gegenruder stoppen.`);
       if (st.wheelChanges > 6) tips.push(`${st.wheelChanges} Ruderwechsel: Das ist das Rumeiern. Kleine Ruderbewegung, dann 2–3 Sekunden abwarten, was das Boot macht.`);
       if (!tips.length) tips.push("Sauber gesteuert: wenig Überschießen und ruhige Ruderbewegungen.");
       st.done = { ok: true, text: `Kurs 090° gehalten nach ${Math.round(st.t)} s`, tips, score: Math.round(st.t) };
@@ -1901,6 +1905,7 @@ function vPraxis(m) {
         <label class="field">aus Richtung<select id="envwdir">${["zufall", ...DIRS].map(d => `<option value="${d}" ${simEnv.windDir === d ? "selected" : ""}>${d === "zufall" ? "zufällig" : d}</option>`).join("")}</select></label>
         <label class="field">Strömung<select id="envcur">${CUR_LEVELS.map(([k, l]) => `<option value="${k}" ${simEnv.cur === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
         <label class="field">Antrieb<select id="envdrive"><option value="aussen" ${simEnv.drive !== "welle" ? "selected" : ""}>Außenborder / Z-Antrieb</option><option value="welle" ${simEnv.drive === "welle" ? "selected" : ""}>Starre Welle mit Ruderblatt</option></select></label>
+        <label class="field">Boot dreht nach<select id="envmass"><option value="traege" ${simEnv.mass === "traege" ? "selected" : ""}>stark (schweres Boot)</option><option value="mittel" ${simEnv.mass === "mittel" ? "selected" : ""}>mittel</option><option value="leicht" ${simEnv.mass === "leicht" ? "selected" : ""}>wenig (leichtes Boot)</option></select></label>
         <label class="field">Schraube<select id="envprop"><option value="rechts" ${simEnv.prop !== "links" ? "selected" : ""}>rechtsdrehend: rückwärts Heck nach Bb</option><option value="links" ${simEnv.prop === "links" ? "selected" : ""}>linksdrehend: rückwärts Heck nach Stb</option></select></label>
         <label class="field">setzt nach<select id="envcdir">${["zufall", ...DIRS].map(d => `<option value="${d}" ${simEnv.curDir === d ? "selected" : ""}>${d === "zufall" ? "zufällig" : d}</option>`).join("")}</select></label>
       </div>
@@ -1910,8 +1915,8 @@ function vPraxis(m) {
   </div>`;
   $("#simback").onclick = () => { simPick = null; render(); };
   $("#simhelp").onchange = e => { simHelp = e.target.checked; try { localStorage.setItem("sbfsee-simhelp", simHelp ? "1" : "0"); } catch (err) {} };
-  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value, prop: $("#envprop").value, drive: $("#envdrive").value, v: 2 }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
-  ["#envwind", "#envwdir", "#envcur", "#envcdir", "#envprop", "#envdrive"].forEach(id => $(id).onchange = envSave);
+  const envSave = () => { simEnv = { wind: $("#envwind").value, windDir: $("#envwdir").value, cur: $("#envcur").value, curDir: $("#envcdir").value, prop: $("#envprop").value, drive: $("#envdrive").value, mass: $("#envmass").value, v: 2 }; try { localStorage.setItem("sbfsee-simenv", JSON.stringify(simEnv)); } catch (e) {} };
+  ["#envwind", "#envwdir", "#envcur", "#envcdir", "#envprop", "#envdrive", "#envmass"].forEach(id => $(id).onchange = envSave);
   $("#simgo").onclick = () => startSimFullscreen(sc);
 }
 
