@@ -88,7 +88,7 @@ tr.grp td{font-weight:600;padding-top:14px;color:var(--accent);border-bottom:non
 .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}
 .tab{font:inherit;cursor:pointer;padding:7px 12px;border-radius:99px;border:1px solid var(--line);background:transparent;color:var(--fg)}
 .tab[aria-selected="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
-.toast{font-size:13px;color:var(--accent);min-height:1.2em}
+.toast{position:fixed;z-index:40;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));max-width:460px;margin:0 auto;background:var(--fg);color:var(--bg);border-radius:10px;padding:12px 16px;font-size:14px}
 /* Starter */
 .jar{display:flex;gap:16px;align-items:flex-start}
 .jar svg{flex:none;width:58px;height:74px}
@@ -115,3 +115,13 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-a
 .code{font-family:var(--f-mono);font-size:18px;letter-spacing:.08em;align-self:center}
 .bootfail{position:fixed;inset:auto 16px 16px;z-index:50;background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:10px}
 .bootfail p{margin:0}
+.stlist{grid-column:1/-1;display:flex;flex-direction:column;gap:12px;align-items:flex-start;min-width:0}
+.stcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(160px,100%),1fr));gap:10px;width:100%}
+.stcard{font:inherit;text-align:left;cursor:pointer;background:var(--surface);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0}
+.stcard b{font-weight:600;overflow-wrap:anywhere}
+.stcard span:not(.chip){font-size:12px;color:var(--muted)}
+.stcard .chip{white-space:normal}
+.stcard[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.stlist .confirm{width:100%;max-width:520px;box-sizing:border-box}
+.ratio div{min-width:0;overflow-wrap:anywhere}
+.btn.danger{color:var(--bad)}

@@ -1,9 +1,9 @@
 // Hält die App-Dateien offline bereit und zeigt die Erinnerungen vom Server an.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "sauerteig-v1";
+const CACHE = "sauerteig-v2";
 const FILES = [
-  "./", "index.html", "style.css", "app.js", "store.js", "boot.js", "../essen-match-app/firebase-config.js",
-  "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/apple-touch-icon.png"
+  "./", "index.html", "style.css", "app.js", "store.js", "starters.js", "boot.js", "../essen-match-app/firebase-config.js",
+  "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/badge.png", "icons/apple-touch-icon.png"
 ];
 
 // Push vom Server (Firebase Cloud Messaging, Datennachricht mit title/body/link/tag/fed)
@@ -24,11 +24,13 @@ self.addEventListener("push", e => {
 });
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const target = e.action === "fed" ? "./#fed" : (e.notification.data?.link || "./");
-  const link = new URL(target, self.registration.scope).href;
+  // Link zeigt auf #starter-<id>; der Knopf „Gerade gefüttert“ macht daraus #fed-<id>
+  const url = new URL(e.notification.data?.link || "./", self.registration.scope);
+  if (e.action === "fed") url.hash = url.hash.replace(/^#starter/, "#fed");
+  const link = url.href;
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
     const open = list.find(c => c.url.startsWith(self.registration.scope));
-    if (open) { open.navigate(link).catch(() => {}); return open.focus(); }
+    if (open) { open.navigate(link).catch(() => open.postMessage({ type: "open", link })); return open.focus(); }
     return self.clients.openWindow(link);
   }));
 });

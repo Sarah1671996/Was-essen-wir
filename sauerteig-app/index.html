@@ -28,15 +28,16 @@
   <p><b>Die App ist nicht richtig gestartet.</b> <span id="bootFailMsg"></span></p>
   <button class="btn" id="bootReload" type="button">Neu laden</button>
 </div>
+<div class="toast" id="toast" role="status" hidden></div>
 <div class="wrap">
   <header>
     <div>
       <h1>Sauerteig-Planer</h1>
-      <p class="sub">Plan deinen Backtag rückwärts vom Ofen aus, und behalte im Blick, wann dein Starter wieder Futter braucht.</p>
+      <p class="sub">Plan deinen Backtag rückwärts vom Ofen aus, und behalte im Blick, wann deine Starter wieder Futter brauchen.</p>
     </div>
     <div class="views" role="tablist">
       <button class="view" role="tab" id="vBake" aria-selected="true" type="button">Backen planen</button>
-      <button class="view" role="tab" id="vStarter" aria-selected="false" type="button">Mein Starter <span class="chip ok" id="vChip">ok</span></button>
+      <button class="view" role="tab" id="vStarter" aria-selected="false" type="button">Meine Starter <span class="chip ok" id="vChip">ok</span></button>
     </div>
   </header>
 
@@ -50,6 +51,10 @@
       <div class="field">
         <span class="lbl">Welches Brot?</span>
         <div class="breads" id="breads"></div>
+      </div>
+      <div class="field" id="bakeStarterWrap" hidden>
+        <label for="bakeStarter">Mit welchem Starter?</label>
+        <select id="bakeStarter"></select>
       </div>
       <div class="row2">
         <div class="field">
@@ -84,7 +89,6 @@
         <button class="btn" id="optimize" type="button">Nachtschichten vermeiden</button>
         <button class="btn ghost" id="copy" type="button">Plan kopieren</button>
       </div>
-      <div class="toast" id="toast" role="status"></div>
     </section>
 
     <section aria-label="Ergebnis">
@@ -103,8 +107,28 @@
 
   <!-- ===================== STARTER ===================== -->
   <div id="starterView" class="grid" hidden>
-    <section class="stack" aria-label="Status">
+    <section class="stlist" aria-label="Alle Starter">
+      <div class="stcards" id="stList"></div>
+      <button class="btn ghost" id="stAdd" type="button">+ Neuer Starter</button>
+      <div class="confirm" id="addBox" hidden>
+        <h3>Neuer Starter</h3>
+        <div class="row2">
+          <div class="field"><label for="addFlour">Mehlsorte</label><select id="addFlour"></select></div>
+          <div class="field"><label for="addName">Name</label><input type="text" id="addName" maxlength="40"></div>
+        </div>
+        <div class="field"><label for="addFed">Zuletzt gefüttert</label><input type="datetime-local" id="addFed"></div>
+        <label class="toggle"><input type="checkbox" id="addFridge"><span>Steht im Kühlschrank</span></label>
+        <div class="btns">
+          <button class="btn" id="addGo" type="button">Starter anlegen</button>
+          <button class="btn plain" id="addCancel" type="button">Abbrechen</button>
+        </div>
+      </div>
+      <p class="note" id="stEmpty" style="margin:0" hidden>Du hast noch keinen Starter. Leg oben einen an, dann erinnert dich die App ans Füttern.</p>
+    </section>
+
+    <section class="stack" id="stDetail" aria-label="Status">
       <div class="panel">
+        <p class="alert warn" id="stExample" hidden>Das ist ein Beispiel. Trag unten ein, wann du deinen Starter zuletzt gefüttert hast, oder leg oben einen neuen an.</p>
         <div class="jar">
           <svg viewBox="0 0 58 74" aria-hidden="true">
             <rect x="12" y="2" width="34" height="8" rx="2" fill="var(--muted)"/>
@@ -164,34 +188,38 @@
           </div>
           <div class="field">
             <label for="stFlour">Mehlsorte</label>
-            <select id="stFlour">
-              <option value="weizen">Weizen</option>
-              <option value="roggen">Roggen</option>
-              <option value="dinkel">Dinkel</option>
-            </select>
+            <select id="stFlour"></select>
+          </div>
+        </div>
+        <label class="toggle"><input type="checkbox" id="starterRemind" checked>
+          <span>Ans Füttern erinnern<small>Mit Knopf „Gerade gefüttert“ direkt in der Benachrichtigung.</small></span>
+        </label>
+        <p class="note" id="calNote" style="margin:0"></p>
+        <div class="btns"><button class="btn plain danger" id="stDel" type="button">Starter löschen</button></div>
+        <div class="confirm" id="delBox" hidden>
+          <p style="margin:0;font-size:14px" id="delText"></p>
+          <div class="btns">
+            <button class="btn plain danger" id="delGo" type="button">Endgültig löschen</button>
+            <button class="btn plain" id="delCancel" type="button">Abbrechen</button>
           </div>
         </div>
       </div>
 
       <div class="panel stack">
         <div>
-          <h2>Erinnerungen</h2>
+          <h2>Benachrichtigungen</h2>
           <p style="margin:0;font-size:14px;color:var(--muted)" id="notifState">Benachrichtigungen werden geprüft …</p>
         </div>
-        <label class="toggle"><input type="checkbox" id="starterRemind" checked>
-          <span>Ans Füttern erinnern<small>Mit Knopf „Gerade gefüttert“ direkt in der Benachrichtigung.</small></span>
-        </label>
         <div class="btns">
           <button class="btn" id="notifAllow" type="button" hidden>Benachrichtigungen erlauben</button>
           <button class="btn plain" id="notifTest" type="button" hidden>Test-Benachrichtigung</button>
         </div>
-        <p class="note" id="calNote" style="margin:0"></p>
       </div>
 
       <div class="panel stack" id="syncBox" hidden>
         <div>
           <h2>Auf einem anderen Gerät</h2>
-          <p style="margin:0;font-size:14px;color:var(--muted)">Mit diesem Code siehst du denselben Starter auf einem zweiten Handy oder am PC.</p>
+          <p style="margin:0;font-size:14px;color:var(--muted)">Mit diesem Code hast du dieselben Starter und denselben Backplan auf einem zweiten Handy oder am PC. Übernimmst du einen Code, ersetzt er, was auf diesem Gerät steht.</p>
         </div>
         <div class="btns">
           <span class="lbl" style="align-self:center">Dein Code</span>
@@ -205,7 +233,7 @@
       </div>
     </section>
 
-    <section class="stack" aria-label="Hinweise">
+    <section class="stack" id="stHints" aria-label="Hinweise">
       <div class="panel">
         <h2 id="tipsHead">Das musst du beachten</h2>
         <div id="ratioBox"></div>

@@ -1,5 +1,7 @@
 // Sauerteig-Planer: Backplan rückwärts vom Ofen, Mengen pro Brotsorte, Starter-Erinnerungen.
 import { createStore, randomCode } from "./store.js";
+import { MIN, HOUR, DAY, MAX_STARTERS, FLOURS, flourOf, newStarter, exampleStarter, roomHours, starterInfo, ratio,
+  starterReminders, canonical, parse, merge, buildSave } from "./starters.js";
 
 // ---------- Rezepte (Bäckerprozente, bezogen auf Mehl = 100 %) ----------
 const BREADS = {
@@ -68,7 +70,6 @@ const BREADS = {
 
 // ---------- Hilfen ----------
 const $ = id => document.getElementById(id);
-const MIN = 60000, HOUR = 60*MIN, DAY = 24*HOUR;
 const add = (d,m) => new Date(d.getTime()+m*MIN);
 const WD = ["So","Mo","Di","Mi","Do","Fr","Sa"];
 const WDL = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
@@ -90,60 +91,82 @@ function relTime(ms){
   if (a < HOUR) s = Math.max(1,Math.round(a/MIN))+" min";
   else if (a < 2*DAY) s = Math.round(a/HOUR)+" h";
   else s = Math.round(a/DAY)+" Tagen";
-  return past ? "seit "+s.replace("Tagen","Tagen") : "in "+s;
+  return past ? "seit "+s : "in "+s;
 }
 
 // ================= STARTER =================
-const FLOUR = { weizen:"Weizen", roggen:"Roggen", dinkel:"Dinkel" };
-const FRIDGE_DEFAULT = { weizen:7, roggen:10, dinkel:7 };
-let starter = {
-  name:"Weizen-Sauerteig", flour:"weizen", mode:"aktiv",
-  lastFed: new Date(Date.now()-10*HOUR).toISOString(), fridgeSince:null, fridgeDays:7,
-  log:[], example:true
-};
+// starters: alle Starter nach Kennung (gelöschte bleiben als { del: true } für den Abgleich stehen).
+// sel: welcher gerade angezeigt wird (nur auf diesem Gerät). Der Starter fürs Brot steht in state.starterId.
+let starters = { s1: exampleStarter(Date.now()) };
+let sel = "s1";
+const live = () => Object.values(starters).filter(x => !x.del).sort((a,b) => (a.created||0)-(b.created||0) || (a.id<b.id?-1:1));
+const cur = () => live().find(x => x.id===sel) || live()[0] || null;
+const bakeStarter = () => live().find(x => x.id===state.starterId) || live()[0] || newStarter("none","weizen",Date.now());
+const infoOf = x => starterInfo(x, state.temp, Date.now());
+const LEVEL = { ok:["ok","Alles gut"], soon:["warn","Bald füttern"], warn:["warn","Füttern fällig"], bad:["bad","Überfällig"] };
+const RANK = ["ok","soon","warn","bad"];
 
-function roomIntervalH(){ return state.temp >= 25 ? 12 : 24; }
-function starterInfo(){
-  const last = new Date(starter.lastFed);
-  const fridge = starter.mode === "kuehlschrank";
-  const intervalMs = fridge ? starter.fridgeDays*DAY : roomIntervalH()*HOUR;
-  const next = new Date(last.getTime()+intervalMs);
-  const left = next - Date.now();
-  const elapsed = Date.now() - last;
-  let level = "ok";
-  if (left < 0) level = left < -(fridge?3*DAY:12*HOUR) ? "bad" : "warn";
-  else if (left < (fridge?DAY:3*HOUR)) level = "soon";
-  const fridgeFor = fridge && starter.fridgeSince ? Date.now()-new Date(starter.fridgeSince) : 0;
-  return { last, next, left, elapsed, intervalMs, level, fridge, fridgeFor };
+// Ändert einen Starter (nur durch eine Handlung der Nutzerin aufrufen: setzt den Zeitstempel für den Abgleich)
+function touch(id, change, logType){
+  const x = starters[id]; if (!x || x.del) return;
+  const next = { ...x, ...change, u: Math.max(Date.now(), (x.u||0)+1) };
+  delete next.example;
+  if (logType) next.log = [...[].concat(logType).map(type => ({ type, t:new Date().toISOString() })), ...(x.log||[])].slice(0, 40);
+  starters = { ...starters, [id]: next };
+  persist(); renderStarter(); render();
 }
+const feed = id => touch(id, { lastFed:new Date().toISOString() }, "feed");
 
-function tipsFor(info){
-  const t = [];
+function tipsFor(x, info){
+  const t = [], f = flourOf(x), [a] = ratio(x);
   if (info.fridge){
     t.push("Glas nur locker verschließen (Deckel auflegen oder Gummiring weg). Der Starter bildet weiter Gas.");
-    t.push("Füttern im Kühlschrank-Modus: alten Starter bis auf ca. 20 g abnehmen, frisch füttern, 1–2 h bei Raumtemperatur anspringen lassen, dann zurück in den Kühlschrank.");
+    t.push(`Füttern im Kühlschrank-Modus: alten Starter bis auf ca. ${a} g abnehmen, frisch füttern, 1–2 h bei Raumtemperatur anspringen lassen, dann zurück in den Kühlschrank.`);
     t.push("Graue oder dunkle Flüssigkeit oben („Hooch“) ist normal und heißt: Er hat Hunger. Abgießen oder unterrühren, dann füttern.");
-    t.push("Vor dem Backen: 1–2 Tage vorher rausholen und 2–3 Mal bei Raumtemperatur füttern, bis er sich in 4–6 h verdoppelt.");
-    if (starter.flour === "weizen") t.push("Weizen-Starter wird im Kühlschrank schneller sauer als Roggen. Länger als 7–10 Tage ohne Futter macht ihn träge.");
-    if (starter.flour === "roggen") t.push("Roggen-Starter ist robust und hält 10–14 Tage ohne Futter gut durch.");
+    t.push(x.flour==="glutenfrei"
+      ? "Vor dem Backen: 1–2 Tage vorher rausholen und 2–3 Mal bei Raumtemperatur füttern, bis er wieder viele Blasen hat."
+      : "Vor dem Backen: 1–2 Tage vorher rausholen und 2–3 Mal bei Raumtemperatur füttern, bis er sich in 4–6 h verdoppelt.");
     if (info.fridgeFor > 21*DAY) t.push("Länger als 3 Wochen Pause geplant? Dann lieber fester führen (doppelt so viel Mehl wie Wasser) oder einen Teil dünn auf Backpapier streichen und trocknen als Reserve.");
   } else {
-    t.push(`Bei Raumtemperatur (${String(state.temp).replace(".",",")} °C) alle ${roomIntervalH()} h füttern. Wärmer heißt hungriger.`);
-    t.push("Ein gesunder Starter verdoppelt sich 4–8 h nach dem Füttern, riecht angenehm säuerlich und hat viele Blasen.");
+    t.push(`Bei Raumtemperatur (${String(state.temp).replace(".",",")} °C) alle ${roomHours(x, state.temp)} h füttern. Wärmer heißt hungriger.`);
+    if (x.flour!=="glutenfrei") t.push("Ein gesunder Starter verdoppelt sich 4–8 h nach dem Füttern, riecht angenehm säuerlich und hat viele Blasen.");
     t.push("Mit einem Gummiband am Glas markieren, wie hoch er nach dem Füttern stand. So siehst du, wann er auf dem Höhepunkt ist.");
     t.push("Willst du ein paar Tage nicht backen, stell ihn in den Kühlschrank. Das spart Mehl und Arbeit.");
   }
+  if (f.tip) t.push(f.tip);
+  if (x.flour==="glutenfrei") t.push("Eigenes Glas, eigenen Löffel und Mehl mit Glutenfrei-Kennzeichnung verwenden. Schon etwas Weizenstarter am Löffel macht ihn für Menschen mit Zöliakie ungeeignet.");
+  if (live().length > 1) t.push("Pro Starter einen sauberen Löffel nehmen und die Gläser beschriften, damit sich die Sorten nicht vermischen.");
   t.push("Wegwerfen, wenn du rosa, orange oder pelzigen Schimmel siehst. Ein Geruch nach Nagellack oder Essig ist dagegen nur Hunger.");
   return t;
 }
 
+function renderStarterList(list, x){
+  $("stList").innerHTML = list.map(y => {
+    const i = infoOf(y), [c] = LEVEL[i.level];
+    return `<button class="stcard" type="button" data-id="${esc(y.id)}" aria-pressed="${!!x && y.id===x.id}">
+      <b>${esc(y.name || flourOf(y).name)}</b>
+      <span>${esc(flourOf(y).name)} · ${i.fridge ? "Kühlschrank" : "Raumtemperatur"}</span>
+      <span class="chip ${c}">${i.left>=0 ? "Füttern "+relTime(i.left) : "Füttern fällig"}</span></button>`;
+  }).join("");
+  $("stAdd").hidden = list.length >= MAX_STARTERS;
+  const worst = list.reduce((w,y) => Math.max(w, RANK.indexOf(infoOf(y).level)), 0);
+  const hungry = list.filter(y => infoOf(y).left < 0).length;
+  const [cls, txt] = LEVEL[RANK[worst]];
+  $("vChip").className = "chip "+cls;
+  $("vChip").textContent = hungry > 1 ? hungry+" füttern" : txt;
+  $("vChip").hidden = !list.length;
+}
+
 function renderStarter(){
-  const info = starterInfo();
-  const lv = { ok:["ok","Alles gut"], soon:["warn","Bald füttern"], warn:["warn","Füttern fällig"], bad:["bad","Überfällig"] }[info.level];
-  $("vChip").className = "chip "+lv[0]; $("vChip").textContent = lv[1];
-  $("stName").textContent = (starter.name || "Mein Starter") + " · " + FLOUR[starter.flour];
+  const list = live(), x = cur();
+  renderStarterList(list, x);
+  $("stDetail").hidden = $("stHints").hidden = !x;
+  $("stEmpty").hidden = !!x;
+  if (!x) return;
+  const info = infoOf(x), f = flourOf(x);
+  $("stName").textContent = (x.name || "Mein Starter") + " · " + f.name;
   $("stMode").innerHTML = info.fridge
-    ? `<span class="chip cold">Im Kühlschrank</span> <span style="font-size:13px;color:var(--muted)">seit ${esc(relTime(new Date(starter.fridgeSince||starter.lastFed)-Date.now()).replace("seit ",""))}</span>`
+    ? `<span class="chip cold">Im Kühlschrank</span> <span style="font-size:13px;color:var(--muted)">${esc(relTime(new Date(x.fridgeSince||x.lastFed)-Date.now()))}</span>`
     : `<span class="chip ok">Aktiv bei Raumtemperatur</span>`;
   $("stDue").textContent = info.left >= 0 ? "Füttern "+relTime(info.left) : "Füttern überfällig";
   $("stDueSub").textContent = info.left >= 0 ? "am "+longDate(info.next) : "fällig war "+longDate(info.next)+" ("+relTime(info.left)+")";
@@ -152,101 +175,116 @@ function renderStarter(){
   $("stBar").firstElementChild.style.width = pct+"%";
   $("jarFill").setAttribute("y", String(40 - Math.round((1-pct/100)*16)));
   $("jarFill").setAttribute("height", String(29 + Math.round((1-pct/100)*16)));
+  $("stExample").hidden = !x.example;
 
-  // Aktionen
-  $("stActions").innerHTML = info.fridge
-    ? `<button class="btn" type="button" data-a="feed">Gerade gefüttert</button>
-       <button class="btn ghost" type="button" data-a="wake">Rausholen zum Backen</button>`
-    : `<button class="btn" type="button" data-a="feed">Gerade gefüttert</button>
-       <button class="btn ghost" type="button" data-a="fridge">In den Kühlschrank stellen</button>`;
+  $("stActions").innerHTML = `<button class="btn" type="button" data-a="feed">Gerade gefüttert</button>` + (info.fridge
+    ? `<button class="btn ghost" type="button" data-a="wake">Rausholen zum Backen</button>`
+    : `<button class="btn ghost" type="button" data-a="fridge">In den Kühlschrank stellen</button>`);
 
-  // Fütter-Verhältnis
-  const r = info.fridge ? [20,60,60] : [20,40,40];
+  const r = ratio(x);
   $("ratioBox").innerHTML = `<p class="lbl" style="margin:0 0 6px">So fütterst du ${info.fridge?"vor dem Kühlschrank (1:3:3)":"bei Raumtemperatur (1:2:2)"}</p>
     <div class="ratio" style="margin-bottom:14px">
-      <div><b>${r[0]} g</b><span>Starter</span></div><div><b>${r[1]} g</b><span>${FLOUR[starter.flour]}mehl</span></div><div><b>${r[2]} g</b><span>Wasser, lauwarm</span></div>
+      <div><b>${r[0]} g</b><span>Starter</span></div><div><b>${r[1]} g</b><span>${esc(f.mehl)}</span></div><div><b>${r[2]} g</b><span>Wasser, lauwarm</span></div>
     </div>`;
   $("tipsHead").textContent = info.fridge ? "Im Kühlschrank beachten" : "Das musst du beachten";
-  $("tips").innerHTML = tipsFor(info).map(x=>`<li>${esc(x)}</li>`).join("");
+  $("tips").innerHTML = tipsFor(x, info).map(y=>`<li>${esc(y)}</li>`).join("");
 
-  // Verlauf
   const L = { feed:"Gefüttert", fridge:"In den Kühlschrank", wake:"Aus dem Kühlschrank geholt" };
-  $("log").innerHTML = starter.log.length
-    ? starter.log.slice(0,12).map(e=>`<li><span>${L[e.type]||esc(e.type)}</span><span>${esc(longDate(new Date(e.t)))}</span></li>`).join("")
+  $("log").innerHTML = (x.log||[]).length
+    ? x.log.slice(0,12).map(e=>`<li><span>${L[e.type]||esc(e.type)}</span><span>${esc(longDate(new Date(e.t)))}</span></li>`).join("")
     : `<li><span style="color:var(--muted)">Noch keine Einträge. Tipp auf „Gerade gefüttert“, wenn du ihn das nächste Mal fütterst.</span><span></span></li>`;
 
-  // Formular
   if (document.activeElement !== $("lastFed")) $("lastFed").value = toLocalInput(info.last);
-  if (document.activeElement !== $("stNameIn")) $("stNameIn").value = starter.name || "";
-  $("stFlour").value = starter.flour;
-
-  // Erinnerung
-  $("starterRemind").checked = state.starterRemind;
-  const rem = starterReminders(info);
-  $("calNote").textContent = !state.starterRemind ? "Erinnerung ist aus."
-    : rem.length ? `Nächste Erinnerung: ${longDate(rem[0].at)}${rem[1] ? `, falls du dann nicht fütterst, nochmal ${longDate(rem[1].at)}` : ""}.`
-    : "";
-  scheduleSoon();
+  if (document.activeElement !== $("stNameIn")) $("stNameIn").value = x.name || "";
+  $("stFlour").value = FLOURS[x.flour] ? x.flour : "anderes";
+  $("starterRemind").checked = x.remind !== false;
+  const rem = starterReminders(x, state.temp, Date.now()).filter(y => y.at > Date.now());
+  $("calNote").textContent = x.example ? "" : x.remind===false ? "Erinnerung für diesen Starter ist aus."
+    : rem.length ? `Nächste Erinnerung: ${longDate(new Date(rem[0].at))}${rem[1] ? `, falls du dann nicht fütterst, nochmal ${longDate(new Date(rem[1].at))}` : ""}.` : "";
 }
-
-function starterAction(type, when = new Date()){
-  starter.example = false;
-  starter.log.unshift({ type, t: when.toISOString() });
-  starter.log = starter.log.slice(0, 40);
+function select(id){
+  sel = id; closeBoxes();
+  try{ localStorage.setItem("sauerteig-sel", id); }catch(e){}
+  renderStarter();
 }
-function saveStarter(){
-  persist("sauerteig-starter", starter);
-  $("stSync").textContent = "";
-  renderStarter(); render();
-}
+function closeBoxes(){ for (const b of ["fridgeBox","wakeBox","delBox","addBox"]) $(b).hidden = true; }
 
 // ---------- Speicher & Push (Firebase, wie die anderen Apps im Repo) ----------
 // Alles liegt zuerst in diesem Browser (localStorage). Mit Firebase kommt eine Kopie unter
-// sauerteig/<code> dazu: für ein zweites Gerät und damit der Server die Erinnerungen schicken kann.
-let store = null, syncCode = null, notifOk = false;
-function persist(key, obj){
-  try{ localStorage.setItem(key, JSON.stringify(obj)); localStorage.setItem("sauerteig-st", String(Date.now())); }catch(e){}
-  syncSoon();
+// sauerteig/<code> dazu: für weitere Geräte und damit der Server die Erinnerungen schicken kann.
+let store = null, syncCode = null, notifOk = false, leaving = false, unwatch = null, sentToken = null;
+const plainState = () => ({ ...state, target: state.target.toISOString() });
+const localData = () => ({ state: plainState(), starters });
+function saveLocal(){
+  if (leaving) return;
+  try{ localStorage.setItem("sauerteig", JSON.stringify(plainState())); localStorage.setItem("sauerteig-starters", JSON.stringify(starters)); }catch(e){}
 }
+function persist(){ saveLocal(); syncSoon(); }
 
-function starterReminders(info){
-  const out = [], now = Date.now();
-  const nm = starter.name || "Dein Starter";
-  const how = info.fridge
-    ? `Auf ca. 20 g abnehmen, mit 60 g ${FLOUR[starter.flour]}mehl und 60 g Wasser füttern, 1–2 h anspringen lassen, zurück in den Kühlschrank.`
-    : `20 g Starter + 40 g ${FLOUR[starter.flour]}mehl + 40 g Wasser.`;
-  const follow = info.fridge ? DAY : 4*HOUR;
-  const first = info.next.getTime(), second = first + follow;
-  if (first > now + MIN) out.push({ id:1, at:new Date(first), title:`${nm} hat Hunger`, body:how });
-  if (second > now + MIN) out.push({ id:2, at:new Date(second), title:`${nm} wartet noch aufs Futter`, body:"Du hast die letzte Fütterung noch nicht eingetragen. "+how });
-  return out;
+// Übernimmt einen abgeglichenen Stand; true, wenn sich etwas geändert hat
+function adopt(data){
+  if (canonical(data) === canonical(localData())) return false;
+  starters = data.starters;
+  if (data.state){
+    const target = new Date(data.state.target);
+    state = { ...state, ...data.state, target: isNaN(target) ? defaultTarget() : target };
+    if (!BREADS[state.bread]) state.bread = "klassisch";
+  }
+  saveLocal();
+  return true;
 }
-function bakeReminders(){
-  const now = Date.now() + MIN;
-  return buildPlan(state).ev.filter(e => e.time.getTime() > now && e.title !== "Teig in Ruhe gehen lassen").slice(0, 40);
+// Erinnerungen zu einem beliebigen Stand (auch einem, der gerade erst aus Firestore kam)
+function remindersFor(data){
+  const now = Date.now(), list = Object.values(data.starters).flatMap(x => starterReminders(x, data.state?.temp ?? 22, now));
+  if (data.state?.bakeRemind){
+    const s = { ...state, ...data.state, target:new Date(data.state.target) };
+    const alive = Object.values(data.starters).filter(x => !x.del);
+    buildPlan(s, alive.find(x => x.id===s.starterId) || alive[0]).ev.forEach((e,i) => {
+      if (e.title !== QUIET) list.push({ at:e.time.getTime(), title:e.title, body:e.det.slice(0,300), tag:"bake"+i, view:"backen", fed:false });
+    });
+  }
+  return list;
 }
-function dueList(){
-  const list = [];
-  if (state.starterRemind) starterReminders(starterInfo()).forEach(r => list.push({
-    at:r.at.getTime(), title:r.title, body:r.body, tag:"starter", view:"starter", fed:true }));
-  if (state.bakeRemind) bakeReminders().forEach((e,i) => list.push({
-    at:e.time.getTime(), title:e.title, body:e.det.slice(0,300), tag:"bake"+i, view:"backen", fed:false }));
-  return list.sort((a,b)=>a.at-b.at).slice(0, 50);
-}
+const bakeCount = () => buildPlan(state).ev.filter(e => e.time > new Date() && e.title !== QUIET).length;
 
-let syncT, lastSent = "";
+let syncT, syncing = false, again = false;
 function syncSoon(){ clearTimeout(syncT); syncT = setTimeout(syncNow, 1200); }
-const scheduleSoon = syncSoon;
 async function syncNow(){
   if (!store || !syncCode) return;
-  const j = JSON.stringify({ state:{...state, target: state.target.toISOString()}, starter });
-  const due = notifOk ? dueList() : [];
-  const sig = j + JSON.stringify(due);
-  if (sig === lastSent) return;
-  try{ await store.save(syncCode, { j, due }); lastSent = sig; setSync(""); }
-  catch(e){ console.error(e); setSync("Konnte gerade nicht speichern. Die App versucht es beim nächsten Mal wieder."); }
+  if (syncing){ again = true; return; }
+  syncing = true;
+  try{
+    let data;
+    await store.commit(syncCode, remote => {
+      const r = buildSave(remote, localData(), remindersFor, Date.now());
+      data = r.data; return r.doc;
+    });
+    // Während des Speicherns kann hier weitergetippt worden sein: noch einmal zusammenführen
+    if (data && adopt(merge(localData(), data))) redraw();
+    setSync("");
+  }catch(e){ console.error(e); setSync("Noch nicht online gespeichert. Die App versucht es wieder, sobald du Internet hast."); }
+  syncing = false;
+  if (again){ again = false; syncSoon(); }
 }
 function setSync(msg){ $("stSync").textContent = msg; }
+
+function onRemote(doc, confirmed){
+  const theirs = doc?.j ? parse(doc.j) : null;
+  if (theirs){
+    if (adopt(merge(localData(), theirs))) redraw();
+    if (canonical(localData()) !== doc.j) syncSoon();
+  }
+  if (confirmed && !rolled){ rolled = true; rollTarget(); syncSoon(); }
+}
+let rolled = false;
+// Liegt der Backtermin länger zurück, den nächsten Samstag vorschlagen. Erst nach dem Abgleich,
+// damit ein lange nicht geöffnetes Gerät keinen neueren Plan überschreibt.
+function rollTarget(){
+  if (state.target.getTime() > Date.now() - 6*HOUR) return;
+  state.target = defaultTarget(); state.bakeRemind = false;
+  if (state.u > 0) state.u = Date.now();
+  saveLocal(); redraw();
+}
 
 async function refreshPermission(ask){
   const support = store && await store.pushSupported().catch(()=>false);
@@ -260,47 +298,38 @@ async function refreshPermission(ask){
   }
   if (Notification.permission === "default" && ask){ try{ await Notification.requestPermission(); }catch(e){} }
   notifOk = Notification.permission === "granted";
+  let failed = false;
   if (notifOk){
     try{
       const reg = await navigator.serviceWorker.ready;
       const token = await store.pushToken(reg);
-      if (token) await store.addToken(syncCode, token); else notifOk = false;
-    }catch(e){ console.error(e); notifOk = false; }
+      if (!token) throw new Error("kein Token");
+      if (sentToken !== token){
+        await store.addToken(syncCode, token);
+        sentToken = token;
+        localStorage.setItem("sauerteig-token", syncCode+":"+token);
+      }
+    }catch(e){ console.error(e); notifOk = false; failed = true; }
   }
   $("notifState").textContent = notifOk
     ? "Benachrichtigungen sind an. Dein Handy meldet sich auch, wenn die App geschlossen ist (bis zu 5 Minuten Verzögerung)."
+    : failed ? "Das Handy konnte sich gerade nicht für Benachrichtigungen anmelden. Öffne die App noch einmal, wenn du online bist."
     : Notification.permission === "denied"
       ? "Benachrichtigungen sind blockiert. Erlaube sie in den Android-Einstellungen bei der App „Sauerteig“."
       : "Benachrichtigungen sind noch aus. Erlaube sie, damit dich die App erinnern kann.";
-  $("notifAllow").hidden = notifOk || Notification.permission === "denied";
+  $("notifAllow").hidden = notifOk || failed || Notification.permission === "denied";
   $("notifTest").hidden = !notifOk;
-  lastSent = ""; syncSoon();
+  render();
 }
 
-// Abgleich mit einem anderen Gerät über den Sauerteig-Code
-function applyRemote(data){
-  if (!data || !data.j) return false;
-  const localSt = +(localStorage.getItem("sauerteig-st") || 0);
-  const fresh = !localStorage.getItem("sauerteig-starter");
-  if (!fresh && (data.st || 0) <= localSt) return false;
-  try{
-    const r = JSON.parse(data.j);
-    if (r.state){ Object.assign(state, r.state); state.target = new Date(r.state.target); }
-    if (r.starter) starter = { ...starter, ...r.starter };
-    localStorage.setItem("sauerteig", JSON.stringify({...state, target: state.target.toISOString()}));
-    localStorage.setItem("sauerteig-starter", JSON.stringify(starter));
-    localStorage.setItem("sauerteig-st", String(data.st || Date.now()));
-    return true;
-  }catch(e){ return false; }
-}
 function renderCode(){
   $("syncCode").textContent = syncCode || "–";
   $("syncBox").hidden = !store;
 }
 
-
 // ================= BACKEN =================
-let state = { bread:"klassisch", target:null, count:1, weight:1000, temp:22, cold:true, coldH:12, bakeRemind:false, starterRemind:true };
+let state = { bread:"klassisch", target:null, count:1, weight:1000, temp:22, cold:true, coldH:12, bakeRemind:false, starterId:null, u:-1 };
+const QUIET = "Teig in Ruhe gehen lassen"; // dafür gibt es keine Erinnerung
 
 function defaultTarget(){
   const d = new Date(); d.setHours(10,0,0,0);
@@ -308,7 +337,7 @@ function defaultTarget(){
   d.setDate(d.getDate()+n); return d;
 }
 
-function buildPlan(s){
+function buildPlan(s, starter = bakeStarter()){
   const b = BREADS[s.bread];
   const f = Math.pow(1.09, 24 - s.temp);
   const bulkMin = 270 * f * b.bulk;
@@ -332,14 +361,15 @@ function buildPlan(s){
   const ev = [];
   const E = (time,title,det,kind="act") => ev.push({time,title,det,kind});
   const st = starterNeed(s);
-  const sName = starter.name || "Anstellgut";
-  const fromFridge = starter.mode === "kuehlschrank";
+  const sName = starter?.name || "Anstellgut";
+  const fromFridge = starter?.mode === "kuehlschrank";
 
   let start = feed;
   if (fromFridge){
     const wake = roundTo(add(feed, -12*60), 15);
+    const w = Math.max(20, Math.ceil((st.feed+10)/25)*5); // 1:2:2 muss für die zweite Fütterung reichen
     E(wake, `${sName} aus dem Kühlschrank holen`,
-      `Auf ca. 20 g abnehmen, mit 40 g Mehl und 40 g Wasser füttern und bei Raumtemperatur stehen lassen. Im Tab „Mein Starter“ auf „Rausholen zum Backen“ tippen.`, "starter");
+      `Auf ca. ${w} g abnehmen, mit ${2*w} g ${flourOf(starter).mehl} und ${2*w} g Wasser füttern und bei Raumtemperatur stehen lassen. Im Tab „Meine Starter“ auf „Rausholen zum Backen“ tippen.`, "starter");
     start = wake;
   }
   E(feed, fromFridge ? `${sName} ein zweites Mal füttern` : `${sName} füttern`,
@@ -349,14 +379,14 @@ function buildPlan(s){
   E(mix,"Anstellgut und Salz einarbeiten",
     `${st.need} g aktives Anstellgut und das Salz 5–8 min einkneten. ${b.mixDet||""} Den Rest vom Starter (ca. 20 g) behalten und füttern.`.trim());
   E(add(mix, 20), "Rest-Starter versorgen",
-    "Rest mit Mehl und Wasser 1:2:2 füttern. Backst du die nächsten Tage nicht, nach 1–2 h in den Kühlschrank stellen und im Tab „Mein Starter“ eintragen.", "starter");
+    "Rest mit Mehl und Wasser 1:2:2 füttern. Backst du die nächsten Tage nicht, nach 1–2 h in den Kühlschrank stellen und im Tab „Meine Starter“ eintragen.", "starter");
 
   const folds = s.bread==="dinkel" ? 3 : 4;
   for (let i=1;i<=folds;i++){
     E(add(bulk, 30*i), `${i}. Dehnen & Falten`,
       i===1 && b.foldIn ? b.foldIn : "Teig von allen Seiten hochziehen und übereinanderlegen, 4 Runden.");
   }
-  E(add(bulk, 30*folds+5),"Teig in Ruhe gehen lassen",
+  E(add(bulk, 30*folds+5),QUIET,
     `Abgedeckt bei ${s.temp} °C stehen lassen. Gesamte Stockgare ca. ${dur(bulkMin)}. Fertig, wenn der Teig um 50–75 % gewachsen ist, Blasen zeigt und wackelt.`,"wait");
   E(preshape,"Vorformen", "Teig auf die Arbeitsfläche geben, rund vorformen, 30 min entspannen lassen.");
   E(shape,"Formen und ins Gärkörbchen", b.shapeDet || "Straff formen, mit der Naht nach oben in das bemehlte Gärkörbchen legen.");
@@ -415,9 +445,13 @@ function render(){
     <div><span class="lbl">Hydration</span><span class="v">${Math.round(r.hydr)} %</span></div>`;
 
   let al = "";
-  const si = starterInfo();
-  if (si.level==="warn"||si.level==="bad") al += `<div class="alert ${si.level}">${esc(starter.name||"Dein Starter")} muss gefüttert werden. <button type="button" data-go="starter">Zum Starter</button></div>`;
-  if (starter.mode==="kuehlschrank") al += `<div class="alert warn">Dein Starter steht im Kühlschrank. Der Plan beginnt deshalb 12 h früher mit einer zusätzlichen Fütterung.</div>`;
+  const starter = bakeStarter(), si = infoOf(starter);
+  $("bakeStarterWrap").hidden = live().length < 2;
+  $("bakeStarter").innerHTML = live().map(x => `<option value="${esc(x.id)}">${esc(x.name || flourOf(x).name)} (${esc(flourOf(x).name)})</option>`).join("");
+  $("bakeStarter").value = starter.id;
+  if (!starter.example && (si.level==="warn"||si.level==="bad")) al += `<div class="alert ${si.level}">${esc(starter.name||"Dein Starter")} muss gefüttert werden. <button type="button" data-go="starter">Zum Starter</button></div>`;
+  if (starter.flour==="glutenfrei") al += `<div class="alert warn">Alle Brote hier enthalten Weizen oder Dinkel. Auch mit glutenfreiem Starter wird dieses Brot nicht glutenfrei.</div>`;
+  if (starter.mode==="kuehlschrank") al += `<div class="alert warn">${esc(starter.name||"Dein Starter")} steht im Kühlschrank. Der Plan beginnt deshalb 12 h früher mit einer zusätzlichen Fütterung.</div>`;
   if (p.start < now) al += `<div class="alert warn">Der Plan hätte schon ${dayLabel(p.start)} um ${hm(p.start)} beginnen müssen. Wähle einen späteren Backtermin oder verkürze die Kühlschrank-Gare.</div>`;
   if (nights.length) al += `<div class="alert night">${nights.length} Schritt${nights.length>1?"e fallen":" fällt"} in die Nacht (23–6 Uhr): ${nights.map(e=>esc(e.title)+" "+hm(e.time)).join(", ")}. Tipp: „Nachtschichten vermeiden“ verschiebt die Kühlschrank-Gare passend.</div>`;
   else if (p.start >= now) al += `<div class="alert ok">Kein Schritt zwischen 23 und 6 Uhr. Gut schlafen!</div>`;
@@ -427,7 +461,7 @@ function render(){
   p.ev.forEach(e => {
     const k = dayKey(e.time);
     if (k!==last){ html += `<div class="day">${dayLabel(e.time)}</div>`; last=k; }
-    const bell = state.bakeRemind && notifOk && e.time > now && e.title !== "Teig in Ruhe gehen lassen" ? '<span class="chip bell">Erinnerung</span>' : "";
+    const bell = state.bakeRemind && notifOk && e.time > now && e.title !== QUIET ? '<span class="chip bell">Erinnerung</span>' : "";
     html += `<div class="ev ${e.kind} ${e.night?"isnight":""}">
       <div class="t">${hm(e.time)}</div><div class="rail"><span class="dot"></span></div>
       <div class="body"><div class="title">${esc(e.title)}${e.night?'<span class="chip n">Nachts</span>':""}${bell}</div><div class="det">${esc(e.det)}</div></div></div>`;
@@ -446,14 +480,13 @@ function render(){
   });
   rows += `<tr class="grp"><td colspan="3">Anstellgut füttern (vor dem Backtag)</td></tr>
     <tr><td>Anstellgut</td><td class="p">1</td><td class="g">${st.feed} g</td></tr>
-    <tr><td>${FLOUR[starter.flour]}mehl</td><td class="p">1</td><td class="g">${st.feed} g</td></tr>
+    <tr><td>${esc(flourOf(starter).mehl)}</td><td class="p">1</td><td class="g">${st.feed} g</td></tr>
     <tr><td>Wasser</td><td class="p">1</td><td class="g">${st.feed} g</td></tr>`;
   $("recipe").innerHTML = `<div style="overflow-x:auto"><table>
     <thead><tr><th>Zutat</th><th style="text-align:right">Bäcker-%</th><th style="text-align:right">Menge</th></tr></thead>
     <tbody>${rows}</tbody></table></div>
     <p class="note">${b.notes}</p>
     <p class="note">Bäcker-% beziehen sich auf die Mehlmenge (${g(F)} g = 100 %). Für ${state.count} × ${state.weight} g Teig. Backen: ${b.bake.map(x=>`${x[1]} min / ${x[0]} °C ${x[2]?"mit":"ohne"} Deckel`).join(" → ")}${state.count>1?", pro Brot, nacheinander oder in zwei Töpfen":""}.</p>`;
-  save();
 }
 
 function optimize(){
@@ -469,7 +502,7 @@ function optimize(){
   }
   state.cold = best.cold; state.coldH = best.h;
   $("cold").checked = best.cold; $("coldH").value = best.h;
-  render();
+  changed();
   toast(best.n ? `Besser geht's mit diesem Termin nicht: noch ${best.n} Schritt(e) nachts. Probier eine andere Backzeit.` :
     best.cold ? `Kühlschrank-Gare auf ${String(best.h).replace(".",",")} h gesetzt, keine Nachtschritte mehr.` : "Ohne Kühlschrank passt es am besten.");
 }
@@ -481,19 +514,26 @@ function planText(){
   return t;
 }
 let toastT;
-function toast(msg){ $("toast").textContent = msg; clearTimeout(toastT); toastT=setTimeout(()=>$("toast").textContent="",5000); }
+function toast(msg){ const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(()=> t.hidden = true, 5000); }
 function copyText(t, okMsg){
   const fallback = () => { const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); toast(okMsg);}catch(e){toast("Kopieren nicht möglich.");} ta.remove(); };
   try{ navigator.clipboard.writeText(t).then(()=>toast(okMsg), fallback); }catch(e){ fallback(); }
 }
 
-function save(){ persist("sauerteig", {...state, target: state.target.toISOString()}); if (state.bakeRemind) scheduleSoon(); }
+// Nach jeder Änderung am Backplan durch die Nutzerin
+function changed(){ state.u = Math.max(Date.now(), state.u+1); persist(); render(); }
 function load(){
-  try{ const s = JSON.parse(localStorage.getItem("sauerteig")||"null");
-    if (s){ Object.assign(state, s); state.target = new Date(s.target); if (!BREADS[state.bread]) state.bread="klassisch"; }
+  try{
+    const s = JSON.parse(localStorage.getItem("sauerteig")||"null");
+    if (s){ state = { ...state, u:0, ...s, target:new Date(s.target) }; if (!BREADS[state.bread]) state.bread="klassisch"; }
   }catch(e){}
-  if (!state.target || isNaN(state.target) || state.target < new Date()) state.target = defaultTarget();
-  try{ const st = JSON.parse(localStorage.getItem("sauerteig-starter")||"null"); if (st) starter = {...starter, ...st}; }catch(e){}
+  if (!state.target || isNaN(state.target)) state.target = defaultTarget();
+  try{
+    const all = JSON.parse(localStorage.getItem("sauerteig-starters")||"null"), old = JSON.parse(localStorage.getItem("sauerteig-starter")||"null");
+    if (all) starters = all;
+    else if (old) starters = parse(JSON.stringify({ state, starter:old })).starters; // bis Version 1 gab es nur einen
+    sel = localStorage.getItem("sauerteig-sel") || sel;
+  }catch(e){}
 }
 
 // ---------- Ansicht wechseln ----------
@@ -506,17 +546,16 @@ function showView(v){
 
 // ---------- Events ----------
 load(); renderBreads();
-$("target").value = toLocalInput(state.target);
-$("count").value = state.count; $("weight").value = state.weight;
-$("temp").value = state.temp; $("cold").checked = state.cold; $("coldH").value = state.coldH;
+$("stFlour").innerHTML = $("addFlour").innerHTML = Object.entries(FLOURS).map(([k,f]) => `<option value="${k}">${f.name}</option>`).join("");
 
-$("breads").addEventListener("click", e => { const b=e.target.closest(".bread"); if(b){ state.bread=b.dataset.k; render(); } });
-$("target").addEventListener("change", e => { const d=new Date(e.target.value); if(!isNaN(d)){ state.target=d; render(); } });
-$("count").addEventListener("change", e => { state.count=+e.target.value; render(); });
-$("weight").addEventListener("change", e => { state.weight=+e.target.value; render(); });
-$("temp").addEventListener("input", e => { state.temp=+e.target.value; render(); renderStarter(); });
-$("cold").addEventListener("change", e => { state.cold=e.target.checked; render(); });
-$("coldH").addEventListener("input", e => { state.coldH=+e.target.value; render(); });
+$("breads").addEventListener("click", e => { const b=e.target.closest(".bread"); if(b){ state.bread=b.dataset.k; changed(); } });
+$("target").addEventListener("change", e => { const d=new Date(e.target.value); if(!isNaN(d)){ state.target=d; changed(); } });
+$("count").addEventListener("change", e => { state.count=+e.target.value; changed(); });
+$("weight").addEventListener("change", e => { state.weight=+e.target.value; changed(); });
+$("temp").addEventListener("input", e => { state.temp=+e.target.value; changed(); renderStarter(); });
+$("cold").addEventListener("change", e => { state.cold=e.target.checked; changed(); });
+$("coldH").addEventListener("input", e => { state.coldH=+e.target.value; changed(); });
+$("bakeStarter").addEventListener("change", e => { state.starterId=e.target.value; changed(); });
 $("optimize").addEventListener("click", optimize);
 $("copy").addEventListener("click", () => copyText(planText(), "Plan kopiert, z. B. in WhatsApp oder Notizen einfügen."));
 function tab(which){
@@ -527,45 +566,73 @@ $("tabPlan").addEventListener("click",()=>tab("plan"));
 $("tabRec").addEventListener("click",()=>tab("rec"));
 $("vBake").addEventListener("click",()=>showView("bake"));
 $("vStarter").addEventListener("click",()=>showView("starter"));
-$("alerts").addEventListener("click", e => { if (e.target.dataset.go==="starter") showView("starter"); });
+$("alerts").addEventListener("click", e => { if (e.target.dataset.go==="starter"){ select(bakeStarter().id); showView("starter"); } });
 
 // Starter-Aktionen
+$("stList").addEventListener("click", e => { const b = e.target.closest("[data-id]"); if (b) select(b.dataset.id); });
+$("stAdd").addEventListener("click", () => {
+  closeBoxes(); $("addBox").hidden = false;
+  const used = new Set(live().filter(x => !x.example).map(x => x.flour));
+  $("addFlour").value = Object.keys(FLOURS).find(k => !used.has(k)) || "anderes";
+  $("addName").value = ""; $("addFed").value = toLocalInput(new Date()); $("addFridge").checked = false;
+  addHint(); $("addName").focus();
+});
+function addHint(){ $("addName").placeholder = FLOURS[$("addFlour").value].name + "-Sauerteig"; }
+$("addFlour").addEventListener("change", addHint);
+$("addCancel").addEventListener("click", closeBoxes);
+$("addGo").addEventListener("click", () => {
+  const now = Date.now(), id = randomCode(6), flour = $("addFlour").value, fed = new Date($("addFed").value);
+  if (isNaN(fed) || fed > now + MIN){ toast("Wann wurde er zuletzt gefüttert? Der Zeitpunkt darf nicht in der Zukunft liegen."); return; }
+  const x = newStarter(id, flour, now, { created:now, lastFed:fed.toISOString() });
+  x.name = $("addName").value.trim().slice(0,40) || x.name;
+  if ($("addFridge").checked){ x.mode = "kuehlschrank"; x.fridgeSince = fed.toISOString(); }
+  // Das Beispiel verschwindet mit dem ersten echten Starter
+  starters = { ...Object.fromEntries(Object.entries(starters).filter(([,y]) => !y.example)), [id]: x };
+  select(id); persist(); render(); toast(x.name+" angelegt.");
+});
 $("stActions").addEventListener("click", e => {
-  const a = e.target.closest("[data-a]")?.dataset.a; if (!a) return;
-  if (a==="feed"){ starter.lastFed = new Date().toISOString(); starterAction("feed"); saveStarter(); toast("Fütterung eingetragen."); }
-  if (a==="fridge"){ $("fridgeDays").value = starter.fridgeDays || FRIDGE_DEFAULT[starter.flour]; $("fridgeDaysOut").textContent = $("fridgeDays").value+" Tage"; $("fridgeBox").hidden=false; $("wakeBox").hidden=true; }
-  if (a==="wake"){ $("wakeBox").hidden=false; $("fridgeBox").hidden=true; }
+  const a = e.target.closest("[data-a]")?.dataset.a, x = cur(); if (!a || !x) return;
+  closeBoxes();
+  if (a==="feed"){ feed(x.id); toast((x.name||"Starter")+": Fütterung eingetragen."); }
+  if (a==="fridge"){ $("fridgeDays").value = x.fridgeDays || flourOf(x).days; $("fridgeDaysOut").textContent = $("fridgeDays").value+" Tage"; $("fridgeFed").checked = true; $("fridgeBox").hidden=false; }
+  if (a==="wake"){ $("wakeFed").checked = true; $("wakeBox").hidden=false; }
 });
 $("fridgeDays").addEventListener("input", e => $("fridgeDaysOut").textContent = e.target.value+" Tage");
-$("fridgeCancel").addEventListener("click", ()=> $("fridgeBox").hidden=true);
-$("wakeCancel").addEventListener("click", ()=> $("wakeBox").hidden=true);
+$("fridgeCancel").addEventListener("click", closeBoxes);
+$("wakeCancel").addEventListener("click", closeBoxes);
 $("fridgeGo").addEventListener("click", () => {
-  const now = new Date();
-  if ($("fridgeFed").checked){ starter.lastFed = now.toISOString(); starterAction("feed", now); }
-  starter.mode = "kuehlschrank"; starter.fridgeSince = now.toISOString(); starter.fridgeDays = +$("fridgeDays").value;
-  starterAction("fridge", now);
-  $("fridgeBox").hidden = true; saveStarter();
-  toast(`Im Kühlschrank. Nächste Fütterung in ${starter.fridgeDays} Tagen. Die App erinnert dich rechtzeitig.`);
+  const x = cur(), now = new Date().toISOString(), days = +$("fridgeDays").value, fed = $("fridgeFed").checked;
+  touch(x.id, { mode:"kuehlschrank", fridgeSince:now, fridgeDays:days, ...(fed ? { lastFed:now } : {}) }, fed ? ["fridge","feed"] : ["fridge"]);
+  closeBoxes(); toast(`${x.name||"Starter"} ist im Kühlschrank. ${fed ? `Nächste Fütterung in ${days} Tagen.` : "Gerechnet wird ab der letzten Fütterung."}`);
 });
 $("wakeGo").addEventListener("click", () => {
-  const now = new Date();
-  starter.mode = "aktiv"; starter.fridgeSince = null;
-  starterAction("wake", now);
-  if ($("wakeFed").checked){ starter.lastFed = now.toISOString(); starterAction("feed", now); }
-  $("wakeBox").hidden = true; saveStarter(); toast("Starter ist wieder aktiv. Füttere ihn noch 1–2 Mal, bevor du backst.");
+  const x = cur(), fed = $("wakeFed").checked;
+  touch(x.id, { mode:"aktiv", fridgeSince:null, ...(fed ? { lastFed:new Date().toISOString() } : {}) }, fed ? ["feed","wake"] : ["wake"]);
+  closeBoxes(); toast((x.name||"Starter")+" ist wieder aktiv. Füttere ihn noch 1–2 Mal, bevor du backst.");
 });
-$("lastFed").addEventListener("change", e => { const d = new Date(e.target.value); if (!isNaN(d) && d <= new Date()){ starter.lastFed = d.toISOString(); starter.example=false; saveStarter(); } });
+$("stDel").addEventListener("click", () => {
+  const x = cur(); closeBoxes();
+  $("delText").textContent = `„${x.name||"Starter"}“ mit seinem Verlauf auf allen Geräten löschen? Das lässt sich nicht rückgängig machen.`;
+  $("delBox").hidden = false;
+});
+$("delCancel").addEventListener("click", closeBoxes);
+$("delGo").addEventListener("click", () => {
+  const x = cur();
+  starters = { ...starters, [x.id]: { id:x.id, del:true, u: Math.max(Date.now(), (x.u||0)+1) } };
+  closeBoxes(); persist(); renderStarter(); render(); toast((x.name||"Starter")+" gelöscht.");
+});
+$("lastFed").addEventListener("change", e => { const d = new Date(e.target.value), x = cur(); if (x && !isNaN(d) && d <= new Date()) touch(x.id, { lastFed:d.toISOString() }); });
 let nameT;
-$("stNameIn").addEventListener("input", e => { clearTimeout(nameT); nameT = setTimeout(()=>{ starter.name = e.target.value.trim().slice(0,40); starter.example=false; saveStarter(); }, 700); });
-$("stFlour").addEventListener("change", e => { starter.flour = e.target.value; starter.example=false; if (starter.mode!=="kuehlschrank") starter.fridgeDays = FRIDGE_DEFAULT[starter.flour]; saveStarter(); });
+$("stNameIn").addEventListener("input", e => { const id = cur()?.id, v = e.target.value; clearTimeout(nameT); nameT = setTimeout(() => touch(id, { name:v.trim().slice(0,40) }), 700); });
+$("stFlour").addEventListener("change", e => { const x = cur(); touch(x.id, { flour:e.target.value, ...(x.mode!=="kuehlschrank" ? { fridgeDays:FLOURS[e.target.value].days } : {}) }); });
 // Erinnerungen
-$("starterRemind").addEventListener("change", e => { state.starterRemind = e.target.checked; save(); renderStarter(); scheduleSoon(); });
+$("starterRemind").addEventListener("change", e => { const x = cur(); if (x) touch(x.id, { remind:e.target.checked }); });
 $("bakeRemind").addEventListener("change", async e => {
   state.bakeRemind = e.target.checked;
   if (state.bakeRemind && !notifOk) await refreshPermission(true);
   if (state.bakeRemind && !notifOk){ toast("Ohne Erlaubnis für Benachrichtigungen kann die App nicht erinnern."); }
-  else if (state.bakeRemind) toast(`${bakeReminders().length} Erinnerungen für diesen Backplan gestellt.`);
-  render(); scheduleSoon();
+  else if (state.bakeRemind) toast(`${bakeCount()} Erinnerungen für diesen Backplan gestellt.`);
+  changed();
 });
 $("notifAllow").addEventListener("click", () => refreshPermission(true));
 $("notifTest").addEventListener("click", async () => {
@@ -580,46 +647,72 @@ $("syncJoin").addEventListener("click", async () => {
   try{
     const data = await store.load(code);
     if (!data || !data.j){ toast("Unter diesem Code ist nichts gespeichert."); return; }
-    syncCode = code; localStorage.setItem("sauerteig-code", code);
-    localStorage.removeItem("sauerteig-starter"); applyRemote(data);
-    location.hash = "#starter"; location.reload();
-  }catch(e){ toast("Konnte den Code gerade nicht prüfen. Bist du online?"); }
+    if (code === syncCode){ toast("Das ist schon der Code dieses Geräts."); return; }
+    clearTimeout(syncT); leaving = true; unwatch?.();
+    // Vom alten Code abmelden, sonst kämen dessen Erinnerungen weiter auf dieses Gerät
+    const token = (localStorage.getItem("sauerteig-token")||"").split(":").slice(1).join(":");
+    if (token) await store.removeToken(syncCode, token).catch(e => console.error(e));
+    localStorage.removeItem("sauerteig-token"); localStorage.removeItem("sauerteig-starter"); localStorage.removeItem("sauerteig-sel");
+    const r = parse(data.j);
+    localStorage.setItem("sauerteig-code", code);
+    localStorage.setItem("sauerteig-starters", JSON.stringify(r.starters));
+    if (r.state) localStorage.setItem("sauerteig", JSON.stringify(r.state));
+    syncCode = null; location.hash = "#starter"; location.reload();
+  }catch(e){ leaving = false; toast("Konnte den Code gerade nicht prüfen. Bist du online?"); }
 });
-document.addEventListener("visibilitychange", () => { if (!document.hidden){ renderStarter(); if (store) refreshPermission(false); } });
+document.addEventListener("visibilitychange", () => { if (!document.hidden){ renderStarter(); syncSoon(); if (store) refreshPermission(false); } });
+window.addEventListener("online", syncSoon);
 
-// „Gerade gefüttert“ in der Benachrichtigung öffnet die App mit #fed
+// Links aus Benachrichtigungen: #starter-<id> zeigt den Starter, #fed-<id> trägt die Fütterung ein.
+// #fed ohne Kennung kommt von der Test-Benachrichtigung und trägt nichts ein.
 function handleHash(){
-  if (location.hash === "#fed"){
-    starter.lastFed = new Date().toISOString(); starterAction("feed"); saveStarter();
-    toast("Fütterung eingetragen."); showView("starter"); return;
+  const [, what, id] = location.hash.match(/^#(starter|fed|backen)(?:-([a-z0-9]+))?$/) || [];
+  if (what === "fed"){
+    showView("starter");
+    if (!id){ toast("Der Test hat geklappt. Es wurde keine Fütterung eingetragen."); return; }
+    // Erst den neuesten Stand abwarten, damit nichts von einem anderen Gerät überschrieben wird
+    ready.then(() => {
+      if (!starters[id] || starters[id].del){ toast("Diesen Starter gibt es nicht mehr."); return; }
+      select(id); feed(id); toast((starters[id].name||"Starter")+": Fütterung eingetragen.");
+    });
+    return;
   }
-  showView(location.hash === "#starter" ? "starter" : "bake");
+  if (id) select(id);
+  showView(what === "starter" ? "starter" : "bake");
 }
 function fillInputs(){
-  $("target").value = toLocalInput(state.target);
+  if (document.activeElement !== $("target")) $("target").value = toLocalInput(state.target);
   $("count").value = state.count; $("weight").value = state.weight;
   $("temp").value = state.temp; $("cold").checked = state.cold; $("coldH").value = state.coldH;
   $("bakeRemind").checked = state.bakeRemind;
 }
-function startUp(){
-  fillInputs(); render(); renderStarter();
-  if (starter.example) setSync("Beispielwerte. Trag ein, wann du zuletzt gefüttert hast.");
-}
-window.addEventListener("hashchange", handleHash);
-setInterval(()=>{ renderStarter(); }, 60000);
-startUp(); handleHash(); renderCode();
-window.__stShown = true;
+function redraw(){ fillInputs(); render(); renderStarter(); }
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(e => console.error(e));
+let isReady; const ready = new Promise(r => isReady = r);
+redraw(); handleHash(); renderCode();
+window.__stShown = true;
+window.addEventListener("hashchange", handleHash);
+setInterval(renderStarter, 60000);
+
+// ?demo = alles nur auf diesem Gerät, ohne Firebase
+const demo = new URLSearchParams(location.search).has("demo");
+if (!demo && "serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(e => console.error(e));
+  navigator.serviceWorker.addEventListener("message", e => {
+    if (e.data?.type === "open") location.hash = new URL(e.data.link).hash;
+  });
+}
 
 (async () => {
-  try{ store = await createStore(); }catch(e){ console.error(e); store = null; }
+  if (!demo) try{ store = await createStore(); }catch(e){ console.error(e); store = null; }
   if (store){
     syncCode = localStorage.getItem("sauerteig-code");
     if (!syncCode){ syncCode = randomCode(); localStorage.setItem("sauerteig-code", syncCode); }
-    try{ if (applyRemote(await store.load(syncCode))) startUp(); }catch(e){ console.error(e); }
+    setTimeout(isReady, 4000);
+    unwatch = store.watch(syncCode, (doc, confirmed) => { onRemote(doc, confirmed); if (confirmed) isReady(); },
+      e => { console.error(e); setSync("Konnte den Stand nicht online abgleichen. Öffne die App noch einmal."); isReady(); });
     store.onPush(p => { const d = p.data || {}; toast(d.title ? d.title + ": " + (d.body||"") : "Erinnerung"); });
-  }
+  } else { rollTarget(); isReady(); }
   renderCode();
   await refreshPermission(false);
 })();

@@ -1,6 +1,6 @@
 // Datenzugriff für die Sauerteig-App: Firebase (gleiches Projekt wie die anderen Apps).
 // Ein Dokument pro Sauerteig-Code: sauerteig/<code> { j, st, due, next, tokens, test }
-//   j      Starter + Backplan als JSON-Text (für Abgleich zwischen Geräten)
+//   j      alle Starter + Backplan als JSON-Text (Aufbau und Abgleich: starters.js)
 //   due    anstehende Erinnerungen [{ at, title, body, tag, view, fed }]; der Server verschickt sie
 //   next   frühester Zeitpunkt in due (danach sucht der Server alle 5 Minuten)
 //   tokens Push-Tokens der Geräte
@@ -46,11 +46,16 @@ export async function createStore() {
       const snap = await fs.getDoc(ref(code));
       return snap.exists() ? snap.data() : null;
     },
-    // Speichert Stand und Erinnerungen. due wird komplett ersetzt.
-    save(code, { j, due }) {
-      const next = due.length ? Math.min(...due.map(d => d.at)) : null;
-      return fs.setDoc(ref(code), { j, due, next, st: Date.now() }, { merge: true });
-    },
+    // Meldet jede Änderung, auch von anderen Geräten. cb(Dokument oder null, vomServerBestätigt)
+    watch: (code, cb, onError) => fs.onSnapshot(ref(code), { includeMetadataChanges: true },
+      snap => cb(snap.exists() ? snap.data() : null, !snap.metadata.fromCache), onError),
+    // Liest den aktuellen Stand und schreibt, was build(stand) liefert (null = nichts), ohne dass etwas dazwischenkommt
+    commit: (code, build) => fs.runTransaction(db, async tx => {
+      const snap = await tx.get(ref(code));
+      const doc = build(snap.exists() ? snap.data() : null);
+      if (doc) tx.set(ref(code), doc, { merge: true });
+    }),
+    removeToken: (code, token) => fs.updateDoc(ref(code), { tokens: fs.arrayRemove(token) }),
     addToken: (code, token) => fs.setDoc(ref(code), { tokens: fs.arrayUnion(token) }, { merge: true }),
     // Bittet den Server um eine sofortige Test-Benachrichtigung
     test: code => fs.setDoc(ref(code), { test: Date.now() }, { merge: true }),
