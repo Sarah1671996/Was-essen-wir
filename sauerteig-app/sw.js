@@ -1,8 +1,8 @@
 // Hält die App-Dateien offline bereit und zeigt die Erinnerungen vom Server an.
 // Bei Änderungen an der App die Versionsnummer hochzählen.
-const CACHE = "sauerteig-v2";
+const CACHE = "sauerteig-v3";
 const FILES = [
-  "./", "index.html", "style.css", "app.js", "store.js", "starters.js", "boot.js", "../essen-match-app/firebase-config.js",
+  "./", "index.html", "style.css", "app.js", "store.js", "starters.js", "plan.js", "recipes.js", "editor.js", "diary.js", "boot.js", "../essen-match-app/firebase-config.js",
   "manifest.webmanifest", "icons/icon.svg", "icons/icon-192.png", "icons/badge.png", "icons/apple-touch-icon.png"
 ];
 

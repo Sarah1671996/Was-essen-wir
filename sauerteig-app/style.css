@@ -28,8 +28,8 @@ h3{font-size:14px;font-weight:600;margin:0 0 6px}
 .stack{display:flex;flex-direction:column;gap:18px}
 .field{display:flex;flex-direction:column;gap:6px}
 .field>label,.lbl{font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
-input,select{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;min-width:0;width:100%;box-sizing:border-box}
-input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+input,select,textarea{font:inherit;color:var(--fg);background:var(--bg);border:1px solid var(--line);border-radius:7px;padding:9px 10px;min-width:0;width:100%;box-sizing:border-box}
+input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .breads{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .bread{font:inherit;text-align:left;cursor:pointer;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:10px;display:flex;flex-direction:column;gap:2px}
@@ -125,3 +125,37 @@ body{margin:0;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-a
 .stlist .confirm{width:100%;max-width:520px;box-sizing:border-box}
 .ratio div{min-width:0;overflow-wrap:anywhere}
 .btn.danger{color:var(--bad)}
+textarea{resize:vertical}
+button:disabled,input:disabled,select:disabled{opacity:.55;cursor:not-allowed}
+.irow{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px;align-items:center}
+.irow .iname{flex:1 1 130px;width:auto}
+.irow .ig{flex:0 0 84px;width:84px}
+.irow .iwhen{flex:1 1 100%;order:9}
+.irow .idel{padding:8px 12px;line-height:1}
+.irow[data-kind="extras"]{border-bottom:1px solid var(--line);padding-bottom:8px}
+#editor .row2 .field{min-width:0}
+.acts{display:flex;flex-wrap:wrap;gap:4px 16px;margin-top:4px}
+.lnk{font:inherit;font-size:14px;font-weight:600;color:var(--accent);background:none;border:none;padding:8px 0;cursor:pointer}
+.askbox{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;display:flex;flex-direction:column;gap:8px;width:100%;box-sizing:border-box;margin-top:4px}
+.ev.isdone .title,.ev.isdone .t{color:var(--muted)}
+.ev.isdone .det{display:none}
+.ev.isdone .dot{background:var(--accent);border-color:var(--accent)}
+.ev.isnext .dot{box-shadow:0 0 0 4px var(--accent-soft)}
+.chip.next{background:var(--fg);color:var(--bg)}
+.trip{width:100%;max-width:640px;box-sizing:border-box}
+.trip summary{cursor:pointer;font-weight:600}
+.tripout{font-size:14px}
+.tripout .tips{margin-top:4px}
+.rate{display:flex;gap:2px}
+.rate button{font-size:30px;line-height:1;background:none;border:none;color:var(--warn);cursor:pointer;padding:4px 6px}
+.stars{color:var(--warn);white-space:nowrap;letter-spacing:.05em}
+#diForm{max-width:640px}
+.diprev{max-width:100%;max-height:320px;border-radius:8px;object-fit:contain;align-self:flex-start}
+.dilist{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(280px,100%),1fr));gap:16px;align-items:start}
+.dientry{display:flex;flex-direction:column;gap:8px;align-items:flex-start;min-width:0}
+.dientry .note{margin:0}
+.dihead{display:flex;flex-wrap:wrap;gap:4px 12px;justify-content:space-between;width:100%}
+.dihead h3{font-family:var(--f-display);font-size:18px;margin:0;overflow-wrap:anywhere}
+.dinotes{margin:0;white-space:pre-line;overflow-wrap:anywhere}
+.diphoto{width:100%}
+.diphoto img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;background:var(--sunk);display:block}

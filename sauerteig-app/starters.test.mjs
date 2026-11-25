@@ -1,4 +1,4 @@
-// node --test sauerteig-app/
+// node --test sauerteig-app/starters.test.mjs
 import test from "node:test";
 import assert from "node:assert/strict";
 import { newStarter, exampleStarter, starterInfo, starterReminders, dueList, parse, merge, buildSave, HOUR, DAY, MIN } from "./starters.js";

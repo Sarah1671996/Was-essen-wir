@@ -230,13 +230,24 @@ service cloud.firestore {
       allow create, update: if request.auth != null
         && code.size() >= 10 && code.size() <= 40
         && s().keys().hasOnly(["j", "st", "due", "next", "tokens", "test"])
-        && (!("j" in s()) || (s().j is string && s().j.size() <= 200000))
+        && (!("j" in s()) || (s().j is string && s().j.size() <= 500000))
         && (!("st" in s()) || s().st is number)
         && (!("due" in s()) || (s().due is list && s().due.size() <= 60))
         && (!("next" in s()) || s().next == null || s().next is number)
         && (!("tokens" in s()) || (s().tokens is list && s().tokens.size() <= 10))
         && (!("test" in s()) || s().test is number);
       allow list, delete: if false;
+
+      // Fotos im Back-Tagebuch: einzeln, nur als eingebettetes JPEG, nicht auflistbar
+      match /photos/{id} {
+        allow get, delete: if request.auth != null && code.size() >= 10;
+        allow create, update: if request.auth != null
+          && code.size() >= 10 && code.size() <= 40 && id.size() <= 64
+          && s().keys().hasOnly(["photo", "at"]) && s().at is number
+          && s().photo is string && s().photo.size() < 900000
+          && s().photo.matches("data:image/jpeg;base64,[A-Za-z0-9+/=]+");
+        allow list: if false;
+      }
     }
   }
 }

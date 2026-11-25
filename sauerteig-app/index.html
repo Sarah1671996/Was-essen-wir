@@ -38,6 +38,7 @@
     <div class="views" role="tablist">
       <button class="view" role="tab" id="vBake" aria-selected="true" type="button">Backen planen</button>
       <button class="view" role="tab" id="vStarter" aria-selected="false" type="button">Meine Starter <span class="chip ok" id="vChip">ok</span></button>
+      <button class="view" role="tab" id="vDiary" aria-selected="false" type="button">Tagebuch</button>
     </div>
   </header>
 
@@ -51,6 +52,10 @@
       <div class="field">
         <span class="lbl">Welches Brot?</span>
         <div class="breads" id="breads"></div>
+        <div class="btns">
+          <button class="btn ghost" id="reNew" type="button">+ Eigenes Rezept</button>
+          <button class="btn plain" id="reEdit" type="button" hidden>Rezept bearbeiten</button>
+        </div>
       </div>
       <div class="field" id="bakeStarterWrap" hidden>
         <label for="bakeStarter">Mit welchem Starter?</label>
@@ -92,6 +97,47 @@
     </section>
 
     <section aria-label="Ergebnis">
+      <div class="panel stack" id="editor" style="margin-bottom:16px" hidden>
+        <div><h2 id="reTitle">Neues Rezept</h2>
+          <p class="note" style="margin:0">Trag dein Rezept in Gramm ein. Die App rechnet es auf jede Teigmenge um und baut den Zeitplan.</p></div>
+        <div class="field" id="reFromWrap"><label for="reFrom">Vorlage</label><select id="reFrom"></select></div>
+        <div class="field"><label for="reName">Name</label><input type="text" id="reName" maxlength="40" placeholder="z. B. Walnussbrot"></div>
+        <div class="field"><span class="lbl">Mehl</span><div id="re_flours"></div><button class="btn plain" type="button" data-add="flours">+ Mehl</button></div>
+        <div class="field"><span class="lbl">Flüssigkeit</span><div id="re_liquids"></div><button class="btn plain" type="button" data-add="liquids">+ Flüssigkeit</button></div>
+        <div class="row2">
+          <div class="field"><label for="reStarter">Anstellgut (g)</label><input type="number" id="reStarter" min="0" step="1" inputmode="decimal"></div>
+          <div class="field"><label for="reSalt">Salz (g)</label><input type="number" id="reSalt" min="0" step="0.1" inputmode="decimal"></div>
+        </div>
+        <div class="field"><span class="lbl">Weitere Zutaten</span><div id="re_extras"></div><button class="btn plain" type="button" data-add="extras">+ Zutat</button></div>
+        <p class="note" id="reSum" style="margin:0"></p>
+        <div class="row2">
+          <div class="field"><label for="reT1">Mit Deckel (°C)</label><input type="number" id="reT1" min="100" max="300" inputmode="numeric"></div>
+          <div class="field"><label for="reM1">Minuten</label><input type="number" id="reM1" min="0" max="180" inputmode="numeric"></div>
+          <div class="field"><label for="reT2">Ohne Deckel (°C)</label><input type="number" id="reT2" min="100" max="300" inputmode="numeric"></div>
+          <div class="field"><label for="reM2">Minuten</label><input type="number" id="reM2" min="0" max="180" inputmode="numeric"></div>
+        </div>
+        <div class="field"><label for="reSpeed">Wie schnell geht der Teig?</label>
+          <select id="reSpeed"><option value="0.9">Schneller (z. B. Dinkel, Vollkorn)</option><option value="1">Normal</option><option value="1.2">Langsamer (süß oder mit viel Butter)</option></select></div>
+        <label class="toggle"><input type="checkbox" id="reGf"><span>Glutenfreier Teig<small>Anderer Ablauf: ohne Dehnen, Falten und Vorformen. Die App prüft deine Zutaten nicht auf Gluten.</small></span></label>
+        <div class="field"><label for="reNotes">Notizen</label><textarea id="reNotes" maxlength="600" rows="3"></textarea></div>
+        <div class="alert bad" id="reErr" role="alert" style="margin:0" hidden></div>
+        <div class="btns">
+          <button class="btn" id="reSave" type="button">Rezept speichern</button>
+          <button class="btn plain" id="reCancel" type="button">Abbrechen</button>
+          <button class="btn plain danger" id="reDel" type="button" hidden>Rezept löschen</button>
+        </div>
+        <div class="confirm" id="reDelBox" hidden><p style="margin:0;font-size:14px">Dieses Rezept auf allen Geräten löschen? Das lässt sich nicht rückgängig machen.</p>
+          <div class="btns"><button class="btn plain danger" id="reDelYes" type="button">Endgültig löschen</button><button class="btn plain" id="reDelNo" type="button">Abbrechen</button></div></div>
+      </div>
+
+      <div class="panel" id="runBox" style="margin-bottom:16px" hidden>
+        <p style="margin:0" id="runText"></p>
+        <div class="bar"><i id="runBar" style="width:0"></i></div>
+        <p class="note" style="margin:6px 0 12px">Brot, Termin und Mengen sind fest, solange der Backtag läuft.</p>
+        <div class="btns"><button class="btn" id="runEnd" type="button">Backtag beenden und ins Tagebuch</button><button class="btn plain" id="runStop" type="button">Haken verwerfen</button></div>
+        <div class="confirm" id="runSure" style="margin-top:12px" hidden><p style="margin:0;font-size:14px">Alle Haken und Verschiebungen dieses Backtags verwerfen?</p>
+          <div class="btns"><button class="btn plain danger" id="runYes" type="button">Verwerfen</button><button class="btn plain" id="runNo" type="button">Abbrechen</button></div></div>
+      </div>
       <div class="panel summary" id="summary"></div>
       <div id="alerts"></div>
       <div class="panel">
@@ -123,6 +169,18 @@
           <button class="btn plain" id="addCancel" type="button">Abbrechen</button>
         </div>
       </div>
+      <details class="panel trip" id="tripBox">
+        <summary>Urlaub planen</summary>
+        <div class="stack" style="margin-top:14px">
+          <div class="row2">
+            <div class="field"><label for="tripFrom">Abreise</label><input type="date" id="tripFrom"></div>
+            <div class="field"><label for="tripTo">Rückkehr</label><input type="date" id="tripTo"></div>
+          </div>
+          <div class="btns"><button class="btn" id="tripGo" type="button">Urlaub speichern</button><button class="btn plain" id="tripDel" type="button" hidden>Urlaub löschen</button></div>
+          <div class="stack tripout" id="tripOut"></div>
+          <div class="btns"><button class="btn ghost" id="tripCold" type="button" hidden>Alle gefüttert und im Kühlschrank</button></div>
+        </div>
+      </details>
       <p class="note" id="stEmpty" style="margin:0" hidden>Du hast noch keinen Starter. Leg oben einen an, dann erinnert dich die App ans Füttern.</p>
     </section>
 
@@ -175,6 +233,13 @@
             <button class="btn" id="wakeGo" type="button">Starter ist wieder aktiv</button>
             <button class="btn plain" id="wakeCancel" type="button">Abbrechen</button>
           </div>
+        </div>
+
+        <div id="peakBox">
+          <h3>Höhepunkt messen</h3>
+          <p style="margin:0 0 8px;font-size:14px;color:var(--muted)" id="peakInfo"></p>
+          <div class="btns"><button class="btn ghost" id="peakGo" type="button">Höhepunkt jetzt erreicht</button><button class="btn plain" id="peakUndo" type="button" hidden>Messung entfernen</button></div>
+          <p class="note" style="margin:0" id="peakHint"></p>
         </div>
 
         <div class="field">
@@ -244,6 +309,29 @@
         <ul class="log" id="log"></ul>
       </div>
     </section>
+  </div>
+
+  <!-- ===================== TAGEBUCH ===================== -->
+  <div id="diaryView" class="stack" hidden>
+    <div class="btns"><button class="btn" id="diNew" type="button">+ Neuer Eintrag</button></div>
+    <section class="panel stack" id="diForm" aria-label="Eintrag" hidden>
+      <h2 id="diTitle" style="margin:0">Neuer Eintrag</h2>
+      <div class="row2">
+        <div class="field"><label for="diBread">Brot</label><input type="text" id="diBread" maxlength="60"></div>
+        <div class="field"><label for="diDate">Gebacken am</label><input type="date" id="diDate"></div>
+      </div>
+      <div class="field"><span class="lbl">Wie war es?</span><div class="rate" id="diStars"><button type="button" data-n="1" aria-label="1 von 5 Sternen">☆</button><button type="button" data-n="2" aria-label="2 von 5 Sternen">☆</button><button type="button" data-n="3" aria-label="3 von 5 Sternen">☆</button><button type="button" data-n="4" aria-label="4 von 5 Sternen">☆</button><button type="button" data-n="5" aria-label="5 von 5 Sternen">☆</button></div></div>
+      <div class="field"><label for="diNotes">Notizen</label><textarea id="diNotes" maxlength="1000" rows="4" placeholder="Krume, Kruste, was du nächstes Mal anders machst"></textarea></div>
+      <div class="field"><label for="diInfo">Details</label><input type="text" id="diInfo" maxlength="160" placeholder="Starter, Temperatur, Gare"></div>
+      <div class="field"><label for="diFile">Foto</label><input type="file" id="diFile" accept="image/*"></div>
+      <img id="diPrev" class="diprev" alt="Ausgewähltes Foto" hidden>
+      <div class="btns"><button class="btn" id="diSave" type="button">Eintrag speichern</button><button class="btn plain" id="diCancel" type="button">Abbrechen</button>
+        <button class="btn plain" id="diNoPhoto" type="button" hidden>Foto entfernen</button><button class="btn plain danger" id="diDel" type="button" hidden>Eintrag löschen</button></div>
+      <div class="confirm" id="diDelBox" hidden><p style="margin:0;font-size:14px">Diesen Eintrag samt Foto auf allen Geräten löschen? Das lässt sich nicht rückgängig machen.</p>
+        <div class="btns"><button class="btn plain danger" id="diDelYes" type="button">Endgültig löschen</button><button class="btn plain" id="diDelNo" type="button">Abbrechen</button></div></div>
+    </section>
+    <p class="note" id="diEmpty">Noch keine Einträge. Nach dem Backen kannst du hier festhalten, wie dein Brot geworden ist.</p>
+    <div class="dilist" id="diList"></div>
   </div>
 </div>
 </body>

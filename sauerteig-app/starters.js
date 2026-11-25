@@ -1,9 +1,9 @@
 // Starter-Logik ohne Oberfläche: Sorten, Fälligkeit, Erinnerungen und Abgleich zwischen Geräten.
-// Alles reine Funktionen, getestet in starters.test.mjs (node --test sauerteig-app/).
+// Alles reine Funktionen, getestet in starters.test.mjs und app.test.mjs.
 //
-// Datenstand: { state, starters: { <id>: Starter } }
-//   Jeder Starter und der Backplan tragen u = Zeitpunkt der letzten Änderung durch die Nutzerin.
-//   Beim Abgleich gewinnt pro Starter die neuere Fassung. Gelöschte bleiben als { id, del: true, u } stehen.
+// Datenstand: { state, starters: { <id>: Starter }, recipes: { <id>: Rezept }, diary: { <id>: Eintrag } }
+//   Jeder Eintrag und der Backplan (state) tragen u = Zeitpunkt der letzten Änderung durch die Nutzerin.
+//   Beim Abgleich gewinnt pro Eintrag die neuere Fassung. Gelöschte bleiben als { id, del: true, u } stehen.
 export const MIN = 60000, HOUR = 60 * MIN, DAY = 24 * HOUR;
 export const MAX_STARTERS = 12;
 const KEEP_UNSENT = 6 * HOUR; // so lange schickt der Server Überfälliges noch nach
@@ -49,19 +49,72 @@ export function starterInfo(s, temp, now) {
 
 export const ratio = s => (s.mode === "kuehlschrank" ? [20, 60, 60] : [20, 40, 40]);
 
-// Alle Erinnerungen eines Starters, auch gerade eben verstrichene (die filtert dueList)
-export function starterReminders(s, temp, now) {
+// ---------- Höhepunkt messen ----------
+// s.peaks = [{ h: Stunden bis zum Höhepunkt, temp, fedAt, t }]. Umgerechnet auf 24 °C, Mittelwert (Median) der letzten 5.
+const warmth = temp => Math.pow(1.09, 24 - temp);
+export function peakHours24(s) {
+  const x = (s?.peaks || []).slice(0, 5).map(p => p.h / warmth(p.temp)).sort((a, b) => a - b);
+  if (!x.length) return null;
+  return x.length % 2 ? x[(x.length - 1) / 2] : (x[x.length / 2 - 1] + x[x.length / 2]) / 2;
+}
+// Minuten vom Füttern (1:2:2) bis zum Höhepunkt; ohne Messung 5 Stunden bei 24 °C
+export const peakMin = (s, temp) => (peakHours24(s) ?? 5) * 60 * warmth(temp);
+export function canMeasure(s, now) {
+  const since = now - new Date(s.lastFed);
+  return !s.example && s.mode !== "kuehlschrank" && since >= 1.5 * HOUR && since <= 24 * HOUR && s.peaks?.[0]?.fedAt !== s.lastFed;
+}
+export const withPeak = (s, temp, now) => [{ h: Math.round((now - new Date(s.lastFed)) / HOUR * 100) / 100, temp, fedAt: s.lastFed, t: new Date(now).toISOString() }, ...(s.peaks || [])].slice(0, 10);
+
+// ---------- Urlaub ----------
+// trip = { from: "2026-12-20", to: "2027-01-03" } (Abreise- und Rückkehrtag)
+export function tripDates(trip) {
+  if (!trip?.from || !trip?.to) return null;
+  const from = new Date(trip.from + "T00:00"), to = new Date(trip.to + "T00:00");
+  if (isNaN(from) || isNaN(to) || to <= from) return null;
+  return { from, back: new Date(trip.to + "T18:00"), days: Math.round((to - from) / DAY) };
+}
+// Was vor und nach der Reise zu tun ist. kind: fridge (normal), stiff (fest füttern), dry (zusätzlich trocknen)
+export function tripAdvice(s, trip) {
+  const d = tripDates(trip); if (!d) return null;
+  const f = flourOf(s), gf = s.flour === "glutenfrei";
+  const kind = d.days <= f.days ? "fridge" : d.days <= 2 * f.days ? "stiff" : "dry";
+  const stiff = gf ? `Dick füttern: 20 g Starter + 100 g ${f.mehl} + 80 g Wasser zu einem dicken Brei verrühren und gleich in den Kühlschrank stellen.`
+    : `Fest füttern: 20 g Starter + 100 g ${f.mehl} + 60 g Wasser zu einer festen Kugel kneten und gleich in den Kühlschrank stellen.`;
+  const before = kind === "fridge"
+    ? [`Am Vortag füttern: 20 g Starter + 60 g ${f.mehl} + 60 g Wasser, 1–2 h anspringen lassen, dann in den Kühlschrank.`]
+    : kind === "stiff" ? ["Am Vortag: " + stiff]
+    : ["3 Tage vorher: 2 EL aktiven Starter dünn auf Backpapier streichen, 1–2 Tage an der Luft trocknen lassen, zerbröseln und im Schraubglas aufheben (Sicherung).",
+       "Am Vortag: " + stiff];
+  const after = kind === "fridge" ? ["Nach der Rückkehr einmal füttern. Dunkle Flüssigkeit abgießen."]
+    : ["Nach der Rückkehr 2–3 Mal bei Raumtemperatur füttern, bis er wieder kräftig ist."
+       + (kind === "dry" ? " Kommt er nach 3 Tagen nicht in Gang: 10 g getrockneten Starter in 20 g warmem Wasser auflösen und mit 20 g Mehl neu starten." : "")];
+  return { kind, days: d.days, before, after, prepAt: new Date(d.from.getTime() - (kind === "dry" ? 3 : 1) * DAY + 18 * HOUR) };
+}
+export function tripReminders(s, trip) {
+  if (s.del || s.example || s.remind === false) return [];
+  const a = tripAdvice(s, trip); if (!a) return [];
+  const nm = s.name || flourOf(s).name, d = tripDates(trip), base = { tag: "trip-" + s.id, view: "starter-" + s.id, fed: false };
+  const list = [{ ...base, at: a.prepAt.getTime(), title: `Vor dem Urlaub: ${nm} vorbereiten`, body: a.before[0] }];
+  if (a.kind === "dry") list.push({ ...base, at: d.from.getTime() - DAY + 18 * HOUR, title: `Vor dem Urlaub: ${nm} versorgen`, body: a.before[1] });
+  return list;
+}
+
+// Alle Erinnerungen eines Starters, auch gerade eben verstrichene (die filtert dueList).
+// Während eines Urlaubs kommt nichts; was dann fällig wäre, kommt am Abend der Rückkehr.
+export function starterReminders(s, temp, now, trip = null) {
   if (s.del || s.example || s.remind === false) return [];
   const i = starterInfo(s, temp, now), [a, m, w] = ratio(s);
   const how = i.fridge
     ? `Auf ca. ${a} g abnehmen, mit ${m} g ${flourOf(s).mehl} und ${w} g Wasser füttern, 1–2 h anspringen lassen, zurück in den Kühlschrank.`
     : `${a} g Starter + ${m} g ${flourOf(s).mehl} + ${w} g Wasser.`;
-  const nm = s.name || flourOf(s).name, first = i.next.getTime(), base = { tag: "starter-" + s.id, view: "starter-" + s.id, fed: true };
+  const nm = s.name || flourOf(s).name, base = { tag: "starter-" + s.id, view: "starter-" + s.id, fed: true };
+  const d = tripDates(trip), away = t => d && t >= d.from.getTime() && t < d.back.getTime();
+  const back = away(i.next.getTime()), first = back ? d.back.getTime() : i.next.getTime();
   return [
-    { ...base, at: first, title: `${nm} hat Hunger`, body: how },
+    { ...base, at: first, title: back ? `Wieder da? ${nm} hat Hunger` : `${nm} hat Hunger`, body: back ? tripAdvice(s, trip).after[0] : how },
     { ...base, at: first + (i.fridge ? DAY : 4 * HOUR), title: `${nm} wartet noch aufs Futter`,
       body: "Du hast die letzte Fütterung noch nicht eingetragen. " + how }
-  ];
+  ].filter(x => !away(x.at));
 }
 
 const dueKey = d => d.tag + "|" + d.at;
@@ -86,11 +139,19 @@ export function parse(text) {
   let r;
   try { r = JSON.parse(text); } catch { return null; }
   if (!r || typeof r !== "object") return null;
-  const starters = {};
-  if (r.starters && typeof r.starters === "object") {
-    for (const [id, s] of Object.entries(r.starters)) if (s && s.id === id) starters[id] = s;
-  } else if (r.starter) starters.s1 = { ...fromV1(r.starter), remind: r.state?.starterRemind !== false };
-  return { state: r.state ? { u: 0, ...r.state } : null, starters };
+  const { state, starter, ...rest } = r;
+  const data = normalize({ ...rest, state: state ? { u: 0, ...state } : null });
+  if (!r.starters && starter) data.starters.s1 = { ...fromV1(starter), remind: state?.starterRemind !== false };
+  return data;
+}
+// Alle Sammlungen vorhanden, nur Einträge mit passender Kennung. Unbekannte Sammlungen (neuere App) bleiben erhalten.
+export function normalize(x) {
+  const out = { state: x.state || null };
+  for (const k of new Set(["starters", "recipes", "diary", ...Object.keys(x)])) {
+    if (k === "state") continue;
+    out[k] = Object.fromEntries(Object.entries(x[k] && typeof x[k] === "object" ? x[k] : {}).filter(([id, v]) => v && v.id === id));
+  }
+  return out;
 }
 export function fromV1(s) {
   const { example, ...rest } = s;
@@ -105,21 +166,27 @@ const newer = (a, b) => {
   return canonical(a) >= canonical(b) ? a : b; // gleich alt: auf allen Geräten dieselbe Wahl
 };
 export function merge(a, b) {
-  const starters = {};
-  for (const id of new Set([...Object.keys(a.starters), ...Object.keys(b.starters)]))
-    starters[id] = newer(a.starters[id], b.starters[id]);
+  a = normalize(a); b = normalize(b);
+  const out = { state: newer(a.state, b.state) };
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (k === "state") continue;
+    const x = a[k] || {}, y = b[k] || {};
+    out[k] = {};
+    for (const id of new Set([...Object.keys(x), ...Object.keys(y)])) out[k][id] = newer(x[id], y[id]);
+  }
   // Beispiel nur behalten, solange es nichts Echtes gibt
-  if (Object.values(starters).some(s => !s.example))
-    for (const [id, s] of Object.entries(starters)) if (s.example) delete starters[id];
-  return { state: newer(a.state, b.state), starters };
+  const st = out.starters;
+  if (Object.values(st).some(s => !s.example)) for (const [id, s] of Object.entries(st)) if (s.example) delete st[id];
+  return out;
 }
 
 // Was in Firestore stehen soll. remote = Dokument oder null; reminders(data) liefert alle Erinnerungen zum Stand.
 // Ergebnis: { data, doc } mit doc = null, wenn nichts zu schreiben ist.
 export function buildSave(remote, local, reminders, now) {
   const theirs = remote?.j ? parse(remote.j) : null;
-  const data = theirs ? merge(local, theirs) : local;
-  if (!theirs && !Object.values(data.starters).some(s => !s.example) && !(data.state?.u > 0)) return { data, doc: null };
+  const data = theirs ? merge(local, theirs) : normalize(local);
+  const real = Object.entries(data).some(([k, x]) => k !== "state" && Object.values(x).some(v => !v.example));
+  if (!theirs && !real && !(data.state?.u > 0)) return { data, doc: null };
   const j = canonical(data), due = dueList(reminders(data), remote?.due, now);
   if (remote && remote.j === j && canonical(remote.due || []) === canonical(due)) return { data, doc: null };
   return { data, doc: { j, due, next: due.length ? due[0].at : null, st: now } };
