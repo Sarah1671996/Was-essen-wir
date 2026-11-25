@@ -1882,7 +1882,7 @@ const SCENARIOS = [
   { id: "ruder", title: "Ruder finden (ohne Anzeige)", kurz: "Das Rad steht irgendwo. Finde mittschiffs ohne Ruderanzeige.",
     brief: [
       "Die Ruderanzeige und die orange Speiche sind <b>ausgeblendet</b>, wie auf vielen Booten. Das Rad steht irgendwo. Stelle das Ruder <b>mittschiffs</b> und halte es 2 Sekunden. Das Ganze dreimal.",
-      "<b>Methode 1, Anschlag:</b> Rad bis zum Anschlag drehen, dann die <b>halben Gesamtumdrehungen zurück</b>. Hier sind es von Anschlag zu Anschlag 3 Umdrehungen, also <b>1,5 zurück</b>.",
+      "<b>Methode 1, Anschlag:</b> Rad bis zum Anschlag drehen, dann die <b>halben Gesamtumdrehungen zurück</b>. Wie auf deinem Prüfungsboot sind es von Anschlag zu Anschlag 4 Umdrehungen, also <b>2 zurück</b>.",
       "<b>Methode 2, Bug:</b> Auf einen festen Punkt voraus schauen. Wandert der Bug, steht das Ruder nicht in der Mitte."],
     start: { x: 0, y: 0, psi: 0, u: 1.2, T: 1 }, view: 90, follow: true, hideRudder: true },
   { id: "ablegen", title: "Ablegen mit Vorspring", kurz: "Ruder zum Steg, langsam voraus bis 45°, dann rückwärts raus.",
@@ -2094,7 +2094,7 @@ const CHECKS = {
       if (s.round === 3) st.done = { ok: true, text: "Dreimal mittschiffs gefunden", tips: ["Zeiten: " + s.times.join(" s, ") + " s.", "Auf dem echten Boot zuerst zählen, wie viele Umdrehungen es von Anschlag zu Anschlag sind."], score: Math.round(st.t) };
       else { s.round++; s.next = true; }
     }
-    if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Bis zum Anschlag drehen, dann 1,5 Umdrehungen zurück."] };
+    if (st.t > 150) st.done = { ok: false, text: "Zeit abgelaufen", tips: ["Bis zum Anschlag drehen, dann 2 Umdrehungen zurück."] };
   },
   wenden(st) {
     const b = st.b, dist = Math.hypot(b.x, b.y), err = Math.round(angDiff(b.psi * R2D, 180));
@@ -2211,7 +2211,7 @@ function drawBoat(ctx, X, Y, scale, b, fill, line) {
 }
 
 /* ---------- Vollbild-Simulator: Sicht vom Steuerstand, Steuerrad in der Mitte, Hebel links ---------- */
-const WHEEL_MAX = 540; // 1,5 Umdrehungen bis Hartruder
+const WHEEL_MAX = 720; // 2 Umdrehungen bis Hartruder, wie auf dem Prüfungsboot (4 von Anschlag zu Anschlag)
 let simCam = "cockpit";
 try { simCam = localStorage.getItem("sbfsee-simcam") || "cockpit"; } catch (e) {}
 const CAMS = [["cockpit", "Steuerstand"], ["chase", "Hinter dem Boot"], ["top", "Von oben"]];
@@ -2234,7 +2234,7 @@ function vPraxis(m) {
         ${simBest[s.id] ? `<span class="pill ok">geschafft · beste Zeit ${simBest[s.id]} s</span>` : `<span class="pill n">noch offen</span>`}</button>`).join("")}</div>
       <details class="panel grundlagen" open><summary><b>Spickzettel für dein Prüfungsboot (starre Welle, linksdrehend)</b></summary>
         <h4>Der wichtigste Satz</h4><p><b>Rückwärts geht das Heck nach Steuerbord und der Bug nach Backbord</b>, fast egal, wie das Ruder steht. Lenken kannst du mit dem Ruder vor allem, wenn du kurz voraus einkuppelst.</p>
-        <h4>Wo steht mein Ruder?</h4><p>Vor dem Ablegen von Anschlag zu Anschlag drehen und zählen, die Hälfte ist die Mitte. Nach jedem Manöver: auskuppeln, Ruder mittschiffs, erst dann wieder einkuppeln. Rückwärts das Rad immer festhalten.</p>
+        <h4>Wo steht mein Ruder?</h4><p>Dein Rad hat 4 Umdrehungen von Anschlag zu Anschlag: <b>bis zum Anschlag drehen, 2 zurück = Mitte</b>. Oder mitzählen: so viel, wie du eingeschlagen hast, wieder zurück. Nach jedem Manöver: auskuppeln, Ruder mittschiffs, erst dann wieder einkuppeln. Rückwärts das Rad immer festhalten.</p>
         <h4>Heck zu weit weg</h4><p><b>Backbord am Steg:</b> Ruder vom Steg weg (Stb), kurz voraus. Nicht rückwärts. <b>Steuerbord am Steg:</b> kurz rückwärts, der Radeffekt zieht das Heck heran.</p>
         <h4>Bug zu weit weg</h4><p><b>Beide Seiten:</b> Ruder zum Steg, kurz voraus. Danach Ruder vom Steg weg und kurz voraus, damit das Heck wieder anliegt. Kleine Lücke: Leine oder Bootshaken.</p>
         <h4>Beides zu weit weg oder zu schnell</h4><p>Aufstoppen, abbrechen, neu anfahren.</p>
