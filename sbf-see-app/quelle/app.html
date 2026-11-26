@@ -2227,6 +2227,7 @@ function loadThree() {
 
 function vPraxis(m) {
   if (praxisTab === "knoten" && !simPick) return vKnoten(m);
+  if (praxisTab === "fragen" && !simPick) return vPFragen(m);
   if (!simPick) {
     m.innerHTML = `<div class="view">
       <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Manöver üben</div><h2>Praxis-Simulator</h2></div>${praxisSeg()}</div>
@@ -2573,8 +2574,137 @@ const normT = s => s.toLowerCase().replace(/ß/g, "ss").replace(/[^a-zäöü0-9 
 function judgeZweck(k, text) { const t = normT(text); const hits = k.kw.filter(w => t.includes(normT(w))); return { ok: hits.length > 0, hits }; }
 function judgeName(k, text) { const t = normT(text); return k.alias.some(a => t.includes(normT(a))) && !(k.nicht || []).some(w => t.includes(w)); }
 
-const praxisSeg = () => `<div class="seg" role="group" aria-label="Praxis"><button data-ptab="sim" aria-pressed="${praxisTab === "sim"}">Simulator</button><button data-ptab="knoten" aria-pressed="${praxisTab === "knoten"}">Knoten</button></div>`;
-document.addEventListener("click", e => { const b = e.target.closest("[data-ptab]"); if (!b) return; praxisTab = b.dataset.ptab; knotTask = null; render(); });
+const praxisSeg = () => `<div class="seg" role="group" aria-label="Praxis"><button data-ptab="sim" aria-pressed="${praxisTab === "sim"}">Simulator</button><button data-ptab="knoten" aria-pressed="${praxisTab === "knoten"}">Knoten</button><button data-ptab="fragen" aria-pressed="${praxisTab === "fragen"}">Fragen</button></div>`;
+document.addEventListener("click", e => { const b = e.target.closest("[data-ptab]"); if (!b) return; praxisTab = b.dataset.ptab; knotTask = null; pfQ = null; render(); });
+
+/* Offene Praxis-Fragen: Manöver auf dem eigenen Boot (Backbord am Steg, starre Welle, linksdrehend) und Handpeilkompass.
+   kw: Stichwort-Gruppen, je Gruppe reicht ein Wort. Nur als Hilfe, bewertet wird selbst. */
+const PFRAGEN = [
+  { id: "m1", cat: "steuern", q: "Du fährst voraus und drehst das Rad nach Steuerbord. Wohin gehen Bug und Heck?",
+    a: "Der Bug dreht nach Steuerbord, das Heck schwenkt nach Backbord. Das Heck geht immer zur Gegenseite des Rads, das Boot dreht sich um einen Punkt etwa im vorderen Drittel.",
+    kw: [["bug"], ["steuerbord", "rechts"], ["heck"], ["backbord", "links"]] },
+  { id: "m2", cat: "anlegen", q: "Du liegst mit Backbord am Steg. Das Heck ist zu weit weg. Wie lenkst du, welcher Gang?",
+    a: "Rad nach Steuerbord (vom Steg weg) und kurz voraus einkuppeln. Der Schraubenstrom drückt das Heck nach Backbord zum Steg, der Radeffekt voraus hilft dabei etwas mit. Dann auskuppeln und das Rad früh zur Mitte, weil das Boot nachdreht.",
+    kw: [["steuerbord", "rechts", "weg vom steg", "vom steg weg"], ["voraus", "vorwärts", "vor"], ["auskuppeln", "neutral", "mitte"]] },
+  { id: "m3", cat: "anlegen", q: "Du liegst mit Backbord am Steg. Der Bug ist zu weit weg. Wie lenkst du, welcher Gang?",
+    a: "Rad nach Backbord (zum Steg) und kurz voraus einkuppeln: Der Bug dreht zum Steg. Auskuppeln, sobald das Boot etwa parallel liegt, es dreht noch nach. Geht dabei das Heck weg, mit Rad Steuerbord und kurz voraus das Heck wieder ranholen.",
+    kw: [["backbord", "links", "zum steg"], ["voraus", "vorwärts", "vor"], ["auskuppeln", "neutral", "parallel"]] },
+  { id: "m4", cat: "steuern", q: "Deine Schraube ist linksdrehend. Wohin zieht der Radeffekt das Heck, wenn du rückwärts einkuppelst?",
+    a: "Das Heck geht nach Steuerbord, der Bug dreht nach Backbord. Beim Anlegen mit Backbord heißt das: Beim Aufstoppen geht das Heck vom Steg weg. Deshalb flach anfahren und das Heck vorher heranholen.",
+    kw: [["steuerbord", "rechts"], ["heck"]] },
+  { id: "m5", cat: "steuern", q: "Und wohin wirkt der Radeffekt, wenn du voraus einkuppelst?",
+    a: "Voraus ist er schwächer und zieht das Heck nach Backbord. Sobald Fahrt im Boot ist, überwiegt das Ruder.",
+    kw: [["backbord", "links"], ["schwach", "weniger", "gering", "kaum"]] },
+  { id: "m6", cat: "anlegen", q: "Ablegen mit Vorspring, du liegst mit Backbord am Steg: Wie stellst du das Rad und was machst du mit dem Gang?",
+    a: "Vorspring fest, Fender vorn an Backbord, die anderen Leinen los. Rad hart Backbord (zum Steg), kurz voraus einkuppeln: Der Bug liegt in die Spring, das Heck schwenkt vom Steg weg. Bei Bedarf wiederholen (voraus, warten), bis das Boot etwa 45° zum Steg steht. Dann rückwärts einkuppeln, Vorspring los und rückwärts frei fahren.",
+    kw: [["backbord", "zum steg", "links"], ["voraus", "vorwärts"], ["45"], ["rückwärts", "zurück"]] },
+  { id: "m7", cat: "steuern", q: "Du fährst rückwärts mit Fahrt im Boot und drehst das Rad nach Backbord. Wohin geht das Heck?",
+    a: "Nach Backbord: Bei Rückwärtsfahrt folgt das Heck dem Rad. Das Ruder wirkt aber erst mit Fahrt, und der Radeffekt zieht das Heck trotzdem nach Steuerbord.",
+    kw: [["backbord", "links"]] },
+  { id: "m8", cat: "steuern", q: "Woran erkennst du, wo das Ruder gerade steht?",
+    a: "An der Markierung am Rad (Speiche oben) oder am Ruderlageanzeiger, falls es einen gibt. Sonst zählen: Auf deinem Boot sind es 2 Umdrehungen von der Mitte bis zum Anschlag. Vom Anschlag 2 Umdrehungen zurück ist mittschiffs. Vor jedem Manöver das Rad bewusst auf Mitte stellen.",
+    kw: [["markierung", "speiche", "anzeige", "anzeiger", "zählen", "umdrehung"]] },
+  { id: "m9", cat: "steuern", q: "Das Boot dreht weiter, obwohl das Rad schon wieder in der Mitte steht. Was tust du?",
+    a: "Beim nächsten Mal früher zurückdrehen. Jetzt kurz Gegenruder (Stützruder), bis der Bug fast steht, und sofort wieder zur Mitte. Das Gegenruder nicht liegen lassen, sonst entsteht eine neue Kurve.",
+    kw: [["gegenruder", "stützruder", "gegenseite", "gegen"], ["mitte", "mittschiffs"]] },
+  { id: "m10", cat: "steuern", q: "Sollkurs 090°, der Kompass zeigt 080°. In welche Richtung lenkst du?",
+    a: "Nach Steuerbord. Zahl zu klein: nach Steuerbord. Zahl zu groß: nach Backbord. Die Rose bleibt stehen, das Boot und der Steuerstrich drehen um sie herum.",
+    kw: [["steuerbord", "rechts"]] },
+  { id: "m11", cat: "steuern", q: "Sollkurs 270°, der Kompass zeigt 285°. In welche Richtung lenkst du?",
+    a: "Nach Backbord, die Zahl ist zu groß. Wenig einlenken und früh zurück, damit du nicht über den Kurs hinaus drehst.",
+    kw: [["backbord", "links"]] },
+  { id: "m12", cat: "anlegen", q: "Was ist eine Vorspring, was eine Achterspring?",
+    a: "Die Vorspring geht vom Bug schräg nach achtern zum Steg und verhindert, dass das Boot nach vorn wegfährt. Die Achterspring geht vom Heck schräg nach vorn zum Steg und verhindert, dass es nach hinten wegfährt.",
+    kw: [["bug", "vorn"], ["heck", "achtern"]] },
+  { id: "m13", cat: "anlegen", q: "Wie fährst du den Steg zum Anlegen an?",
+    a: "Langsam, im spitzen Winkel (etwa 20 bis 30°), möglichst gegen Wind oder Strom. Rechtzeitig auskuppeln und mit kurzem Rückwärts aufstoppen. Bei deinem Boot geht das Heck dabei vom Steg weg, also vorher heranholen.",
+    kw: [["langsam", "schleich", "wenig fahrt"], ["winkel", "spitz", "schräg", "flach"], ["wind", "strom"]] },
+  { id: "m14", cat: "mob", q: "Eine Person fällt an Steuerbord über Bord. Was machst du sofort?",
+    a: "Laut „Mensch über Bord“ rufen, Rettungsmittel werfen, einen Ausguck bestimmen, der die Person nur zeigt und nicht aus den Augen lässt. Rad zur Seite der Person (Steuerbord), damit das Heck mit der Schraube von der Person weggeht. Dann langsam, möglichst gegen Wind oder Strom zurückfahren und vor der Person auskuppeln.",
+    kw: [["mensch über bord", "rufen", "ruf"], ["rettungs", "ring", "werfen"], ["ausguck", "zeigen", "augen"], ["steuerbord", "zur person", "zur seite"]] },
+
+  { id: "p1", cat: "peilen", q: "Warum darf man beim Handpeilkompass die Ablenkung meist mit 0 ansetzen?",
+    a: "Weil man ihn an einer Stelle benutzt, an der keine Metallteile, kein Motor und keine Elektrik in der Nähe sind. Dann ist die Kompasspeilung gleich der missweisenden Peilung. Auf einem Stahlboot gilt das nur mit viel Abstand zu Rumpf und Aufbauten, frag dort deinen Ausbilder, wo du stehen sollst.",
+    kw: [["metall", "eisen", "stahl", "motor", "elektrik", "magnet", "elektronik"], ["abstand", "weg", "entfernt", "keine", "nicht in der nähe"]] },
+  { id: "p2", cat: "peilen", q: "Was musst du beim Peilen mit dem Handpeilkompass beachten?",
+    a: "Abstand zu Metall, Motor, Lautsprechern und Elektronik halten, Handy und Schlüssel wegstecken. Den Kompass waagerecht vors Auge halten, die Rose zur Ruhe kommen lassen, das Objekt über das Visier anpeilen und ablesen, am besten zwei- bis dreimal. Uhrzeit notieren.",
+    kw: [["metall", "eisen", "stahl", "motor", "handy", "elektronik", "lautsprecher", "schlüssel"], ["waagerecht", "gerade halten", "ruhe", "ausschwingen", "einpendeln"], ["visier", "kimme", "anpeilen", "ablesen"]] },
+  { id: "p3", cat: "peilen", q: "Wie rechnest du die Peilung vom Handpeilkompass in die rechtweisende Peilung um?",
+    a: "Ablenkung ist 0, also ist die Kompasspeilung gleich der missweisenden Peilung (MgP). Dann: rwP = MgP + Missweisung. Missweisung Ost (E) wird addiert, West (W) abgezogen.",
+    kw: [["missweisung", "mw", "deklination"], ["ost", "plus", "addier", "dazu"], ["west", "minus", "abzieh", "weniger"]] },
+  { id: "p4", cat: "peilen", q: "Der Handpeilkompass zeigt 128°, die Missweisung ist 2° W. Wie groß ist die rechtweisende Peilung?",
+    a: "126°. West wird abgezogen: 128° − 2° = 126°.", kw: [["126"]] },
+  { id: "p5", cat: "peilen", q: "Der Handpeilkompass zeigt 045°, die Missweisung ist 3° E. Wie groß ist die rechtweisende Peilung?",
+    a: "048°. Ost wird addiert: 45° + 3° = 48°.", kw: [["48"]] },
+  { id: "p6", cat: "peilen", q: "Woher bekommst du die Missweisung?",
+    a: "Aus der Seekarte, an der Kompassrose: Dort stehen der Wert mit Bezugsjahr und die jährliche Änderung. Den Wert auf das aktuelle Jahr umrechnen.",
+    kw: [["seekarte", "karte"], ["kompassrose", "rose"], ["jahr", "jährlich", "änderung"]] },
+  { id: "p7", cat: "peilen", q: "Kreuzpeilung: Welche Objekte nimmst du und in welcher Reihenfolge peilst du?",
+    a: "Zwei, besser drei eindeutige Objekte, die in der Karte stehen. Der Schnittwinkel sollte möglichst nah an 90° liegen (nicht unter 30° oder über 150°). Zuerst die Objekte voraus oder achteraus peilen, deren Peilung sich langsam ändert, das Objekt querab zuletzt. Schnell nacheinander peilen.",
+    kw: [["zwei", "drei", "2", "3"], ["90", "rechter winkel", "rechtwinklig", "winkel"], ["querab"]] },
+  { id: "p8", cat: "peilen", q: "Wie trägst du eine Peilung in die Seekarte ein?",
+    a: "Die rechtweisende Peilung als Linie durch das gepeilte Objekt zeichnen (mit dem Kursdreieck). Das ist eine Standlinie: Du stehst irgendwo auf dieser Linie. Vom Objekt aus gesehen zeigt sie in die Gegenrichtung (rwP ± 180°). Mit einer zweiten Peilung ergibt der Schnittpunkt den Standort.",
+    kw: [["rechtweisend", "rwp", "rw"], ["linie", "standlinie", "zeichnen"], ["objekt", "durch"]] },
+  { id: "p9", cat: "peilen", q: "Ein entgegenkommendes Schiff: Die Peilung ändert sich nicht, der Abstand wird kleiner. Was bedeutet das?",
+    a: "Kollisionsgefahr (stehende Peilung). Nach den Ausweichregeln früh und deutlich ausweichen, im Zweifel Fahrt verringern oder aufstoppen.",
+    kw: [["kollision", "zusammenstoß", "gefahr"]] },
+  { id: "p10", cat: "peilen", q: "Warum nimmt man beim fest eingebauten Steuerkompass die Ablenkung nicht als 0?",
+    a: "Weil er fest neben Motor, Stahl und Elektrik eingebaut ist. Seine Ablenkung hängt vom Kurs des Boots ab und steht in der Ablenkungstabelle (Deviationstabelle). Der Handpeilkompass wird dagegen weg von Störquellen benutzt.",
+    kw: [["fest", "eingebaut", "motor", "stahl", "metall", "elektrik"], ["kurs", "tabelle", "deviation"]] }
+];
+const PF_CATS = { alle: "Alle", steuern: "Steuern", anlegen: "Anlegen & Ablegen", mob: "Mensch über Bord", peilen: "Handpeilkompass" };
+const PF_KEY = "sbfsee-pfragen";
+let pfQ = null, pfShown = false, pfCat = "alle", pfStat = {};
+try { pfStat = JSON.parse(localStorage.getItem(PF_KEY) || "{}") || {}; } catch (e) {}
+function pfRecord(id, ok) { const s = Object.assign({ ok: 0, w: 0 }, pfStat[id]); ok ? s.ok++ : s.w++; s.last = ok; s.t = Date.now(); pfStat[id] = s; try { localStorage.setItem(PF_KEY, JSON.stringify(pfStat)); } catch (e) {} logDay(); }
+const pfPool = () => PFRAGEN.filter(f => pfCat === "alle" || f.cat === pfCat);
+// Bevorzugt Fragen, die noch nie oder zuletzt nicht gewusst wurden; nie zweimal dieselbe hintereinander
+function pfPick() {
+  const pool = pfPool().filter(f => !pfQ || f.id !== pfQ.id || pfPool().length === 1);
+  return pool.map(f => { const s = pfStat[f.id]; return [f, (s && s.last === true ? 2 : s ? 0 : 1) + Math.random() * 1.5]; }).sort((a, b) => a[1] - b[1])[0][0];
+}
+function pfCheck(f, text) { const t = " " + normT(text) + " "; return (f.kw || []).map(g => ({ w: g[0], ok: g.some(w => t.includes(normT(w))) })); }
+
+function vPFragen(m) {
+  if (!pfQ) { pfQ = pfPick(); pfShown = false; }
+  const f = pfQ, pool = pfPool(), known = pool.filter(x => pfStat[x.id] && pfStat[x.id].last === true).length;
+  m.innerHTML = `<div class="view">
+    <div class="row" style="justify-content:space-between"><div><div class="eyebrow">Praktische Prüfung</div><h2>Fragen zur Praxis</h2></div>${praxisSeg()}</div>
+    <div class="row"><div class="seg" role="group" aria-label="Thema" style="flex-wrap:wrap">${Object.entries(PF_CATS).map(([k, v]) => `<button data-pfcat="${k}" aria-pressed="${pfCat === k}">${v}</button>`).join("")}</div>
+      <span class="muted" style="font-size:.85rem">${known} von ${pool.length} zuletzt gewusst</span></div>
+    <section class="panel" style="display:grid;gap:12px">
+      <div class="eyebrow">${esc(PF_CATS[f.cat])}</div><b style="font-size:1.15rem">${esc(f.q)}</b>
+      <p class="muted" style="margin:0;font-size:.88rem">Antworte laut wie in der Prüfung, gern auch per Mikrofon oder getippt. Dann die Musterantwort ansehen und selbst bewerten.</p>
+      <div class="row" style="align-items:end">
+        ${SpeechRec ? `<button class="btn" id="pfmic">🎤 Antworten</button>` : ""}
+        <label class="field" style="flex:1 1 220px">${SpeechRec ? "oder tippen" : "Deine Antwort (freiwillig)"}<input type="text" id="pfans" autocomplete="off"></label>
+        <button class="btn primary" id="pfshow"${pfShown ? " disabled" : ""}>Antwort zeigen</button></div>
+      <div id="pfres"></div>
+    </section>
+    <details class="panel"><summary><b>Alle ${pool.length} Fragen mit Antworten</b></summary>
+      <div style="display:grid;gap:10px;margin-top:10px">${pool.map(x => `<div><b>${esc(x.q)}</b><p style="margin:4px 0 0">${esc(x.a)}</p></div>`).join("")}</div></details>
+    <p class="muted" style="font-size:.8rem">Die Antworten gelten für dein Boot: Backbord am Steg, starre Welle, linksdrehende Schraube. Wenn dein Ausbilder etwas anders sagt, gilt das. Der Lernstand dieser Fragen bleibt auf diesem Gerät.</p>
+  </div>`;
+  m.querySelectorAll("[data-pfcat]").forEach(b => b.onclick = () => { pfCat = b.dataset.pfcat; pfQ = null; render(); });
+  const reveal = () => {
+    pfShown = true; $("#pfshow").disabled = true; if ($("#pfmic")) $("#pfmic").disabled = true;
+    const text = $("#pfans").value.trim(), hits = text && f.kw ? pfCheck(f, text) : [];
+    $("#pfres").innerHTML = `<div class="kres"><b>Musterantwort</b><span>${esc(f.a)}</span>
+      ${hits.length ? `<span class="muted" style="font-size:.85rem">In deiner Antwort: ${hits.map(h => `${h.ok ? "✓" : "✗"} ${esc(h.w)}`).join(" · ")}</span>` : ""}</div>
+      <div class="row" style="margin-top:10px"><button class="btn primary" data-pfok="1">Gewusst</button><button class="btn" data-pfok="0">Nicht gewusst</button></div>`;
+    m.querySelectorAll("[data-pfok]").forEach(b => b.onclick = () => { pfRecord(f.id, b.dataset.pfok === "1"); pfQ = pfPick(); pfShown = false; render(); window.scrollTo(0, 0); });
+  };
+  $("#pfshow").onclick = reveal;
+  $("#pfans").onkeydown = e => { if (e.key === "Enter") reveal(); };
+  if ($("#pfmic")) $("#pfmic").onclick = () => {
+    const rec = new SpeechRec(); rec.lang = "de-DE"; rec.interimResults = false;
+    const btn = $("#pfmic"); btn.textContent = "🎤 Ich höre zu …"; btn.disabled = true;
+    rec.onresult = e => { $("#pfans").value = e.results[0][0].transcript; reveal(); };
+    rec.onerror = e => { toast(e.error === "not-allowed" ? "Mikrofon ist nicht erlaubt. Bitte in den Browser-Einstellungen freigeben." : "Nichts verstanden, bitte nochmal oder tippen."); };
+    rec.onend = () => { if (!pfShown) { btn.disabled = false; btn.textContent = "🎤 Nochmal sprechen"; } };
+    try { rec.start(); } catch (e) { btn.disabled = false; }
+  };
+}
 
 function vKnoten(m) {
   if (knotTask) return vKnotTask(m);
